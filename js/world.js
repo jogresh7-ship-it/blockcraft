@@ -396,8 +396,13 @@ class World {
     const L = new Uint8Array(CV), d = c.d, q = [];
     const sky = this.dim != 'nether';
     for (let x = 0; x < 16 && sky; x++) for (let z = 0; z < 16; z++) {
-      let y = WH - 1; for (; y >= 0; y--) { const b = d[lidx(x, y, z)]; if (OPAQUE[b] || SHAPE[b] == 3 && false) break; const i = lidx(x, y, z); let s = 15; L[i] = s << 4; }
-      for (let yy = y + 1; yy < WH && yy < y + 3; yy++) q.push(lidx(x, yy, z));
+      // sunlight falls straight down; each leaf block it passes through dims it by one (shade under trees), water by one too
+      let s = 15; for (let y = WH - 1; y >= 0; y--) { const b = d[lidx(x, y, z)]; if (OPAQUE[b]) break; if (LEAF[b] || FLUID[b] == 1) s = Math.max(0, s - 1); L[lidx(x, y, z)] = s << 4; }
+    }
+    // seed the spread from every lit cell that borders a darker one (overhangs, under branches, cave mouths, tree shade)
+    for (let i = 0; i < CV && sky; i++) {
+      const s = L[i] >> 4; if (s < 2) continue; const x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+      if ((x < 15 && (L[i + 1] >> 4) < s - 1 && !OPAQUE[d[i + 1]]) || (x > 0 && (L[i - 1] >> 4) < s - 1 && !OPAQUE[d[i - 1]]) || (z < 15 && (L[i + 16] >> 4) < s - 1 && !OPAQUE[d[i + 16]]) || (z > 0 && (L[i - 16] >> 4) < s - 1 && !OPAQUE[d[i - 16]]) || (y > 0 && (L[i - 256] >> 4) < s - 1 && !OPAQUE[d[i - 256]])) q.push(i);
     }
     const spread = (shift, queue) => {
       while (queue.length) {
@@ -445,7 +450,7 @@ class World {
       if (n && n.L && !((x < 0 || x > 15) && (z < 0 || z > 15))) return n.L[lidx(x & 15, y, z & 15)];
       return L[lidx(clamp(x, 0, 15), y, clamp(z, 0, 15))];
     };
-    const lv = v => Math.pow(0.82, 15 - v);
+    const lv = v => Math.pow(0.86, 15 - v);
     const FACES = [
       { n: [1, 0, 0], c: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], f: 2, s: .6 }, { n: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], f: 2, s: .6 },
       { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], f: 0, s: 1 }, { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], f: 1, s: .5 },
