@@ -913,16 +913,21 @@ function frame(now) {
 }
 async function boot() {
   glc = document.getElementById('gl'); const uic = document.getElementById('ui');
-  const pre = document.getElementById('pre');
+  const pre = document.getElementById('pre'), fill = document.getElementById('prefill'), ptxt = document.getElementById('pretext');
+  const setLoad = (p, t) => { fill.style.width = Math.round(p * 100) + '%'; if (t) ptxt.textContent = t; };
   try {
-    await loadAssets(p => { pre.textContent = 'Loading textures... ' + Math.round(p * 100) + '%'; });
+    await loadAssets(p => setLoad(p * .6, 'Loading textures... ' + Math.round(p * 100) + '%'));
+    setLoad(.62, 'Building world data...'); await new Promise(r => setTimeout(r, 0));
     initGL(glc); initGUI(uic); initWorldTables(); applySkin(); buildIcons(); setupRecipes(); loadMods(); buildCreativeTabs(); saveOpts();
-  } catch (e) { pre.textContent = 'Failed to start: ' + (e.message || e); console.error(e); return; }
-  pre.remove(); setupInput(); setupTouch(); snapshotOriginals();
+  } catch (e) { ptxt.textContent = 'Failed to start: ' + (e.message || e); ptxt.style.color = '#f66'; console.error(e); return; }
+  setupInput(); setupTouch(); snapshotOriginals();
   document.getElementById('modfile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importMod(f); });
   document.getElementById('texfile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importPackZip(f); });
   S.bedrock = IS_MOBILE; TOUCH.on = IS_MOBILE; if (IS_MOBILE) noLock = true;
-  setFont(); restorePack().catch(e => console.warn(e)); resize(); go('title');
+  setFont(); setLoad(.7, 'Loading resource pack...');
+  try { await restorePack(p => setLoad(.7 + p * .3, 'Loading resource pack... ' + Math.round(p * 100) + '%')); } catch (e) { console.warn(e); }
+  setLoad(1, 'Done'); resize(); go('title');
+  setTimeout(() => { pre.classList.add('done'); setTimeout(() => pre.remove(), 600); }, 150);
   if (window.SOUND_FILES && SOUND_FILES.length) (async () => { let n = 0; for (const f of SOUND_FILES) { SND.loadingSounds = Math.round(n / SOUND_FILES.length * 100) + '%'; try { await new Promise(r => setTimeout(r, 50)); await loadScript(f); while (window.EMBED_SOUND_PARTS && EMBED_SOUND_PARTS.length) SND.addEmbedded(EMBED_SOUND_PARTS.shift()); } catch (e) { console.warn(e); S.pmsg = '§cSounds missing - keep the "sounds" folder next to Blockcraft.html'; break; } n++; if (n == 1 && !world) SND.playMusic('menu'); } SND.loadingSounds = null; })();
   else if (window.EMBED_SOUND_PARTS) for (const part of EMBED_SOUND_PARTS) SND.addEmbedded(part); else PackStore.load().then(f => { if (f) loadPackFile(f, false); });
   requestAnimationFrame(frame);

@@ -97,10 +97,10 @@ async function importPackZip(file) {
 }
 PackStore.saveTex = async function (file) { try { const db = await this.db(); db.transaction('packs', 'readwrite').objectStore('packs').put(file, 'tex'); } catch (e) { } };
 PackStore.loadTex = async function () { try { const db = await this.db(); return await new Promise(res => { const r = db.transaction('packs').objectStore('packs').get('tex'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); }); } catch (e) { return null; } };
-async function restorePack() {
+async function restorePack(onP) {
   if (!PACKS.find(p => p.id == PS.active) && PS.active != 'custom') PS.active = 'none';
   if (PS.active == 'custom') { const f = await PackStore.loadTex(); if (f) { try { PS.custom = await zipReader(f); PS.customName = store.get('customPackName', 'My Pack'); } catch (e) { PS.active = 'faithful'; } } else PS.active = 'faithful'; }
-  if (PS.active != 'none') { try { await applyPack(PS.active, p => S.pmsg = '§eLoading ' + PS.active + '... ' + Math.round(p * 100) + '%'); S.pmsg = ''; } catch (e) { S.pmsg = '§c' + e.message; chat('§c' + e.message); console.warn(e); } }
+  if (PS.active != 'none') { try { await applyPack(PS.active, p => { onP && onP(p); }); S.pmsg = ''; } catch (e) { S.pmsg = '§c' + e.message; chat('§c' + e.message); console.warn(e); } }
 }
 // preview thumbnails for pack cards
 const packThumbs = {};
