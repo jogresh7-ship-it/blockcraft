@@ -911,10 +911,13 @@ function frame(now) {
   } catch (e) { console.error(e); cx2.setTransform(1, 0, 0, 1, 0, 0); cx2.fillStyle = '#f55'; cx2.font = '14px monospace'; cx2.fillText('Error: ' + e.message, 10, 20); }
   mouse.click = mouse.rclick = mouse.mclick = false; mouse.wheel = 0; typed = ''; keysPressed = [];
 }
+const BOOT_T0 = performance.now();
 async function boot() {
   glc = document.getElementById('gl'); const uic = document.getElementById('ui');
   const pre = document.getElementById('pre'), fill = document.getElementById('prefill'), ptxt = document.getElementById('pretext');
-  const setLoad = (p, t) => { fill.style.width = Math.round(p * 100) + '%'; if (t) ptxt.textContent = t; };
+  let target = 0; const MIN_T = 3000;
+  const setLoad = (p, t) => { target = p; if (t) ptxt.textContent = t; };
+  (function bar() { if (!pre.isConnected) return; fill.style.width = (Math.min(target, (performance.now() - BOOT_T0) / MIN_T) * 100).toFixed(1) + '%'; requestAnimationFrame(bar); })();
   try {
     await loadAssets(p => setLoad(p * .6, 'Loading textures... ' + Math.round(p * 100) + '%'));
     setLoad(.62, 'Building world data...'); await new Promise(r => setTimeout(r, 0));
@@ -926,8 +929,9 @@ async function boot() {
   S.bedrock = IS_MOBILE; TOUCH.on = IS_MOBILE; if (IS_MOBILE) noLock = true;
   setFont(); setLoad(.7, 'Loading resource pack...');
   try { await restorePack(p => setLoad(.7 + p * .3, 'Loading resource pack... ' + Math.round(p * 100) + '%')); } catch (e) { console.warn(e); }
-  setLoad(1, 'Done'); resize(); go('title');
-  setTimeout(() => { pre.classList.add('done'); setTimeout(() => pre.remove(), 600); }, 150);
+  setLoad(1, 'Loading complete'); resize(); go('title');
+  const shown = performance.now() - BOOT_T0; await new Promise(r => setTimeout(r, Math.max(400, MIN_T + 300 - shown)));
+  pre.classList.add('done'); setTimeout(() => pre.remove(), 1100);
   if (window.SOUND_FILES && SOUND_FILES.length) (async () => { let n = 0; for (const f of SOUND_FILES) { SND.loadingSounds = Math.round(n / SOUND_FILES.length * 100) + '%'; try { await new Promise(r => setTimeout(r, 50)); await loadScript(f); while (window.EMBED_SOUND_PARTS && EMBED_SOUND_PARTS.length) SND.addEmbedded(EMBED_SOUND_PARTS.shift()); } catch (e) { console.warn(e); S.pmsg = '§cSounds missing - keep the "sounds" folder next to Blockcraft.html'; break; } n++; if (n == 1 && !world) SND.playMusic('menu'); } SND.loadingSounds = null; })();
   else if (window.EMBED_SOUND_PARTS) for (const part of EMBED_SOUND_PARTS) SND.addEmbedded(part); else PackStore.load().then(f => { if (f) loadPackFile(f, false); });
   requestAnimationFrame(frame);
