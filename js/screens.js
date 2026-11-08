@@ -194,7 +194,7 @@ function scrSound() {
   screenBg(); header('Music & Sound Options'); const x = UW / 2 - 155, y = UH / 6 - 12;
   const sl = (id, label, X, Y) => { const v = slider(id, label + ': ' + (opts[id] ? Math.round(opts[id] * 100) + '%' : 'OFF'), X, Y, 150, opts[id]); if (v != opts[id]) { opts[id] = v; saveOpts(); } };
   sl('master', 'Master Volume', UW / 2 - 155, y); sl('music', 'Music', x, y + 24); sl('blocks', 'Blocks', x + 160, y + 24); sl('mobs', 'Friendly Creatures', x, y + 48); sl('ambient', 'Ambient/Environment', x + 160, y + 48); sl('ui', 'Interface', x, y + 72);
-  const st = SND.idx ? `§aLoaded: ${SND.packName} (${SND.idx.size} sounds)` : S.msg || '§7Using built-in sounds. Load a sound pack for the real ones.';
+  const st = SND.idx ? `§aLoaded: ${SND.packName} (${SND.idx.size} sounds)` : S.msg || '§7No sound pack loaded';
   textC(st, UW / 2, y + 104, '#FFFFFF');
   if (button(SND.idx ? 'Change Sound Pack (.zip)' : 'Load Sound Pack (.zip)', x, y + 118, 150)) pickSoundPack();
   if (button('Remove Sound Pack', x + 160, y + 118, 150, 20, !!SND.idx)) { SND.stopMusic(); SND.idx = null; SND.buf = null; PackStore.clear(); S.msg = ''; }
