@@ -17,7 +17,7 @@ WASD to move, Space to jump, mouse to look, left click to break, right click to 
 ## Assets and licenses
 - Block, item and GUI textures are derived from [Faithful](https://faithfulpack.net) (see `FAITHFUL-LICENSE.txt`).
 - Controller prompt icons are from [Kenney](https://kenney.nl) (CC0).
-- Mojang textures and sounds are **not** included. You can import your own resource pack from the Resource Packs screen.
+- Mojang textures and sounds are **not** included. The game makes its own built-in sound effects instead, and you can load a Minecraft sound pack `.zip` under Options > Music & Sounds for the real ones, or import a resource pack from the Resource Packs screen.
 - `tools/` holds the Python scripts used to build the texture atlas and convert block models.
 
 Blockcraft is a fan project. It is not affiliated with Mojang or Microsoft.
