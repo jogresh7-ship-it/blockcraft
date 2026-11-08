@@ -64,7 +64,7 @@ function drawMap(ctx, x, y, w, h, scale, cxw, czw, round) {
   if (typeof mobs != 'undefined') for (const m of mobs) { const sx = midX + (m.x - cxw) * scale, sy = midY + (m.z - czw) * scale; if (sx < x || sy < y || sx > x + w || sy > y + h) continue; ctx.fillStyle = MOBDEF[m.type] && MOBDEF[m.type].hostile ? '#ff4040' : '#ffffff'; ctx.fillRect(Math.round(sx) - 1, Math.round(sy) - 1, 2, 2); }
   // player arrow
   const px = midX + (player.x - cxw) * scale, py = midY + (player.z - czw) * scale, a = -player.yaw;
-  ctx.translate(px, py); ctx.rotate(a + Math.PI); ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = .8;
+  ctx.translate(px, py); ctx.rotate(a); ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = .8;
   ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(3, 3.5); ctx.lineTo(0, 2); ctx.lineTo(-3, 3.5); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.restore();
 }
