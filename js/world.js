@@ -207,7 +207,7 @@ class World {
     return { h: Math.floor(h), bio, river };
   }
   biome(x, z) { if (this.dim == 'nether') { const b = this.N.n2(x / 180 + 40, z / 180); return b > .25 ? 'crimson_forest' : b < -.35 ? 'basalt_deltas' : b < -.15 ? 'warped_forest' : this.N.n2(x / 90 - 70, z / 90) > .3 ? 'soul_sand_valley' : 'nether_wastes'; } return this.height(x, z).bio; }
-  generate(cx, cz) {
+  generate(cx, cz, lite) { // lite = far away: only what can be seen from above (surface, cliffs, trees); the underground is filled in when you come close
     if (this.dim == 'nether') { const d = this.generateNether(cx, cz); const c = { cx, cz, d, dirty: true, meshes: null }; const ed = this.edits[cx + ',' + cz]; if (ed) for (const k in ed) d[+k] = ed[k]; this.chunks.set(cx + ',' + cz, c); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = this.chunk(cx + a, cz + b); if (n) n.dirty = true; } return c; }
     const d = new Uint16Array(CV), I = this.ids, N = this.N, H = N.hash, x0 = cx * CS, z0 = cz * CS, X = n => BYNAME[n] || 0;
     // sample a padded 24x24 grid so trees and slopes continue seamlessly across chunk borders
@@ -244,10 +244,12 @@ class World {
     for (let lx = 0; lx < CS; lx++) for (let lz = 0; lz < CS; lz++) {
       const wx = x0 + lx, wz = z0 + lz, h = HP(lx, lz), bio = BP(lx, lz); hm[lx + lz * 16] = h; bm[lx + lz * 16] = bio;
       const [top, sub] = surface(lx, lz), depth = 3 + Math.floor(H(wx, 3, wz) * 3) + (top == I.sand && bio == 'desert' ? 3 : 0);
+      const hidden = lite ? Math.min(h, HP(lx + 1, lz), HP(lx - 1, lz), HP(lx, lz + 1), HP(lx, lz - 1)) - depth - 3 : -1; // below this nothing is visible from outside
       for (let y = 0; y <= Math.max(h, SEA); y++) {
         let v = 0;
         if (y <= h) {
           if (y == 0 || (y < 4 && H(wx, y, wz) < 0.5)) v = I.bedrock;
+          else if (y < hidden) v = y < 8 ? I.deepslate : I.stone;
           else if (y < h - depth) {
             v = y < 8 ? I.deepslate : y < 14 ? (H(wx, y + 500, wz) < (14 - y) / 6 ? I.deepslate : I.stone) : I.stone;
             if (v == I.stone) { const s = N.n3(wx / 24, y / 16, wz / 24); if (s > 0.55) v = I.granite; else if (s < -0.55) v = I.diorite; else if (N.n3(wx / 20 + 50, y / 20, wz / 20) > 0.6) v = I.andesite; else if (y < 20 && N.n3(wx / 16, y / 16 + 30, wz / 16) > 0.6) v = I.tuff; else if (N.n3(wx / 10 - 80, y / 10, wz / 10 + 9) > .72) v = y < 50 ? I.gravel : I.dirt; }
@@ -268,7 +270,7 @@ class World {
           } else if (y < h) v = sub;
           else v = top;
           // caves: spaghetti tunnels + big cheese caverns, rarely breaking the surface (and never under water)
-          if (v && v != I.bedrock && y > 4 && y < h - (h < SEA + 2 ? 6 : 1)) {
+          if (!lite && v && v != I.bedrock && y > 4 && y < h - (h < SEA + 2 ? 6 : 1)) {
             const c1 = N.n3(wx / 42, y / 22, wz / 42), c2 = N.n3(wx / 42 + 77, y / 22 + 33, wz / 42 - 15);
             const cheese = N.n3(wx / 64, y / 28, wz / 64) + (y > 40 ? (y - 40) * .012 : 0);
             if (c1 * c1 + c2 * c2 < 0.0035 || cheese < -.58) v = y < 10 ? I.lava : 0;
@@ -334,7 +336,7 @@ class World {
         else if (h == SEA && r > .97) { let wn = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (lx + a >= 0 && lx + a < 16 && lz + b >= 0 && lz + b < 16 && d[lidx(lx + a, h, lz + b)] == I.water) wn = true; if (wn) for (let k = 1; k <= 2; k++) put(lx, h + k, lz, I.sugar_cane, 1); }
       }
     }
-    const c = { cx, cz, d, dirty: true, meshes: null, hm };
+    const c = { cx, cz, d, dirty: true, meshes: null, hm, lite: !!lite };
     const ed = this.edits[cx + ',' + cz]; if (ed) for (const k in ed) d[+k] = ed[k];
     this.chunks.set(cx + ',' + cz, c);
     for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = this.chunk(cx + a, cz + b); if (n) n.dirty = true; }
@@ -536,6 +538,8 @@ class World {
       else if (c.meshes[i]) { freeMesh(c.meshes[i]); c.meshes[i] = null; }
     }
   }
+  // a far (lite) chunk came close: generate its underground, keep the old mesh on screen until the new one is ready
+  upgrade(c) { const n = this.generate(c.cx, c.cz, false); n.meshes = c.meshes; n.lite = false; return n; }
   unload(c) { if (c.meshes) c.meshes.forEach(freeMesh); this.chunks.delete(c.cx + ',' + c.cz); }
   raycast(ox, oy, oz, dx, dy, dz, max) {
     let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);

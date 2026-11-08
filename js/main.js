@@ -37,7 +37,7 @@ function startLoad() {
 }
 function loadingTick() {
   const t0 = performance.now();
-  while (S.loadQueue.length && performance.now() - t0 < 30) { const [x, z] = S.loadQueue.shift(); if (!world.chunk(x, z)) naturalSpawn(world.generate(x, z)); }
+  while (S.loadQueue.length && performance.now() - t0 < 30) { const [x, z] = S.loadQueue.shift(); if (!world.chunk(x, z)) { const px = Math.floor((player ? player.x : 0) / 16), pz = Math.floor((player ? player.z : 0) / 16); naturalSpawn(world.generate(x, z, (x - px) ** 2 + (z - pz) ** 2 > 16)); } }
   S.loadP = 1 - S.loadQueue.length / S.loadTotal * 0.8; S.loadSub = S.loadQueue.length ? 'Building terrain' : 'Preparing spawn area';
   if (!S.loadQueue.length) {
     let pending = 0; const R = Math.min(opts.rd, 4), cx = Math.floor(player.x / 16), cz = Math.floor(player.z / 16);
@@ -544,12 +544,13 @@ function updateWorld(dt) {
   tickFurnaces(dt); rsTick(dt); fluidTick(dt); updateFalling(dt);
   // chunk loading
   const pcx = Math.floor(player.x / 16), pcz = Math.floor(player.z / 16), R = opts.rd;
-  let gen = 0, msh = 0; const t0 = performance.now();
+  let gen = 0, msh = 0, upg = 0; const t0 = performance.now(); const FULL_R = 4; // chunks within 4 get their full underground
   const order = []; for (let dx = -R - 1; dx <= R + 1; dx++) for (let dz = -R - 1; dz <= R + 1; dz++) if (dx * dx + dz * dz <= (R + 1.5) ** 2) order.push([dx * dx + dz * dz, pcx + dx, pcz + dz]);
   order.sort((a, b) => a[0] - b[0]);
   for (const [d2, cx, cz] of order) {
     let c = world.chunk(cx, cz);
-    if (!c) { if (gen < (opts.rd > 12 ? 6 : 2) && performance.now() - t0 < (opts.rd > 12 ? 18 : 12)) { c = world.generate(cx, cz); gen++; if (d2 > 4) naturalSpawn(c); } continue; }
+    if (!c) { if (gen < (opts.rd > 12 ? 6 : 2) && performance.now() - t0 < (opts.rd > 12 ? 18 : 12)) { c = world.generate(cx, cz, d2 > FULL_R * FULL_R); gen++; if (d2 > 4) naturalSpawn(c); } continue; }
+    if (c.lite && d2 <= FULL_R * FULL_R && !upg && performance.now() - t0 < 14) { c = world.upgrade(c); upg = 1; }
     if (c.dirty && d2 <= (R + .5) ** 2 && msh < (opts.rd > 12 ? 6 : 3) && performance.now() - t0 < (opts.rd > 12 ? 24 : 16)) {
       if (world.chunk(cx + 1, cz) && world.chunk(cx - 1, cz) && world.chunk(cx, cz + 1) && world.chunk(cx, cz - 1)) { world.mesh(c); msh++; }
     }
