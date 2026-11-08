@@ -8,7 +8,7 @@ const api = {
   command(name, fn, help) { MODS.cmds[name] = { fn, help }; },
   recipe(pattern, key, out, count = 1) { R(pattern, key, out, count); }, shapeless(ingr, out, count = 1) { RS(ingr, out, count); },
   chat: m => chat(m), give: (n, c = 1) => { const k = itemKey(n) || itemKey('item:' + n); if (k) giveItem(k, c); return !!k; },
-  get player() { return player; }, get world() { return world; }, get mobs() { return mobs; },
+  get player() { return player; }, get ctx() { return cx2; }, get screen() { return S.screen; }, text: (s, x, y, c, sh) => text(s, x, y, c, sh), textW: s => textW(s), get world() { return world; }, get mobs() { return mobs; },
   getBlock: (x, y, z) => BL[world.get(x, y, z)]?.n, setBlock: (x, y, z, n) => { const b = BYNAME[n]; if (b !== undefined) world.set(x, y, z, b); },
   spawn: (t, x, y, z) => MOBDEF[t] ? spawnMob(t, x, y, z) : null, sound: (p, v, pi) => SND.play(p, v, pi), settings: { timeScale: 1, keepInventory: false, noFallDamage: false, fullbright: false, jumpBoost: 1, dropMultiplier: 1, instantMine: false },
 };

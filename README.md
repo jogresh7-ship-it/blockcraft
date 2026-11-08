@@ -11,6 +11,10 @@ A Minecraft-like voxel game written in plain JavaScript and WebGL2, with no game
 - Java- and Bedrock-style menus, skins, third-person view, and mod and resource-pack importing (any Java resource pack `.zip`)
 - Keyboard and mouse, controller, and touch (on phones and tablets)
 
+## Mods
+Zip a mod's folder (for example `mods/minimap`) and import it from the Mods screen. Mods get an `api` object with events such as `tick`, `hud`, `join` and `blockBreak`.
+- **Minimap:** a minimap in the top-right corner. Press M for the full world map and N to zoom.
+
 ## Controls
 WASD to move, Space to jump, mouse to look, left click to break, right click to place, E for inventory, T for chat, F5 for third person.
 

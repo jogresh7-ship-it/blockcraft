@@ -824,6 +824,7 @@ function drawHUD(dt) {
     left.forEach((s, i) => { if (!s) return; cx2.fillStyle = 'rgba(80,80,80,.56)'; cx2.fillRect(1, 1 + i * 9, textW(s) + 2, 9); text(s, 2, 2 + i * 9, '#E0E0E0', false); });
     right.forEach((s, i) => { if (!s) return; s = s.replace('§n', ''); const w = textW(s); cx2.fillStyle = 'rgba(80,80,80,.56)'; cx2.fillRect(UW - w - 3, 1 + i * 9, w + 2, 9); text(s, UW - w - 2, 2 + i * 9, '#E0E0E0', false); });
   } else if (opts.fps) text(fps + ' fps', 2, 2, '#FFFFFF');
+  if (!debug) modEmit('hud', cx2, UW, UH, dt); // mods can draw on the HUD
 }
 // ---------------- input ----------------
 function lockPointer() { if (noLock) return; try { const p = ui.requestPointerLock(); if (p && p.catch) p.catch(() => { noLock = true; }); } catch (e) { noLock = true; } }
