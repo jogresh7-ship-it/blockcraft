@@ -25,7 +25,7 @@ ORDER = ['up', 'down', 'south', 'north', 'east', 'west']
 def convert(reg, only_cube=True):
     tiles, n = reg['tiles'], 0
     for b in reg['blocks']:
-        if b['s'] not in ('cube', 'box', 'cross') or re.search(r'door|trapdoor|slab|button|pressure_plate|_on$|_open$|_top$|^(nether_portal|seagrass|sea_pickle|piston_head|powder_snow)$', b['n']): continue
+        if b['s'] not in ('cube', 'box', 'cross') or re.search(r'door|trapdoor|slab|button|pressure_plate|_on$|_open$|_top$|^(nether_portal|seagrass|tall_seagrass|kelp|kelp_plant|sea_pickle|piston_head|powder_snow)$', b['n']): continue
         if b['s'] == 'box' and b.get('bx'): continue  # hand-made redstone/door/slab shapes keep their states
         bs = load(M + 'blockstates/' + b['n'] + '.json')
         if not bs or 'variants' not in bs: continue

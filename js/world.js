@@ -9,7 +9,9 @@ class World {
   constructor(meta) {
     this.power = {};
     this.meta = meta; this.seed = meta.seed; this.N = makeNoise(meta.seed);
-    this.chunks = new Map(); this.dim = meta.dim || 'overworld'; meta.dimEdits = meta.dimEdits || {}; meta.dimEdits.overworld = meta.edits || meta.dimEdits.overworld || {}; this.edits = meta.dimEdits[this.dim] || (meta.dimEdits[this.dim] = {}); this.containers = meta.containers || {}; this.state = meta.state || (meta.state = {});
+    this.chunks = new Map(); this.dim = meta.dim || 'overworld'; meta.dimEdits = meta.dimEdits || {}; meta.dimEdits.overworld = (meta.edits && Object.keys(meta.edits).length ? meta.edits : null) || meta.dimEdits.overworld || {}; delete meta.edits; /* an empty `edits` used to wipe the saved changes on load */ this.edits = meta.dimEdits[this.dim] || (meta.dimEdits[this.dim] = {}); this.containers = meta.containers || {}; this.state = meta.state || (meta.state = {});
+    if (!meta.gen) meta.gen = meta.created && meta.created < 1794091000000 ? 1 : 2; // worlds created before the realistic-terrain update use the old generator
+    if (meta.gen == 1) { this.height = this.heightV1; this.biome = this.biomeV1; this.generate = this.generateV1; this.tree = this.treeV1; }
     this.ids = {}; for (const n of ['stone', 'dirt', 'grass_block', 'snowy_grass_block', 'sand', 'sandstone', 'gravel', 'water', 'lava', 'bedrock', 'deepslate', 'oak_log', 'oak_leaves',
       'birch_log', 'birch_leaves', 'spruce_log', 'spruce_leaves', 'cherry_log', 'cherry_leaves', 'cactus', 'dead_bush', 'short_grass', 'tall_grass', 'fern', 'coal_ore', 'iron_ore', 'copper_ore',
       'gold_ore', 'redstone_ore', 'lapis_ore', 'diamond_ore', 'emerald_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_redstone_ore', 'deepslate_lapis_ore',
@@ -67,6 +69,104 @@ class World {
     const mark = (a, b) => { const n = this.chunk(a, b); if (n) n.dirty = true; };
     mark(cx - 1, cz); mark(cx + 1, cz); mark(cx, cz - 1); mark(cx, cz + 1);
     if (lx && lx < 15 && lz && lz < 15) { /* neighbours only needed for light spill */ }
+  }
+  // ---- original (v1) world generator, kept so worlds made before the terrain update load exactly as they were ----
+  heightV1(x, z) { // terrain height & biome
+    const N = this.N;
+    const cont = N.fbm(x / 420, z / 420, 4), ero = N.fbm(x / 160 + 300, z / 160, 3);
+    let h = SEA + 2 + cont * 26 + N.fbm(x / 50, z / 50, 3) * 7;
+    const m = Math.max(0, N.fbm(x / 240 - 200, z / 240 + 90, 4) - 0.05); h += m * m * 260 * (0.5 + ero);
+    const temp = N.fbm(x / 600 + 1000, z / 600 - 400, 2) + (h > 95 ? -0.4 : 0), wet = N.fbm(x / 500 - 900, z / 500 + 700, 2);
+    let bio = 'plains';
+    if (h < SEA - 1) bio = temp < -0.25 ? 'frozen_ocean' : 'ocean';
+    else if (h > 100) bio = 'mountains';
+    else if (temp > 0.22) bio = wet > 0.1 ? 'jungle' : wet < -0.15 ? 'badlands' : 'desert';
+    else if (temp < -0.22) bio = 'taiga';
+    else if (wet > 0.15) bio = N.n2(x / 200, z / 200) > 0.25 ? 'cherry' : 'forest';
+    else if (wet > 0.0) bio = 'birch';
+    else if (temp > 0.12) bio = 'savanna';
+    return { h: Math.floor(h), bio };
+  }
+  biomeV1(x, z) { if (this.dim == 'nether') { const b = this.N.n2(x / 180 + 40, z / 180); return b > .25 ? 'crimson_forest' : b < -.35 ? 'basalt_deltas' : b < -.15 ? 'warped_forest' : this.N.n2(x / 90 - 70, z / 90) > .3 ? 'soul_sand_valley' : 'nether_wastes'; } return this.heightV1(x, z).bio; }
+  generateV1(cx, cz) {
+    if (this.dim == 'nether') { const d = this.generateNether(cx, cz); const c = { cx, cz, d, dirty: true, meshes: null }; const ed = this.edits[cx + ',' + cz]; if (ed) for (const k in ed) d[+k] = ed[k]; this.chunks.set(cx + ',' + cz, c); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = this.chunk(cx + a, cz + b); if (n) n.dirty = true; } return c; }
+    const d = new Uint16Array(CV), I = this.ids, N = this.N, H = N.hash, x0 = cx * CS, z0 = cz * CS;
+    const hm = new Int16Array(256), bm = [];
+    for (let lx = 0; lx < CS; lx++) for (let lz = 0; lz < CS; lz++) {
+      const wx = x0 + lx, wz = z0 + lz, { h, bio } = this.heightV1(wx, wz); hm[lx + lz * 16] = h; bm[lx + lz * 16] = bio;
+      const beach = h >= SEA - 2 && h <= SEA + 1 && bio != 'mountains' && bio != 'taiga';
+      for (let y = 0; y <= Math.max(h, SEA); y++) {
+        let v = 0;
+        if (y <= h) {
+          if (y == 0 || (y < 4 && H(wx, y, wz) < 0.5)) v = I.bedrock;
+          else if (y < h - 3) {
+            v = y < 12 ? I.deepslate : I.stone;
+            if (v == I.stone) { const s = N.n3(wx / 24, y / 16, wz / 24); if (s > 0.55) v = I.granite; else if (s < -0.55) v = I.diorite; else if (N.n3(wx / 20 + 50, y / 20, wz / 20) > 0.6) v = I.andesite; else if (y < 20 && N.n3(wx / 16, y / 16 + 30, wz / 16) > 0.6) v = I.tuff; }
+            const r = H(wx, y, wz), dp = y < 12;
+            if (r < 0.012 && y < 110) v = dp ? I.deepslate_coal_ore : I.coal_ore;
+            else if (r < 0.019 && y < 64) v = dp ? I.deepslate_iron_ore : I.iron_ore;
+            else if (r < 0.024 && y < 70 && y > 20) v = I.copper_ore;
+            else if (r < 0.0265 && y < 32) v = dp ? I.deepslate_gold_ore : I.gold_ore;
+            else if (r < 0.031 && y < 16) v = dp ? I.deepslate_redstone_ore : I.redstone_ore;
+            else if (r < 0.033 && y < 30) v = dp ? I.deepslate_lapis_ore : I.lapis_ore;
+            else if (r < 0.0345 && y < 15) v = dp ? I.deepslate_diamond_ore : I.diamond_ore;
+            else if (r < 0.036 && bio == 'mountains' && y > 60) v = I.emerald_ore;
+          } else if (y < h) {
+            v = bio == 'desert' ? (y < h - 2 ? I.sandstone : I.sand) : bio == 'badlands' ? I.terracotta : (bio == 'ocean' || bio == 'frozen_ocean') ? (H(wx, 7, wz) < .3 ? I.gravel : I.sand) : beach ? I.sand : bio == 'mountains' && h > 115 ? I.stone : I.dirt;
+          } else {
+            v = bio == 'desert' ? I.sand : bio == 'badlands' ? I.red_sand : (bio == 'ocean' || bio == 'frozen_ocean') ? (H(wx, 7, wz) < .3 ? I.gravel : H(wx, 8, wz) < .1 ? I.clay : I.sand) : beach ? I.sand
+              : bio == 'mountains' ? (h > 118 ? I.snow_block : h > 108 ? I.stone : I.grass_block) : bio == 'taiga' ? I.snowy_grass_block : (bio == 'jungle' && H(wx, 3, wz) < .2) ? I.podzol : I.grass_block;
+          }
+          // caves
+          if (v && v != I.bedrock && y > 4 && y < h - 1) {
+            const c1 = N.n3(wx / 40, y / 24, wz / 40), c2 = N.n3(wx / 40 + 77, y / 24 + 33, wz / 40 - 15);
+            if (c1 * c1 + c2 * c2 < 0.004 || N.n3(wx / 70, y / 30, wz / 70) > 0.62) v = y < 11 ? I.lava : 0;
+          }
+        } else if (y <= SEA) v = (bio == 'frozen_ocean' && y == SEA) ? I.ice : I.water;
+        d[lidx(lx, y, lz)] = v;
+      }
+    }
+    // decorations
+    const put = (x, y, z, v, rep) => { if (x < 0 || z < 0 || x > 15 || z > 15 || y < 1 || y >= WH) return; const i = lidx(x, y, z); if (rep || d[i] == 0) d[i] = v; };
+    for (let lx = 0; lx < CS; lx++) for (let lz = 0; lz < CS; lz++) {
+      const wx = x0 + lx, wz = z0 + lz, h = hm[lx + lz * 16], bio = bm[lx + lz * 16], top = d[lidx(lx, h, lz)], r = H(wx, 999, wz), above = d[lidx(lx, h + 1, lz)];
+      if (above != 0) { if (above == I.water && (top == I.sand || top == I.gravel) && r < 0.18) put(lx, h + 1, lz, I.seagrass, 1); if (above == I.water && r > 0.97 && h < SEA - 4) for (let k = 1; k < Math.min(5, SEA - h); k++) put(lx, h + k, lz, I.kelp_plant, 1); continue; }
+      const inner = lx > 1 && lx < 14 && lz > 1 && lz < 14;
+      if (top == I.grass_block || top == I.snowy_grass_block || top == I.podzol) {
+        const tc = { forest: .045, birch: .04, taiga: .035, jungle: .09, cherry: .03, plains: .004, savanna: .006, mountains: .01 }[bio] || 0;
+        if (inner && r < tc) { this.treeV1(put, lx, h + 1, lz, bio, H(wx, 5, wz)); d[lidx(lx, h, lz)] = I.dirt; continue; }
+        const r2 = H(wx, 77, wz);
+        if (bio == 'taiga') { if (r2 < .08) put(lx, h + 1, lz, I.fern); else if (r2 < .1) put(lx, h + 1, lz, I.sweet_berry_bush); continue; }
+        if (r2 < .22) { const v = r2 < .03 ? I.tall_grass : r2 < .05 && bio == 'jungle' ? I.fern : I.short_grass; put(lx, h + 1, lz, v); if (v == I.tall_grass) put(lx, h + 2, lz, BYNAME.tall_grass_top); }
+        else if (r2 < .25 + (bio == 'plains' || bio == 'cherry' ? .03 : 0)) { const fl = ['poppy', 'dandelion', 'cornflower', 'azure_bluet', 'oxeye_daisy', 'allium', 'orange_tulip', 'pink_tulip', 'red_tulip', 'white_tulip', 'lily_of_the_valley', 'blue_orchid']; put(lx, h + 1, lz, I[fl[Math.floor(H(wx >> 3, 4, wz >> 3) * fl.length)]]); }
+        else if (r2 < .2515) put(lx, h + 1, lz, I.pumpkin);
+        else if (r2 < .256 && bio == 'forest') put(lx, h + 1, lz, r2 < .2535 ? I.brown_mushroom : I.red_mushroom);
+        // sugar cane near water
+        if (r2 > .9 && h == SEA) { let wn = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (lx + a >= 0 && lx + a < 16 && lz + b >= 0 && lz + b < 16 && d[lidx(lx + a, h, lz + b)] == I.water) wn = true; if (wn) for (let k = 1; k <= 1 + Math.floor(r2 * 30) % 3; k++) put(lx, h + k, lz, I.sugar_cane); }
+      } else if (top == I.sand && (bio == 'desert' || bio == 'badlands')) {
+        if (r < .006 && inner) { const hh = 1 + Math.floor(H(wx, 6, wz) * 3); for (let k = 1; k <= hh; k++) put(lx, h + k, lz, I.cactus); }
+        else if (r < .02) put(lx, h + 1, lz, I.dead_bush);
+      } else if (top == I.red_sand && r < .02) put(lx, h + 1, lz, I.dead_bush);
+    }
+    const c = { cx, cz, d, dirty: true, meshes: null, hm };
+    const ed = this.edits[cx + ',' + cz]; if (ed) for (const k in ed) d[+k] = ed[k];
+    this.chunks.set(cx + ',' + cz, c);
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = this.chunk(cx + a, cz + b); if (n) n.dirty = true; }
+    return c;
+  }
+  treeV1(put, x, y, z, bio, r) {
+    const I = this.ids;
+    if (bio == 'taiga' || (bio == 'mountains' && r < .7)) {
+      const h = 6 + Math.floor(r * 4);
+      for (let k = 0; k < h; k++) put(x, y + k, z, I.spruce_log, 1);
+      for (let k = 2; k < h + 1; k++) { const rad = k == h ? 0 : ((h - k) % 2 == 0 ? 2 : 1) - (k > h - 2 ? 1 : 0); for (let a = -rad; a <= rad; a++) for (let b = -rad; b <= rad; b++) if (Math.abs(a) + Math.abs(b) <= rad + 1 && (a || b || k >= h)) put(x + a, y + k, z + b, I.spruce_leaves); }
+      put(x, y + h, z, I.spruce_leaves); return;
+    }
+    const kind = bio == 'birch' || (bio == 'forest' && r < .3) ? ['birch_log', 'birch_leaves'] : bio == 'cherry' ? ['cherry_log', 'cherry_leaves'] : bio == 'jungle' ? ['jungle_log', 'jungle_leaves'] : bio == 'savanna' ? ['acacia_log', 'acacia_leaves'] : ['oak_log', 'oak_leaves'];
+    const h = (bio == 'jungle' ? 6 : 4) + Math.floor(r * 3), L = I[kind[1]];
+    for (let k = -3; k <= 0; k++) { const rad = k >= -1 ? 1 : 2; for (let a = -rad; a <= rad; a++) for (let b = -rad; b <= rad; b++) { if (Math.abs(a) == rad && Math.abs(b) == rad && (k == 0 || ((x * 7 + a * 3 + b * 5 + k) & 3) == 0)) continue; put(x + a, y + h + k, z + b, L); } }
+    put(x, y + h + 1, z, L); put(x + 1, y + h + 1, z, L); put(x - 1, y + h + 1, z, L); put(x, y + h + 1, z + 1, L); put(x, y + h + 1, z - 1, L);
+    for (let k = 0; k < h; k++) put(x, y + k, z, I[kind[0]], 1);
   }
   height(x, z) { // realistic terrain: continents, eroded mountains with ridges, winding river valleys, coasts
     const N = this.N, ss = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };

@@ -128,6 +128,9 @@ function buildIcons() {
     face(t[0], 0, [0.5, -0.25, 0.5, 0.25, 0, 8]); face(t[3], 0.2, [0.5, 0.25, 0, 0.5, 0, 8]); face(t[2], 0.4, [0.5, -0.25, 0, 0.5, 16, 16]);
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
+  // shaped blocks with no item sprite get a real 3D icon
+  const shaped = []; for (let i = 1; i < NB; i++) if ((SHAPE[i] == 7 || BL[i].mm) && ITEMS.indexOf(BL[i].n) < 0 && !BL[i].plant && !/^(redstone_wire|lily_pad|leaf_litter|wildflowers|pink_petals|ladder|vine|glow_lichen)$|rail$/.test(BL[i].n)) shaped.push(i);
+  try { renderModelIcons(shaped); } catch (e) { console.warn('3D icons', e); }
 }
 function drawIcon(k, x, y, s = 16) {
   if (!k) return;
@@ -138,4 +141,41 @@ function drawStack(st, x, y) {
   if (!st) return; drawIcon(st.k, x, y);
   if (st.c > 1) { const s = '' + st.c; text(s, x + 17 - textW(s), y + 9, '#FFFFFF'); }
   if (st.dmg) { const mx = toolDurability(st.k), f = 1 - st.dmg / mx; cx2.fillStyle = '#000'; cx2.fillRect(x + 2, y + 13, 13, 2); cx2.fillStyle = `hsl(${f * 120},100%,50%)`; cx2.fillRect(x + 2, y + 13, Math.round(12 * f), 1); }
+}
+// ---------- 3D icons for shaped blocks (stairs, anvils, pistons, gates, carpets...) ----------
+// Renders each block's real geometry with the Minecraft inventory camera (30 deg tilt, 225 deg turn, 0.625 scale).
+function blockIconGeom(i) {
+  const out = [], b = BL[i], L = s => [s, 1, 1];
+  if (b.mm) { emitMM(out, b.mm, 0, 0, 0, [0, 1, 0], [1, 1, 1]); return out; }
+  for (const [BB, TT, FF] of (b.bx || [[b.bb || [0, 0, 0, 16, 16, 16], TEX[i * 4]]])) {
+    const uv = tileUV(TT), uvS = b.sidev ? tileUV(TEX[i * 4 + 2]) : uv, bb = BB.map(v => v / 16), [X0, Y0, Z0, X1, Y1, Z1] = bb; let fi = 0;
+    const Q = (C, u0, v0, u1, v1, s) => { let U = s == 1 || s == .5 ? uv : uvS; if (FF) { const fc = FF[fi++]; if (!fc) return; U = tileUV(fc[0]); if (fc.length == 5) { u0 = fc[1]; v0 = fc[2]; u1 = fc[3]; v1 = fc[4]; } } const f = (a, b2) => [lerp(U[0], U[2], a), lerp(U[1], U[3], b2)]; pushQuad(out, C, [f(u0, v1), f(u1, v1), f(u1, v0), f(u0, v0)], L(s)); };
+    Q([[X0, Y1, Z1], [X1, Y1, Z1], [X1, Y1, Z0], [X0, Y1, Z0]], bb[0], bb[2], bb[3], bb[5], 1); Q([[X0, Y0, Z0], [X1, Y0, Z0], [X1, Y0, Z1], [X0, Y0, Z1]], bb[0], bb[2], bb[3], bb[5], .5);
+    Q([[X0, Y0, Z1], [X1, Y0, Z1], [X1, Y1, Z1], [X0, Y1, Z1]], bb[0], 1 - bb[4], bb[3], 1 - bb[1], .8); Q([[X1, Y0, Z0], [X0, Y0, Z0], [X0, Y1, Z0], [X1, Y1, Z0]], bb[0], 1 - bb[4], bb[3], 1 - bb[1], .8);
+    Q([[X1, Y0, Z1], [X1, Y0, Z0], [X1, Y1, Z0], [X1, Y1, Z1]], bb[2], 1 - bb[4], bb[5], 1 - bb[1], .6); Q([[X0, Y0, Z0], [X0, Y0, Z1], [X0, Y1, Z1], [X0, Y1, Z0]], bb[2], 1 - bb[4], bb[5], 1 - bb[1], .6);
+  }
+  return out;
+}
+function renderModelIcons(list) {
+  if (!gl || !list.length) return;
+  const S = 64, fb = gl.createFramebuffer(), tex = gl.createTexture(), rb = gl.createRenderbuffer();
+  gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, S, S, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, S, S);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+  gl.viewport(0, 0, S, S); gl.useProgram(PROG.p); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+  const u = PROG.u; gl.uniform1f(u.uDay, 1); gl.uniform1f(u.uFogN, 1e5); gl.uniform1f(u.uFogF, 2e5); gl.uniform3f(u.uFog, 0, 0, 0); gl.uniform3f(u.uCam, 0, 0, 0);
+  const k = 1.25, PV = M4.chain(M4.scale(k, -k, -.3), M4.rx(-30 * Math.PI / 180), M4.ry(-225 * Math.PI / 180), M4.trans(-.5, -.5, -.5));
+  gl.uniformMatrix4fv(u.uPV, false, PV);
+  const px = new Uint8Array(S * S * 4), cv = document.createElement('canvas'); cv.width = cv.height = S; const cg = cv.getContext('2d'), im = cg.createImageData(S, S), g = ICONS.getContext('2d');
+  for (const i of list) {
+    const geo = blockIconGeom(i); if (!geo.length) continue;
+    const m = mkMesh(new Float32Array(geo));
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    drawMesh(m, 'blocks', { alphaTest: .1, full: 1 }); freeMesh(m);
+    gl.readPixels(0, 0, S, S, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    for (let y = 0; y < S; y++) im.data.set(px.subarray((S - 1 - y) * S * 4, (S - y) * S * 4), y * S * 4); // flip
+    cg.putImageData(im, 0, 0);
+    const ox = (i % 32) * 32, oy = Math.floor(i / 32) * 32; g.clearRect(ox, oy, 32, 32); g.imageSmoothingEnabled = true; g.drawImage(cv, ox, oy, 32, 32);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); gl.deleteTexture(tex); gl.deleteRenderbuffer(rb); gl.enable(gl.BLEND); gl.disable(gl.BLEND);
 }
