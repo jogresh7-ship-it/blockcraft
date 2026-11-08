@@ -83,17 +83,17 @@ function pistonExtend(x, y, z, sticky) {
   const [fx, fy, fz] = pistonFacing(x, y, z); const line = [];
   for (let i = 1; i <= 13; i++) { const X = x + fx * i, Y = y + fy * i, Z = z + fz * i, b = world.get(X, Y, Z); if (!b || SHAPE[b] == 3 || SHAPE[b] == 2) break; if (!canPush(b) || i == 13) return; line.push([X, Y, Z, b]); }
   for (let i = line.length - 1; i >= 0; i--) { const [X, Y, Z, b] = line[i]; world.set(X + fx, Y + fy, Z + fz, b); }
-  world.set(x + fx, y + fy, z + fz, BYNAME[sticky ? 'sticky_piston_head' : 'piston_head']);
-  world.state[rsKey(x, y, z)] = Object.assign(world.state[rsKey(x, y, z)] || {}, { ext: 1 });
+  world.state[rsKey(x + fx, y + fy, z + fz)] = { f: [fx, fy, fz] }; world.set(x + fx, y + fy, z + fz, BYNAME[sticky ? 'sticky_piston_head' : 'piston_head']);
+  world.state[rsKey(x, y, z)] = Object.assign(world.state[rsKey(x, y, z)] || {}, { ext: 1 }); { const c = world.chunk(x >> 4, z >> 4); if (c) c.dirty = true; }
   SND.play('tile/piston/out', .6, 1, [x, y, z]); SND.play('random/door_open', .3, 1.4, [x, y, z]);
   // push entities
   for (const e of [player, ...mobs]) if (Math.floor(e.x) == x + fx * (line.length + 1) && Math.floor(e.z) == z + fz * (line.length + 1) && Math.abs(e.y - (y + fy * (line.length + 1))) < 1.5) { e.x += fx; e.y += fy * 1.05; e.z += fz; }
 }
 function pistonRetract(x, y, z, sticky) {
   const [fx, fy, fz] = pistonFacing(x, y, z), hx = x + fx, hy = y + fy, hz = z + fz;
-  if (/piston_head/.test(rsName(world.get(hx, hy, hz)))) world.set(hx, hy, hz, 0);
+  if (/piston_head/.test(rsName(world.get(hx, hy, hz)))) { delete world.state[rsKey(hx, hy, hz)]; world.set(hx, hy, hz, 0); }
   if (sticky) { const b = world.get(hx + fx, hy + fy, hz + fz); if (b && canPush(b) && SHAPE[b] != 3) { world.set(hx + fx, hy + fy, hz + fz, 0); world.set(hx, hy, hz, b); } }
-  world.state[rsKey(x, y, z)].ext = 0; SND.play('tile/piston/in', .6, 1, [x, y, z]);
+  world.state[rsKey(x, y, z)].ext = 0; { const c = world.chunk(x >> 4, z >> 4); if (c) c.dirty = true; } SND.play('tile/piston/in', .6, 1, [x, y, z]);
 }
 // interaction: returns true if handled
 function rsUse(hit) {

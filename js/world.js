@@ -208,6 +208,13 @@ class World {
       if (top == I.grass_block || top == I.snowy_grass_block || top == I.podzol || top == X('coarse_dirt')) {
         if (bio == 'snowy_plains' || bio == 'snowy_taiga' || bio == 'snowy_mountains') { if (r2 < .03) put(lx, h + 1, lz, I.short_grass); else if (bio == 'snowy_taiga' && r2 < .05) put(lx, h + 1, lz, I.sweet_berry_bush); continue; }
         if (/taiga/.test(bio)) { if (r2 < .12 && patch > -.2) put(lx, h + 1, lz, I.fern); else if (r2 < .16 && X('large_fern')) { put(lx, h + 1, lz, X('large_fern')); put(lx, h + 2, lz, X('large_fern_top')); } else if (r2 < .2) put(lx, h + 1, lz, I.short_grass); else if (r2 < .208) put(lx, h + 1, lz, I.sweet_berry_bush); else if (r2 < .212) put(lx, h + 1, lz, r2 < .21 ? I.brown_mushroom : I.red_mushroom); continue; }
+        // biome-specific ground cover: leaf litter under forests, petals in cherry groves, wildflowers in meadows, dry grass in savanna
+        if (/forest|birch/.test(bio) && bio != 'flower_forest' && patch < -.3 && r2 < .45 + (-.3 - patch)) { put(lx, h + 1, lz, X('leaf_litter')); continue; }
+        if (bio == 'cherry' && fpatch > -.1 && r2 < .4) { put(lx, h + 1, lz, X('pink_petals')); continue; }
+        if ((bio == 'meadow' || bio == 'birch' || bio == 'flower_forest' || bio == 'plains') && fpatch < -.35 && r2 < (bio == 'plains' ? .12 : .35)) { put(lx, h + 1, lz, X('wildflowers')); continue; }
+        if (bio == 'savanna' && r2 < .1 && patch > 0) { put(lx, h + 1, lz, X(r2 < .03 ? 'tall_dry_grass' : 'short_dry_grass')); continue; }
+        if ((bio == 'plains' || bio == 'forest' || bio == 'birch' || bio == 'meadow') && r2 > .975 && r2 < .985) { put(lx, h + 1, lz, X('bush')); continue; }
+        if (bio == 'swamp' && r2 > .97 && r2 < .98) { put(lx, h + 1, lz, X('firefly_bush')); continue; }
         const grassChance = { plains: .45, savanna: .4, meadow: .55, jungle: .4, swamp: .35, forest: .3, birch: .3, flower_forest: .25, dark_forest: .15, cherry: .3, mountains: .2 }[bio] ?? .25;
         const flowerChance = bio == 'flower_forest' || bio == 'meadow' ? .2 : bio == 'plains' ? .03 : bio == 'cherry' ? .05 : /forest|birch/.test(bio) ? .015 : .006;
         if (fpatch > .25 && r2 < flowerChance + (fpatch - .25) * .3) {
@@ -223,7 +230,7 @@ class World {
         // sugar cane on river and lake shores
         if (r2 > .88 && h == SEA) { let wn = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (lx + a >= 0 && lx + a < 16 && lz + b >= 0 && lz + b < 16 && d[lidx(lx + a, h, lz + b)] == I.water) wn = true; if (wn) for (let k = 1; k <= 1 + Math.floor(r2 * 30) % 3; k++) put(lx, h + k, lz, I.sugar_cane, 1); }
       } else if (top == I.sand || top == I.red_sand) {
-        if (bio == 'desert' || bio == 'badlands') { if (r < .004 && lx > 0 && lx < 15 && lz > 0 && lz < 15) { const hh = 1 + Math.floor(H(wx, 6, wz) * 3); for (let k = 1; k <= hh; k++) put(lx, h + k, lz, I.cactus); } else if (r < .016) put(lx, h + 1, lz, I.dead_bush); }
+        if (bio == 'desert' || bio == 'badlands') { if (r < .004 && lx > 0 && lx < 15 && lz > 0 && lz < 15) { const hh = 1 + Math.floor(H(wx, 6, wz) * 3); for (let k = 1; k <= hh; k++) put(lx, h + k, lz, I.cactus); if (H(wx, 12, wz) < .3) put(lx, h + hh + 1, lz, X('cactus_flower')); } else if (r < .012) put(lx, h + 1, lz, I.dead_bush); else if (r < .03) put(lx, h + 1, lz, X('short_dry_grass')); else if (r < .036) put(lx, h + 1, lz, X('tall_dry_grass')); }
         else if (h == SEA && r > .97) { let wn = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (lx + a >= 0 && lx + a < 16 && lz + b >= 0 && lz + b < 16 && d[lidx(lx + a, h, lz + b)] == I.water) wn = true; if (wn) for (let k = 1; k <= 2; k++) put(lx, h + k, lz, I.sugar_cane, 1); }
       }
     }
@@ -368,6 +375,12 @@ class World {
           else { if (ew) F(L0, .02, 1); if (ns) F(L0, .025); if (ew && ns) F(DOT, .015); }
           continue;
         }
+        if (BL[b].mm) { // full Minecraft model with block rotation (pistons)
+          const st = this.state[wx + ',' + y + ',' + wz] || {}; let f = st.f;
+          if (!f && /piston_head/.test(BL[b].n)) for (const d of [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) { const ps = this.state[(wx - d[0]) + ',' + (y - d[1]) + ',' + (wz - d[2])]; if (ps && ps.f && ps.f[0] == d[0] && ps.f[1] == d[1] && ps.f[2] == d[2]) { f = d; break; } }
+          emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll);
+          continue;
+        }
         for (const [BB, TT, FF] of (BL[b].bx || [[BL[b].bb, TEX[b * 4]]])) {
         const uv = tileUV(TT), uvS = BL[b].sidev ? tileUV(TEX[b * 4 + 2]) : uv;
         const bb = BB.map(v => v / 16), X0 = wx + bb[0], Y0 = y + bb[1], Z0 = wz + bb[2], X1 = wx + bb[3], Y1 = y + bb[4], Z1 = wz + bb[5];
@@ -456,4 +469,33 @@ function moveBody(w, e, dt) {
   if (tryAx('x', e.vx * dt)) { hitH = true; if (e.sneak) { } }
   if (tryAx('z', e.vz * dt)) hitH = true;
   return { ground, hitH };
+}
+// ---- Minecraft-style model baking: element faces with uv + rotation, then block rotation from a facing vector ----
+const MMF = { // corners TL,TR,BR,BL for each face of box (x0,y0,z0)-(x1,y1,z1)
+  north: (a, b) => [[b[0], b[1], a[2]], [a[0], b[1], a[2]], [a[0], a[1], a[2]], [b[0], a[1], a[2]]],
+  south: (a, b) => [[a[0], b[1], b[2]], [b[0], b[1], b[2]], [b[0], a[1], b[2]], [a[0], a[1], b[2]]],
+  west: (a, b) => [[a[0], b[1], a[2]], [a[0], b[1], b[2]], [a[0], a[1], b[2]], [a[0], a[1], a[2]]],
+  east: (a, b) => [[b[0], b[1], b[2]], [b[0], b[1], a[2]], [b[0], a[1], a[2]], [b[0], a[1], b[2]]],
+  up: (a, b) => [[a[0], b[1], a[2]], [b[0], b[1], a[2]], [b[0], b[1], b[2]], [a[0], b[1], b[2]]],
+  down: (a, b) => [[a[0], a[1], b[2]], [b[0], a[1], b[2]], [b[0], a[1], a[2]], [a[0], a[1], a[2]]],
+};
+const MMN = { north: [0, 0, -1], south: [0, 0, 1], west: [-1, 0, 0], east: [1, 0, 0], up: [0, 1, 0], down: [0, -1, 0] };
+// facing vector -> blockstate rotation (models face north by default)
+function facingRot(f) { return f[1] == 1 ? [270, 0] : f[1] == -1 ? [90, 0] : f[2] == 1 ? [0, 180] : f[0] == 1 ? [0, 90] : f[0] == -1 ? [0, 270] : [0, 0]; }
+function rotPt(p, rx, ry) { // around block centre (8,8,8); x first, then y (Minecraft order)
+  let [x, y, z] = [p[0] - 8, p[1] - 8, p[2] - 8];
+  for (let k = 0; k < rx / 90; k++) [y, z] = [z, -y];
+  for (let k = 0; k < ry / 90; k++) [x, z] = [-z, x];
+  return [x + 8, y + 8, z + 8];
+}
+function emitMM(out, els, wx, y, wz, facing, ll) {
+  const [rx, ry] = facingRot(facing);
+  for (const e of els) for (const d in e.faces) {
+    const [t, u0, v0, u1, v1, r] = e.faces[d], T = tileUV(t), C = MMF[d](e.f, e.t).map(p => rotPt(p, rx, ry));
+    const n = rotPt(MMN[d].map(v => v * 8 + 8), rx, ry).map(v => Math.round((v - 8) / 8)), s = n[1] > 0 ? 1 : n[1] < 0 ? .5 : n[2] ? .8 : .6;
+    let uv = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]; for (let k = 0; k < (r || 0) / 90; k++) uv = [uv[3], uv[0], uv[1], uv[2]];
+    const U = uv.map(([u, v]) => [lerp(T[0], T[2], u / 16), lerp(T[1], T[3], v / 16)]);
+    // pushQuad wants counter-clockwise corners; MC order TL,TR,BR,BL is clockwise seen from outside -> reverse
+    pushQuad(out, [C[3], C[2], C[1], C[0]].map(p => [wx + p[0] / 16, y + p[1] / 16, wz + p[2] / 16]), [U[3], U[2], U[1], U[0]], [s, ll[1], ll[2]]);
+  }
 }
