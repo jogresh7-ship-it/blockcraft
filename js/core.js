@@ -75,7 +75,7 @@ async function loadAssets(progress) {
     OPAQUE[i] = (SHAPE[i] == 1 && b.a == 0) ? 1 : 0; SOLID[i] = (SHAPE[i] == 1 || SHAPE[i] == 5) && b.n != 'nether_portal' ? 1 : 0;
   });
   ITEMS.forEach((n, i) => { BYNAME['item:' + n] = ITEM_BASE + i; });
-  const jobs = [...Object.keys(window.PACK_FILES || { faithful64: 1 }).flatMap(id => [loadImg('packs/' + id + '_icon', 'packs/' + id + '_icon.png'), loadImg('packs/' + id + '_preview', 'packs/' + id + '_preview.png')]), loadImg('blocks', 'blocks.png'), loadImg('items', 'items.png'), loadImg('water', 'water_still.png'), loadImg('lava', 'lava_still.png'),
+  const jobs = [...Object.keys(window.PACK_FILES || { faithful64: 1 }).flatMap(id => [loadImg('packs/' + id + '_icon', 'packs/' + id + '_icon.png'), loadImg('packs/' + id + '_preview', 'packs/' + id + '_preview.png')]), loadImg('blocks', 'blocks.png'), loadImg('items', 'items.png'), loadImg('water', 'water_still.png'), loadImg('lava', 'lava_still.png'), loadImg('anim', 'anim.png'),
     ...GUI_FILES.map(f => loadImg(f, 'gui/' + f + '.png'))];
   let done = 0; jobs.forEach(j => j.then(() => progress && progress(++done / jobs.length)));
   await Promise.all(jobs);

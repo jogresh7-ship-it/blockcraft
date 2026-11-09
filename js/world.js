@@ -485,7 +485,7 @@ class World {
         if (BL[b].mm) { // full Minecraft model with block rotation (pistons)
           const st = this.state[wx + ',' + y + ',' + wz] || {}; let f = st.f;
           if (!f && /piston_head/.test(BL[b].n)) for (const d of [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) { const ps = this.state[(wx - d[0]) + ',' + (y - d[1]) + ',' + (wz - d[2])]; if (ps && ps.f && ps.f[0] == d[0] && ps.f[1] == d[1] && ps.f[2] == d[2]) { f = d; break; } }
-          emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, BL[b].mr && !/piston/.test(BL[b].n) ? BL[b].mr : null);
+          emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : st.open && BL[b].mmo ? BL[b].mmo : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, /piston/.test(BL[b].n) ? null : st.fr || BL[b].mr || null);
           continue;
         }
         if (BL[b].mp) { emitMP(out[0], b, mpConn(b, getB, wx - x0, y, wz - z0), wx, y, wz, ll); continue; }
@@ -555,7 +555,7 @@ class World {
   }
   collides(px, py, pz, r, h) {
     for (let x = Math.floor(px - r); x <= Math.floor(px + r); x++) for (let y = Math.floor(py); y <= Math.floor(py + h - 0.001); y++) for (let z = Math.floor(pz - r); z <= Math.floor(pz + r); z++)
-      { const b = this.getOr(x, y, z, 1); if (SOLID[b]) return true; if (SBOX[b]) { const bb = BL[b].bb; if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) return true; } }
+      { const b = this.getOr(x, y, z, 1); if (SOLID[b]) return true; if (SBOX[b]) { let bb = BL[b].bb; if (BL[b].mmo || BL[b].fy) { const st = this.state[x + ',' + y + ',' + z]; if (st && st.open) continue; if (st && (st.fd == 'east' || st.fd == 'west')) bb = [bb[2], bb[1], bb[0], bb[5], bb[4], bb[3]]; } if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) return true; } }
     return false;
   }
   topY(x, z) { for (let y = WH - 1; y > 0; y--) { const b = this.get(x, y, z); if (SOLID[b] || SHAPE[b] == 3) return y; } return 0; }

@@ -1,9 +1,10 @@
 'use strict';
 // ---------- Redstone: dust, levers, buttons, pressure plates, torches, lamps, TNT, pistons, note blocks ----------
-const RSS = { q: [], timers: [], plates: new Set() };
+const RSS = { q: [], timers: [], plates: new Set(), on: new Set() }; // `on`: positions of buttons/plates powered via state
 const rsKey = (x, y, z) => x + ',' + y + ',' + z;
 const N6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 function rsName(b) { return BL[b] ? BL[b].n : ''; }
+function isSourceAt(x, y, z) { const n = rsName(world.get(x, y, z)); return isSource(n) || RSS.on.has(rsKey(x, y, z)); }
 function isSource(n) { return /^(redstone_block|redstone_torch|lever_on|stone_button_on|stone_pressure_plate_on|oak_pressure_plate_on)$/.test(n) || (n == 'daylight_detector' && world.dim == 'overworld' && skyState().day > .6); }
 function isConsumer(n) { return /^(redstone_lamp|redstone_lamp_on|tnt|piston|sticky_piston|note_block|redstone_torch|redstone_torch_off)$/.test(n) || /_door(_open)?$|_trapdoor(_open)?$/.test(n); }
 function rsNotify(x, y, z) { RSS.q.push([x, y, z]); }
@@ -14,8 +15,8 @@ function rsTick(dt) {
   // pressure plates
   const now = new Set(), ents = [player, ...mobs, ...items];
   for (const e of ents) { const x = Math.floor(e.x), y = Math.floor(e.y + .01), z = Math.floor(e.z), n = rsName(world.get(x, y, z)); if (/pressure_plate/.test(n) && !(e == player && player.mode == 'spectator')) now.add(rsKey(x, y, z)); }
-  for (const k of now) { const [x, y, z] = k.split(',').map(Number), n = rsName(world.get(x, y, z)); if (!n.endsWith('_on')) { world.set(x, y, z, BYNAME[n + '_on']); SND.play('random/click', .3, .6, [x, y, z]); rsNotify(x, y, z); } }
-  for (const k of RSS.plates) if (!now.has(k)) { const [x, y, z] = k.split(',').map(Number), n = rsName(world.get(x, y, z)); if (n.endsWith('_on')) RSS.timers.push({ x, y, z, t: .5, from: n, to: n.replace('_on', '') }); }
+  for (const k of now) { const [x, y, z] = k.split(',').map(Number), n = rsName(world.get(x, y, z)); if (!BYNAME[n + '_on'] && !n.endsWith('_on')) { if (!RSS.on.has(k)) { RSS.on.add(k); SND.play('random/click', .3, .6, [x, y, z]); rsNotify(x, y, z); } continue; } if (!n.endsWith('_on')) { world.set(x, y, z, BYNAME[n + '_on']); SND.play('random/click', .3, .6, [x, y, z]); rsNotify(x, y, z); } }
+  for (const k of RSS.plates) if (!now.has(k)) { const [x, y, z] = k.split(',').map(Number), n = rsName(world.get(x, y, z)); if (RSS.on.has(k)) { setTimeout(() => { if (!RSS.plates.has(k)) { RSS.on.delete(k); rsNotify(x, y, z); } }, 500); continue; } if (n.endsWith('_on')) RSS.timers.push({ x, y, z, t: .5, from: n, to: n.replace('_on', '') }); }
   RSS.plates = now;
   if (!RSS.q.length) return;
   const q = RSS.q.splice(0, 6); for (const [x, y, z] of q) rsUpdate(x, y, z);
@@ -25,14 +26,14 @@ function rsUpdate(cx, cy, cz) {
   for (let x = cx - Rr; x <= cx + Rr; x++) for (let y = Math.max(0, cy - 6); y <= Math.min(WH - 1, cy + 6); y++) for (let z = cz - Rr; z <= cz + Rr; z++) {
     const b = world.get(x, y, z); if (!b) continue; const n = rsName(b);
     if (n == 'redstone_wire') wires.push([x, y, z]); else if (isConsumer(n)) cons.push([x, y, z, n]);
-    if (isSource(n)) srcs.push([x, y, z, n]);
+    if (isSource(n) || RSS.on.has(rsKey(x, y, z))) srcs.push([x, y, z, n]);
   }
   if (!wires.length && !srcs.length && !cons.length) return;
   // torches are off when the block they stand on is powered (computed after first pass)
   const old = world.power, pw = {};
   const isW = (x, y, z) => rsName(world.get(x, y, z)) == 'redstone_wire';
   const queue = [];
-  const srcAt = (x, y, z) => { const n = rsName(world.get(x, y, z)); return isSource(n); };
+  const srcAt = (x, y, z) => isSourceAt(x, y, z);
   for (const [x, y, z] of wires) {
     let lv = 0; for (const [dx, dy, dz] of N6) if (srcAt(x + dx, y + dy, z + dz)) lv = 15;
     // lever/button on the block beneath powers through it
@@ -50,9 +51,9 @@ function rsUpdate(cx, cy, cz) {
   // apply wire brightness
   for (const [x, y, z] of wires) { const k = rsKey(x, y, z), v = pw[k] || 0; if ((old[k] || 0) != v) { const c = world.chunk(x >> 4, z >> 4); if (c) c.dirty = true; } if (v) old[k] = v; else delete old[k]; }
   const powered = (x, y, z) => {
-    for (const [dx, dy, dz] of N6) { const X = x + dx, Y = y + dy, Z = z + dz, n = rsName(world.get(X, Y, Z)); if (isSource(n) && !(n == 'redstone_torch' && dy == -1 && false)) return true; if (n == 'redstone_wire' && (pw[rsKey(X, Y, Z)] || 0) > 0) return true;
+    for (const [dx, dy, dz] of N6) { const X = x + dx, Y = y + dy, Z = z + dz, n = rsName(world.get(X, Y, Z)); if (isSourceAt(X, Y, Z)) return true; if (n == 'redstone_wire' && (pw[rsKey(X, Y, Z)] || 0) > 0) return true;
       // block powered by a lever/button/torch attached to it (one block away through solid)
-      if (OPAQUE[world.get(X, Y, Z)]) for (const [ex, ey, ez] of N6) { const nn = rsName(world.get(X + ex, Y + ey, Z + ez)); if (/^(lever_on|stone_button_on|redstone_block)$/.test(nn) || (nn == 'redstone_wire' && ey == 1 && (pw[rsKey(X + ex, Y + ey, Z + ez)] || 0) > 0)) return true; } }
+      if (OPAQUE[world.get(X, Y, Z)]) for (const [ex, ey, ez] of N6) { const nn = rsName(world.get(X + ex, Y + ey, Z + ez)); if (/^(lever_on|stone_button_on|redstone_block)$/.test(nn) || RSS.on.has(rsKey(X + ex, Y + ey, Z + ez)) || (nn == 'redstone_wire' && ey == 1 && (pw[rsKey(X + ex, Y + ey, Z + ez)] || 0) > 0)) return true; } }
     return false;
   };
   for (const [x, y, z, n] of cons) {
@@ -73,7 +74,7 @@ function rsUpdate(cx, cy, cz) {
   }
 }
 function poweredBlockNoTorch(x, y, z, pw, tx, ty, tz) {
-  for (const [dx, dy, dz] of N6) { const X = x + dx, Y = y + dy, Z = z + dz; if (X == tx && Y == ty && Z == tz) continue; const n = rsName(world.get(X, Y, Z)); if (/^(lever_on|stone_button_on|redstone_block|stone_pressure_plate_on|oak_pressure_plate_on)$/.test(n)) return true; if (n == 'redstone_wire' && (pw[rsKey(X, Y, Z)] || 0) > 0) return true; }
+  for (const [dx, dy, dz] of N6) { const X = x + dx, Y = y + dy, Z = z + dz; if (X == tx && Y == ty && Z == tz) continue; const n = rsName(world.get(X, Y, Z)); if (/^(lever_on|stone_button_on|redstone_block|stone_pressure_plate_on|oak_pressure_plate_on)$/.test(n) || RSS.on.has(rsKey(X, Y, Z))) return true; if (n == 'redstone_wire' && (pw[rsKey(X, Y, Z)] || 0) > 0) return true; }
   return false;
 }
 function pistonFacing(x, y, z) { return (world.state[rsKey(x, y, z)] || {}).f || [0, 1, 0]; }
@@ -105,5 +106,12 @@ function rsUse(hit) {
 }
 function rsPlaced(x, y, z, b) {
   const n = rsName(b);
+  if (BL[b] && BL[b].fy) { // face the way Minecraft would: stairs/gates point away from you, anvils turn sideways, the rest face you
+    const f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north');
+    const opp = { north: 'south', south: 'north', east: 'west', west: 'east' }, cw = { north: 'east', east: 'south', south: 'west', west: 'north' };
+    const fd = /stairs$|fence_gate$/.test(n) ? look : /anvil$/.test(n) ? cw[look] : opp[look];
+    world.state[rsKey(x, y, z)] = Object.assign(world.state[rsKey(x, y, z)] || {}, { fd, fr: BL[b].fy[fd] });
+    const c = world.chunk(x >> 4, z >> 4); if (c) c.dirty = true;
+  }
   if (n == 'piston' || n == 'sticky_piston') { const f = fwd(); const a = [Math.abs(f[0]), Math.abs(f[1]), Math.abs(f[2])], i = a.indexOf(Math.max(...a)); const dir = [0, 0, 0]; dir[i] = Math.sign(f[i]); world.state[rsKey(x, y, z)] = { f: dir.map(v => -v) }; }
 }

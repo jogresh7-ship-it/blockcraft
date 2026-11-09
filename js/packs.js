@@ -55,8 +55,10 @@ async function buildFromZip(zip, setP) {
   const srcOf = n => n == 'grass_block_side_tinted' ? 'grass_block_side' : n.replace(/_red$/, '').replace('redstone_line0', 'redstone_dust_line0').replace('redstone_line1', 'redstone_dust_line1');
   const loaded = new Map();
   for (let i0 = 0; i0 < names.length; i0 += 48) { const part = names.slice(i0, i0 + 48); const imgs = await Promise.all(part.map(async n => blobImg(await zip.get(T + 'block/' + srcOf(n) + '.png')))); part.forEach((n, k) => loaded.set(n, imgs[k])); setP && setP(i0 / names.length * .6); }
+  out.animOv = {};
   for (const n of names) {
     const src = srcOf(n), img = loaded.get(n); if (!img) continue;
+    if (n == src) { if (img.height > img.width) { let meta = null; try { const mb = await zip.get(T + 'block/' + src + '.png.mcmeta'); if (mb) meta = JSON.parse(await mb.text()).animation; } catch (e) { } out.animOv[n] = { img, meta }; } else out.animOv[n] = null; }
     const i = REG.tiles[n], x = (i % REG.cols) * TS, y = Math.floor(i / REG.cols) * TS; tile(img, x, y);
     const tc = tintFor(src); if (tc) tintTile(x, y, tc); if (/_red$/.test(n)) tintTile(x, y, [255, 40, 30]);
     if (n == 'grass_block_side_tinted') { const ob = await zip.get(T + 'block/grass_block_side_overlay.png'); if (ob) { const oi = await blobImg(ob); const t = document.createElement('canvas'); t.width = t.height = TS; const tg = t.getContext('2d'); tg.imageSmoothingEnabled = false; tg.drawImage(oi, 0, 0, oi.width, oi.width, 0, 0, TS, TS); tg.globalCompositeOperation = 'multiply'; tg.fillStyle = 'rgb(124,189,107)'; tg.fillRect(0, 0, TS, TS); tg.globalCompositeOperation = 'destination-in'; tg.drawImage(oi, 0, 0, oi.width, oi.width, 0, 0, TS, TS); ag.drawImage(t, x, y); } }
@@ -89,6 +91,7 @@ async function applyPack(id, setP) {
   else if (id == 'custom' && PS.custom) { const out = await buildFromZip(PS.custom, setP); Object.assign(IMG, out); }
   else if (P && P.id != 'faithful' && !P.zip) { const keys = Object.keys(ORIG).filter(k => !/^font_/.test(k)); let i = 0; for (const k of keys) { if (k == 'font') { IMG[k] = P.scale ? ORIG[k] : processImage(ORIG[k], P); continue; } IMG[k] = processImage(ORIG[k], k.startsWith('panorama') ? Object.assign({}, P, { scale: 0 }) : P); if (++i % 25 == 0) { setP && setP(i / keys.length); await new Promise(r => setTimeout(r)); } } }
   IMG.font = ORIG.font; // the custom font is always used
+  const ov = IMG.animOv; delete IMG.animOv; setupAnims(ov || null);
   PS.active = id; store.set('pack2', id); uploadAll();
 }
 async function importPackZip(file) {

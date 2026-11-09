@@ -92,12 +92,12 @@ function placeSpecial(h, hit, p) {
   if (/_slab$/.test(n)) {
     const tb = BL[hit.b].n;
     // stack onto existing slab = double slab (full block)
-    if ((tb == n && hit.n[1] == 1) || (tb == n + '_top' && hit.n[1] == -1)) { world.set(hit.x, hit.y, hit.z, BYNAME[BL[h.k].slab]); return 'ok'; }
-    const pb = world.get(...p); if (pb == h.k || pb == BYNAME[n + '_top']) { if (pb == h.k && hit.n[1] != 1 || true) { world.set(...p, BYNAME[BL[h.k].slab]); return 'ok'; } }
+    if (BL[h.k].slab && ((tb == n && hit.n[1] == 1) || (tb == n + '_top' && hit.n[1] == -1))) { world.set(hit.x, hit.y, hit.z, BYNAME[BL[h.k].slab]); return 'ok'; }
+    const pb = world.get(...p); if (BL[h.k].slab && (pb == h.k || pb == BYNAME[n + '_top'])) { if (pb == h.k && hit.n[1] != 1 || true) { world.set(...p, BYNAME[BL[h.k].slab]); return 'ok'; } }
     const f = fwd(), eyeY = player.y + 1.62; let hy = hit.n[1] == -1 ? 1 : hit.n[1] == 1 ? 0 : -1;
     if (hy == -1) { // side face: use hit position height
       const d = (hit.t || 1); const yy = eyeY + f[1] * d - hit.y; hy = yy > .5 ? 1 : 0; }
-    return hy == 1 ? BYNAME[n + '_top'] : h.k;
+    return hy == 1 && BYNAME[n + '_top'] ? BYNAME[n + '_top'] : h.k;
   }
   if (/_door$/.test(n)) { if (world.get(p[0], p[1] + 1, p[2])) return 'fail'; return 'door'; }
   if (/_trapdoor$/.test(n)) return h.k;

@@ -182,3 +182,36 @@ function renderModelIcons(list) {
   }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); gl.deleteTexture(tex); gl.deleteRenderbuffer(rb); gl.enable(gl.BLEND); gl.disable(gl.BLEND);
 }
+
+// ---------- animated block textures (fire, portals, sea lanterns, prismarine, kelp, lanterns, command blocks...) ----------
+// Frames come from anim.png (base textures) or from the active resource pack's own frame strips.
+let ANIMS = [], animCv = null, TNAME = null;
+function setupAnims(ov) {
+  ANIMS = []; if (!TNAME) { TNAME = []; for (const k in REG.tiles) TNAME[REG.tiles[k]] = k; }
+  for (const e of REG.anim || []) {
+    const n = TNAME[e.t];
+    if (ov && n in ov) { const p = ov[n]; if (!p) continue; const w = p.img.width, nf = Math.floor(p.img.height / w); if (nf < 2) continue; const m = p.meta || {};
+      ANIMS.push({ t: e.t, src: p.img, fw: w, strip: 1, n: nf, ft: m.frametime || 1, o: m.frames ? m.frames.map(f => typeof f == 'number' ? f : f.index) : null, i: m.interpolate ? 1 : 0 }); }
+    else if (IMG.anim) ANIMS.push({ t: e.t, src: IMG.anim, fw: 32, row: e.row, n: e.n, ft: e.ft, o: e.o || null, i: e.i || 0 });
+  }
+  if (ov) for (const n in ov) { // the pack animates tiles that are still in the base game
+    const t = REG.tiles[n], p = ov[n]; if (t === undefined || !p || ANIMS.some(a => a.t == t)) continue; const w = p.img.width, nf = Math.floor(p.img.height / w); if (nf < 2) continue; const m = p.meta || {};
+    ANIMS.push({ t, src: p.img, fw: w, strip: 1, n: nf, ft: m.frametime || 1, o: m.frames ? m.frames.map(f => typeof f == 'number' ? f : f.index) : null, i: m.interpolate ? 1 : 0 });
+  }
+}
+function animTick(now) {
+  if (!ANIMS.length || !gl || !TEXS.blocks) return;
+  const TS = IMG.blocks.width / REG.cols, tick = now / 50;
+  if (!animCv || animCv.width != TS) { animCv = document.createElement('canvas'); animCv.width = animCv.height = TS; }
+  const g = animCv.getContext('2d'); g.imageSmoothingEnabled = false; let bound = false;
+  for (const a of ANIMS) {
+    const len = a.o ? a.o.length : a.n, step = Math.floor(tick / a.ft), pos = step % len, fr = a.o ? a.o[pos] : pos;
+    const mix = a.i ? Math.floor(((tick / a.ft) % 1) * 8) / 8 : 0, key = fr * 16 + mix * 8;
+    if (a.last === key) continue; a.last = key;
+    const sx = f => a.strip ? 0 : f * a.fw, sy = f => a.strip ? f * a.fw : a.row * a.fw;
+    g.globalAlpha = 1; g.clearRect(0, 0, TS, TS); g.drawImage(a.src, sx(fr), sy(fr), a.fw, a.fw, 0, 0, TS, TS);
+    if (mix) { const nx = a.o ? a.o[(pos + 1) % len] : (pos + 1) % len; g.globalAlpha = mix; g.drawImage(a.src, sx(nx), sy(nx), a.fw, a.fw, 0, 0, TS, TS); g.globalAlpha = 1; }
+    if (!bound) { gl.bindTexture(gl.TEXTURE_2D, TEXS.blocks); bound = true; }
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, (a.t % REG.cols) * TS, Math.floor(a.t / REG.cols) * TS, gl.RGBA, gl.UNSIGNED_BYTE, animCv);
+  }
+}

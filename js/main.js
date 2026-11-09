@@ -391,6 +391,14 @@ function useItem(hit, tm, h) {
   const pos = [hit.x, hit.y, hit.z], key = pos.join(',');
   if (!sneak && player.mode != 'spectator' && rsUse(hit)) { swing = 1; return; }
   if (!sneak && player.mode != 'spectator' && /(_door|_trapdoor)/.test(tb) && !/^iron_/.test(tb)) { toggleDoor(hit.x, hit.y, hit.z); swing = 1; return; }
+  if (!sneak && player.mode != 'spectator' && BL[hit.b].mmo) { // fence gates
+    const st = world.state[key] || (world.state[key] = {}); st.open = !st.open;
+    if (st.open && !st.fd) st.fd = 'north';
+    if (st.open) { const f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north'); if ((st.fd == 'north' || st.fd == 'south') == (look == 'north' || look == 'south')) { st.fd = look; st.fr = BL[hit.b].fy[look]; } }
+    const c = world.chunk(hit.x >> 4, hit.z >> 4); if (c) c.dirty = true; SND.play('block/wooden_door/' + (st.open ? 'open' : 'close'), 1, 1, pos); swing = 1; return; }
+  if (!sneak && player.mode != 'spectator' && /_button$/.test(tb) && !BYNAME[tb + '_on']) { // every button: powers for 1 s (wood 1.5 s)
+    if (!RSS.on.has(key)) { RSS.on.add(key); rsNotify(...pos); SND.play('random/click', .3, .6, pos); setTimeout(() => { RSS.on.delete(key); rsNotify(...pos); SND.play('random/click', .3, .5, pos); }, /stone|blackstone/.test(tb) ? 1000 : 1500); }
+    swing = 1; return; }
   if (!sneak && player.mode != 'spectator') {
     if (tb == 'crafting_table') { S.grid3 = Array(9).fill(null); go('crafting'); return; }
     if (/^(furnace|furnace_lit|smoker|blast_furnace)$/.test(tb)) { S.cont = world.containers[key] || (world.containers[key] = { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 1, cook: 0 }); S.contName = prettyName(hit.b); go('furnace'); return; }
@@ -590,6 +598,7 @@ function camMatrices(fovMul = 1) {
   return proj;
 }
 function render(dt) {
+  animTick(performance.now());
   const W = glc.width, H = glc.height; gl.viewport(0, 0, W, H);
   if (!world || S.screen == 'loading') { renderPanorama(dt); return; }
   const P = player, sk = skyState(), u = PROG.u;
@@ -935,6 +944,7 @@ async function boot() {
   S.bedrock = IS_MOBILE; TOUCH.on = IS_MOBILE; if (IS_MOBILE) noLock = true;
   setFont(); setLoad(.7, 'Loading resource pack...');
   try { await restorePack(p => setLoad(.7 + p * .3, 'Loading resource pack... ' + Math.round(p * 100) + '%')); } catch (e) { console.warn(e); }
+  if (!ANIMS.length) setupAnims(null);
   setLoad(1, 'Loading complete'); resize(); go('title');
   const shown = performance.now() - BOOT_T0; await new Promise(r => setTimeout(r, Math.max(400, MIN_T + 300 - shown)));
   pre.classList.add('done'); setTimeout(() => pre.remove(), 1100);
