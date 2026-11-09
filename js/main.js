@@ -130,6 +130,62 @@ Object.assign(MOBDEF, {
 for (const [n, base, tex, ext] of [['husk', 'zombie', 'husk', { burns: 0 }], ['drowned', 'zombie', 'drowned', {}], ['stray', 'skeleton', 'stray', {}], ['wither_skeleton', 'skeleton', 'wither_skeleton', { hold: 'item:stone_sword', ranged: 0, dmg: [0, 5, 8, 11], scale: 1.2, burns: 0, drop: [['item:coal', 0, 1], ['item:bone', 0, 2]] }], ['bogged', 'skeleton', 'bogged', {}],
   ['cave_spider', 'spider', 'cave_spider', { scale: .7, hp: 12 }], ['mooshroom', 'cow', 'mooshroom_red', {}], ['piglin', 'zombified_piglin', 'piglin', { neutral: 1, drop: [['item:gold_ingot', 0, 1]] }], ['piglin_brute', 'zombified_piglin', 'piglin_brute', { neutral: 0, hostile: 1, dmg: [0, 7, 13, 19] }]])
   MOBDEF[n] = Object.assign({}, MOBDEF[base], { tex }, ext, { parts: MOBDEF[base].parts.map(p => Object.assign({}, p, p.tex ? {} : {})) });
+// ---- more mobs (Java model layouts) ----
+{
+  const P2 = Math.PI / 2, LEGS = (box, uv, xs, zs, y, uvB) => xs.flatMap(x => zs.map((z, j) => ({ box, uv: j && uvB ? uvB : uv, pos: [x, y, z], pivot: [x, y + box[1] / 2, z], leg: (xs.indexOf(x) + j) % 2 })));
+  const VHEAD = (y = 29) => [{ box: [8, 10, 8], uv: [0, 0], pos: [0, y, 0], pivot: [0, y - 5, 0], head: 1 }, { box: [2, 4, 2], uv: [24, 0], pos: [0, y - 3, -5], head: 1, hp: [0, y - 5, 0] }];
+  const VILL = () => [...VHEAD(), { box: [8, 12, 6], uv: [16, 20], pos: [0, 18, 0] }, { box: [8, 18, 6], uv: [0, 38], pos: [0, 15, 0], inf: .5 },
+    { box: [8, 4, 4], uv: [40, 38], pos: [0, 19, -4] }, { box: [4, 8, 4], uv: [44, 22], pos: [-6, 20, -2] }, { box: [4, 8, 4], uv: [44, 22], pos: [6, 20, -2] },
+    { box: [4, 12, 4], uv: [0, 22], pos: [-2, 6, 0], pivot: [-2, 12, 0], leg: 0 }, { box: [4, 12, 4], uv: [0, 22], pos: [2, 6, 0], pivot: [2, 12, 0], leg: 1 }];
+  const ILL = () => [...VHEAD(), { box: [8, 12, 6], uv: [16, 20], pos: [0, 18, 0] },
+    { box: [4, 12, 4], uv: [40, 46], pos: [-6, 18, 0], pivot: [-6, 22, 0], arm: 0, hand: 1 }, { box: [4, 12, 4], uv: [40, 46], pos: [6, 18, 0], pivot: [6, 22, 0], arm: 1 },
+    { box: [4, 12, 4], uv: [0, 22], pos: [-2, 6, 0], pivot: [-2, 12, 0], leg: 0 }, { box: [4, 12, 4], uv: [0, 22], pos: [2, 6, 0], pivot: [2, 12, 0], leg: 1 }];
+  const snd = (base, say = 'idle', hurt = 'hit', death = 'death') => ({ sound: base + say, hurt: base + hurt, death: base + death });
+  const HORSE = () => [{ box: [10, 10, 22], uv: [0, 32], pos: [0, 16, 0] }, { box: [4, 12, 7], uv: [0, 35], pos: [0, 24, -10], pivot: [0, 20, -9], head: 1 },
+    { box: [5, 5, 7], uv: [0, 13], pos: [0, 29, -14], head: 1, hp: [0, 20, -9] }, { box: [2, 3, 1], uv: [19, 16], pos: [-1.5, 33, -11.5], head: 1, hp: [0, 20, -9] }, { box: [2, 3, 1], uv: [19, 16], pos: [1.5, 33, -11.5], head: 1, hp: [0, 20, -9] },
+    { box: [3, 14, 4], uv: [42, 36], pos: [0, 13, 12.5], pivot: [0, 20, 11], tail: 1 }, ...LEGS([4, 11, 4], [48, 21], [-3, 3], [-8, 8], 5.5)];
+  Object.assign(MOBDEF, {
+    chicken: { tex: 'mob_chicken', w: .4, h: .7, hp: 4, speed: 1, drop: [['item:chicken', 1, 1], ['item:feather', 0, 2]], ...snd('mob/chicken/', 'say', 'hurt', 'hurt'), step: 'mob/chicken/step', chicken: 1,
+      parts: [{ box: [4, 6, 3], uv: [0, 0], pos: [0, 12, -4], pivot: [0, 9, -4], head: 1 }, { box: [4, 2, 2], uv: [14, 0], pos: [0, 12.5, -6.5], head: 1, hp: [0, 9, -4] }, { box: [2, 2, 2], uv: [14, 4], pos: [0, 10, -6], head: 1, hp: [0, 9, -4] },
+        { box: [6, 8, 6], uv: [0, 9], pos: [0, 8, 0], rot: [P2, 0, 0] }, { box: [1, 4, 6], uv: [24, 13], pos: [-3.5, 9, 0] }, { box: [1, 4, 6], uv: [24, 13], pos: [3.5, 9, 0] },
+        { box: [3, 5, 3], uv: [26, 0], pos: [-1.5, 2.5, 1], pivot: [-1.5, 5, 1], leg: 0 }, { box: [3, 5, 3], uv: [26, 0], pos: [1.5, 2.5, 1], pivot: [1.5, 5, 1], leg: 1 }] },
+    villager: { tex: 'mob_villager', w: .6, h: 1.95, hp: 20, speed: 1, drop: [], ...snd('mob/villager/'), step: 'step/grass', parts: VILL() },
+    wandering_trader: { tex: 'mob_wandering_trader', w: .6, h: 1.95, hp: 20, speed: 1, drop: [], ...snd('mob/wandering_trader/', 'idle', 'hurt', 'death'), step: 'step/grass', parts: VILL() },
+    witch: { tex: 'mob_witch', w: .6, h: 1.95, hp: 26, hostile: 1, ranged: 1, speed: 1.4, dmg: [0, 2, 3, 4], drop: [['item:glass_bottle', 0, 2], ['item:redstone', 0, 2], ['item:glowstone_dust', 0, 2], ['item:sugar', 0, 2]], ...snd('mob/witch/', 'ambient', 'hurt', 'death'), step: 'step/grass',
+      parts: [...VILL(), { box: [10, 2, 10], uv: [0, 64], pos: [0, 34.5, 0], head: 1, hp: [0, 24, 0] }, { box: [7, 4, 7], uv: [0, 76], pos: [0, 37.5, .5], head: 1, hp: [0, 24, 0] }, { box: [4, 4, 4], uv: [0, 87], pos: [0, 41, 1.5], head: 1, hp: [0, 24, 0] }] },
+    zombie_villager: { tex: 'mob_zombie_villager', w: .6, h: 1.95, hp: 20, hostile: 1, speed: 1.6, dmg: [0, 2, 3, 4], burns: 1, drop: [['item:rotten_flesh', 0, 2]], ...snd('mob/zombie_villager/', 'say', 'hurt', 'death'), step: 'mob/zombie/step',
+      parts: [...VHEAD(), { box: [8, 12, 4], uv: [16, 20], pos: [0, 18, 0] }, { box: [4, 12, 4], uv: [44, 22], pos: [-6, 18, 0], pivot: [-6, 22, 0], arm: 0, fwd: true, hand: 1 }, { box: [4, 12, 4], uv: [44, 22], pos: [6, 18, 0], pivot: [6, 22, 0], arm: 1, fwd: true },
+        { box: [4, 12, 4], uv: [0, 22], pos: [-2, 6, 0], pivot: [-2, 12, 0], leg: 0 }, { box: [4, 12, 4], uv: [0, 22], pos: [2, 6, 0], pivot: [2, 12, 0], leg: 1 }] },
+    pillager: { tex: 'mob_pillager', w: .6, h: 1.95, hp: 24, hostile: 1, ranged: 1, speed: 1.6, dmg: [0, 3, 4, 5], drop: [['item:arrow', 0, 2]], ...snd('mob/pillager/', 'idle', 'hurt', 'death'), step: 'step/grass', parts: ILL(), hold: 'item:crossbow_standby' },
+    vindicator: { tex: 'mob_vindicator', w: .6, h: 1.95, hp: 24, hostile: 1, speed: 1.8, dmg: [0, 7, 13, 19], drop: [['item:emerald', 0, 1]], ...snd('mob/vindication_illager/', 'idle', 'hurt', 'death'), step: 'step/grass', parts: ILL(), hold: 'item:iron_axe' },
+    evoker: { tex: 'mob_evoker', w: .6, h: 1.95, hp: 24, hostile: 1, speed: 1.6, dmg: [0, 3, 6, 9], drop: [['item:totem_of_undying', 1, 1], ['item:emerald', 0, 1]], ...snd('mob/evocation_illager/', 'idle', 'hurt', 'death'), step: 'step/grass', parts: ILL() },
+    iron_golem: { tex: 'mob_iron_golem', w: 1.4, h: 2.7, hp: 100, neutral: 1, speed: 1, dmg: [7, 11, 21, 31], drop: [['item:iron_ingot', 3, 5], ['poppy', 0, 2]], ...snd('mob/irongolem/', 'hit', 'hit', 'death'), step: 'mob/irongolem/walk',
+      parts: [{ box: [8, 10, 8], uv: [0, 0], pos: [0, 38, -3], pivot: [0, 33, -2], head: 1 }, { box: [2, 4, 2], uv: [24, 0], pos: [0, 35, -8], head: 1, hp: [0, 33, -2] },
+        { box: [18, 12, 11], uv: [0, 40], pos: [0, 27, 0] }, { box: [9, 5, 6], uv: [0, 70], pos: [0, 18.5, 0] },
+        { box: [4, 30, 6], uv: [60, 21], pos: [-11, 18, 0], pivot: [-11, 32, 0], arm: 0 }, { box: [4, 30, 6], uv: [60, 58], pos: [11, 18, 0], pivot: [11, 32, 0], arm: 1 },
+        { box: [6, 16, 5], uv: [37, 0], pos: [-4, 8, 0], pivot: [-4, 16, 0], leg: 0 }, { box: [6, 16, 5], uv: [60, 0], pos: [5, 8, 0], pivot: [5, 16, 0], leg: 1 }] },
+    snow_golem: { tex: 'mob_snow_golem', w: .7, h: 1.9, hp: 4, speed: 1, drop: [['item:snowball', 0, 15]], ...snd('mob/snowgolem/', 'ambient', 'hurt', 'death'), step: 'step/snow',
+      parts: [{ box: [8, 8, 8], uv: [0, 0], pos: [0, 25, 0], pivot: [0, 21, 0], head: 1 }, { box: [10, 10, 10], uv: [0, 16], pos: [0, 16, 0] }, { box: [12, 12, 12], uv: [0, 36], pos: [0, 6, 0] },
+        { box: [12, 2, 2], uv: [32, 0], pos: [-10, 19, 0] }, { box: [12, 2, 2], uv: [32, 0], pos: [10, 19, 0] }] },
+    blaze: { tex: 'mob_blaze', w: .6, h: 1.8, hp: 20, hostile: 1, fly: 1, ranged: 1, speed: 1.4, dmg: [0, 4, 6, 9], drop: [['item:blaze_rod', 0, 1]], ...snd('mob/blaze/', 'breathe', 'hit', 'death'), step: null,
+      parts: [{ box: [8, 8, 8], uv: [0, 0], pos: [0, 24, 0], pivot: [0, 20, 0], head: 1 }, ...[[9, 17], [7, 10], [5, 3]].flatMap(([r, y], ring) => [0, 1, 2, 3].map(i => { const a = (i + ring * .5) * P2; return { box: [2, 8, 2], uv: [0, 16], pos: [Math.cos(a) * r, y, Math.sin(a) * r], tent: i + ring * 4 }; }))] },
+    squid: { tex: 'mob_squid', w: .8, h: 1.2, hp: 10, speed: .6, drop: [['item:ink_sac', 1, 3]], ...snd('mob/squid/', 'ambient', 'hurt', 'death'), step: null,
+      parts: [{ box: [12, 16, 12], uv: [0, 0], pos: [0, 20, 0] }, ...[...Array(8)].map((_, i) => { const a = i / 8 * 6.283; return { box: [2, 18, 2], uv: [48, 0], pos: [Math.cos(a) * 5, 3, Math.sin(a) * 5], pivot: [Math.cos(a) * 5, 12, Math.sin(a) * 5], tent: i }; })] },
+    horse: { tex: 'mob_horse', w: 1.4, h: 1.6, hp: 22, speed: 1.6, drop: [['item:leather', 0, 2]], ...snd('mob/horse/', 'idle', 'hit', 'death'), step: 'mob/horse/soft', parts: HORSE() },
+    polar_bear: { tex: 'mob_polar_bear', w: 1.4, h: 1.4, hp: 30, neutral: 1, speed: 1.4, dmg: [4, 4, 6, 9], drop: [['item:cod', 0, 2]], ...snd('mob/polarbear/', 'idle', 'hurt', 'death'), step: 'mob/polarbear/step',
+      parts: [{ box: [14, 14, 11], uv: [0, 19], pos: [0, 14, 2], rot: [P2, 0, 0] }, { box: [7, 7, 7], uv: [0, 0], pos: [0, 16, -12], pivot: [0, 16, -9], head: 1 }, ...LEGS([4, 10, 8], [50, 22], [-4.5, 4.5], [-6, 8], 5, [50, 40])] },
+    hoglin: { tex: 'mob_hoglin', w: 1.4, h: 1.4, hp: 40, hostile: 1, speed: 1.6, dmg: [0, 3, 6, 9], drop: [['item:porkchop', 2, 4], ['item:leather', 0, 1]], ...snd('mob/hoglin/', 'ambient', 'hurt', 'death'), step: 'mob/hoglin/step',
+      parts: [{ box: [16, 14, 26], uv: [1, 1], pos: [0, 17, 0] }, { box: [14, 6, 19], uv: [61, 1], pos: [0, 14, -16], pivot: [0, 16, -8], head: 1 }, ...LEGS([6, 14, 6], [66, 42], [-4, 4], [-8, 9], 7, [41, 42])] },
+    silverfish: { tex: 'mob_silverfish', w: .4, h: .3, hp: 8, hostile: 1, speed: 1.6, dmg: [0, 1, 1, 1], drop: [], ...snd('mob/silverfish/', 'say', 'hit', 'kill'), step: 'mob/silverfish/step',
+      parts: [{ box: [3, 2, 2], uv: [0, 0], pos: [0, 1, -3.5] }, { box: [4, 3, 2], uv: [0, 4], pos: [0, 1.5, -1.5] }, { box: [6, 4, 3], uv: [0, 9], pos: [0, 2, 1] }, { box: [3, 3, 3], uv: [0, 16], pos: [0, 1.5, 4] }, { box: [2, 2, 3], uv: [0, 22], pos: [0, 1, 7] }] },
+    endermite: { tex: 'mob_endermite', w: .4, h: .3, hp: 8, hostile: 1, speed: 1.6, dmg: [0, 2, 2, 2], drop: [], ...snd('mob/endermite/', 'say', 'hit', 'kill'), step: 'mob/endermite/step',
+      parts: [{ box: [4, 3, 2], uv: [0, 0], pos: [0, 1.5, -3] }, { box: [6, 4, 5], uv: [0, 5], pos: [0, 2, .5] }, { box: [3, 3, 1], uv: [0, 14], pos: [0, 1.5, 3.5] }, { box: [1, 2, 1], uv: [0, 18], pos: [0, 1, 4.5] }] },
+  });
+  for (const [n, base, tex, ext] of [['glow_squid', 'squid', 'mob_glow_squid', {}], ['donkey', 'horse', 'mob_donkey', { hp: 20 }], ['mule', 'horse', 'mob_mule', {}], ['skeleton_horse', 'horse', 'mob_skeleton_horse', { drop: [['item:bone', 0, 2]] }],
+    ['zombie_horse', 'horse', 'mob_zombie_horse', { drop: [['item:rotten_flesh', 0, 2]] }], ['zoglin', 'hoglin', 'mob_zoglin', { drop: [['item:rotten_flesh', 1, 3]] }]])
+    MOBDEF[n] = Object.assign({}, MOBDEF[base], { tex }, ext);
+  MOBDEF.magma_cube = Object.assign({}, MOBDEF.slime, { tex: 'magmacube', drop: [['item:magma_cream', 0, 1]], burns: 0 });
+}
 MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, true), { box: [8, 12, 4], uv: [16, 32], pos: [0, 18, 0], inf: .25 }] };
 const MODELS = {};
 function boxVerts(out, size, uv, tw, th, inf = 0) {
@@ -211,7 +267,7 @@ function naturalSpawn(c) {
   if (mobs.length > 40 || world.meta.flat && Math.random() < .5) return;
   const H = world.N.hash(c.cx, 1234, c.cz); if (H > .12) return;
   if (world.dim == 'nether') return;
-  const bio = world.biome(c.cx * 16 + 8, c.cz * 16 + 8), types = /taiga|forest/.test(bio) ? ['pig', 'cow', 'sheep', 'wolf'] : ['pig', 'cow', 'sheep'], t = types[Math.floor(world.N.hash(c.cx, 99, c.cz) * types.length)], n = t == 'wolf' ? 2 + Math.floor(H * 10) : 2 + Math.floor(H * 20);
+  const bio = world.biome(c.cx * 16 + 8, c.cz * 16 + 8), types = /snowy|frozen/.test(bio) ? ['polar_bear', 'sheep'] : /taiga|forest/.test(bio) ? ['pig', 'cow', 'sheep', 'wolf', 'chicken'] : /plains|savanna|meadow/.test(bio) ? ['pig', 'cow', 'sheep', 'chicken', 'horse', 'donkey'] : ['pig', 'cow', 'sheep', 'chicken'], t = types[Math.floor(world.N.hash(c.cx, 99, c.cz) * types.length)], n = t == 'wolf' || t == 'polar_bear' || t == 'horse' || t == 'donkey' ? 2 + Math.floor(H * 10) : 2 + Math.floor(H * 20);
   for (let i = 0; i < n; i++) {
     const lx = Math.floor(world.N.hash(c.cx, i, c.cz) * 16), lz = Math.floor(world.N.hash(c.cx, i + 50, c.cz) * 16), x = c.cx * 16 + lx, z = c.cz * 16 + lz;
     const y = world.topY(x, z); const b = world.get(x, y, z); if (b == B('grass_block') || b == B('snowy_grass_block')) { const m = spawnMob(t, x + .5, y + 1, z + .5); if (t == 'sheep') m.wool = 0; }
