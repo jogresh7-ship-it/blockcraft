@@ -354,8 +354,8 @@ function craftSlots(grid, w, ox, oy, outX, outY) {
 function onCrafted(k) { const n = keyName(k); if (n == 'crafting_table') award('bench'); if (/_pickaxe$/.test(n)) award('pick'); if (n == 'furnace') award('furnace'); if (n == 'bread') award('bread'); }
 function returnGrid(grid) { for (let i = 0; i < grid.length; i++) if (grid[i]) { const l = giveItem(grid[i].k, grid[i].c, grid[i].dmg); if (l) dropItem(grid[i].k, l); grid[i] = null; } }
 function closeContainer() {
-  if (S.screen == 'inventory') returnGrid(player.craft2);
-  if (S.screen == 'crafting') returnGrid(S.grid3);
+  if (S.screen == 'inventory' && player.craft2) returnGrid(player.craft2);
+  if (S.screen == 'crafting' && S.grid3) returnGrid(S.grid3);
   if (S.screen == 'chest') SND.play('chestclosed', .5, 1, S.cpos);
   if (carried) { const l = giveItem(carried.k, carried.c, carried.dmg); if (l) dropItem(carried.k, l); carried = null; }
   go('game');

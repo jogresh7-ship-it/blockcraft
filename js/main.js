@@ -1016,7 +1016,11 @@ function frame(now) {
     const sv = [GS, UW, UH, mouse.x, mouse.y];
     if (fk < 1) { GS *= fk; UW /= fk; UH /= fk; mouse.x /= fk; mouse.y /= fk; cx2.setTransform(GS, 0, 0, GS, 0, 0); }
     try {
+      // close button for inventory-style screens (phones have no E / Esc key); it gets the tap before the screen does
+      const xb = /^(inventory|crafting|chest|furnace)$/.test(S.screen) ? [UW - 30, 6, 24, 24] : null, xhv = xb && hover(...xb);
+      if (xhv && mouse.click) { mouse.click = false; SND.play('ui_click', .5); closeContainer(); }
       if (scr) scr();
+      if (xb && /^(inventory|crafting|chest|furnace)$/.test(S.screen)) { nine(xhv ? 'widget_button_highlighted' : 'widget_button', ...xb, 3, 3, 3, 3); textC('X', xb[0] + 12, xb[1] + 8, xhv ? '#FFFFA0' : '#FFFFFF'); }
       if (S.tip) tooltip(S.tip, mouse.x, mouse.y);
       drawPadCursor(); drawPadHints();
     } finally { if (fk < 1) { [GS, UW, UH] = sv; mouse.x = sv[3]; mouse.y = sv[4]; cx2.setTransform(GS, 0, 0, GS, 0, 0); } }
