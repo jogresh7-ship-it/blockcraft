@@ -485,15 +485,17 @@ class World {
         if (BL[b].mm) { // full Minecraft model with block rotation (pistons)
           const st = this.state[wx + ',' + y + ',' + wz] || {}; let f = st.f;
           if (!f && /piston_head/.test(BL[b].n)) for (const d of [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) { const ps = this.state[(wx - d[0]) + ',' + (y - d[1]) + ',' + (wz - d[2])]; if (ps && ps.f && ps.f[0] == d[0] && ps.f[1] == d[1] && ps.f[2] == d[2]) { f = d; break; } }
-          emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : st.open && BL[b].mmo ? BL[b].mmo : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, /piston/.test(BL[b].n) ? null : st.fr || BL[b].mr || null);
+          const cull = (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)];
+          emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : st.open && BL[b].mmo ? BL[b].mmo : st.hang && BL[b].mmh ? BL[b].mmh : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, /piston/.test(BL[b].n) ? null : st.fr || BL[b].mr || null, cull);
           continue;
         }
-        if (BL[b].mp) { emitMP(out[0], b, mpConn(b, getB, wx - x0, y, wz - z0), wx, y, wz, ll); continue; }
+        if (BL[b].mp) { emitMP(out[0], b, mpConn(b, getB, wx - x0, y, wz - z0), wx, y, wz, ll, (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)]); continue; }
         for (const [BB, TT, FF] of (BL[b].bx || [[BL[b].bb, TEX[b * 4]]])) {
         const uv = tileUV(TT), uvS = BL[b].sidev ? tileUV(TEX[b * 4 + 2]) : uv;
         const bb = BB.map(v => v / 16), X0 = wx + bb[0], Y0 = y + bb[1], Z0 = wz + bb[2], X1 = wx + bb[3], Y1 = y + bb[4], Z1 = wz + bb[5];
         let fi = 0; // with a vanilla model (FF), each face has its own texture/uv, and missing faces are skipped
-        const Q = (C, u0, v0, u1, v1, s) => { let U = s == 1 || s == .5 ? uv : uvS; if (FF) { const fc = FF[fi++]; if (!fc) return; U = tileUV(fc[0]); if (fc.length == 5) { u0 = fc[1]; v0 = fc[2]; u1 = fc[3]; v1 = fc[4]; } } const f = (a, b2) => [lerp(U[0], U[2], a), lerp(U[1], U[3], b2)]; pushQuad(out[0], C, [f(u0, v1), f(u1, v1), f(u1, v0), f(u0, v0)], [s, ll[1], ll[2]]); };
+        const CULL = [BB[4] >= 16 && OPAQUE[getB(x, y + 1, z)], BB[1] <= 0 && OPAQUE[getB(x, y - 1, z)], BB[5] >= 16 && OPAQUE[getB(x, y, z + 1)], BB[2] <= 0 && OPAQUE[getB(x, y, z - 1)], BB[3] >= 16 && OPAQUE[getB(x + 1, y, z)], BB[0] <= 0 && OPAQUE[getB(x - 1, y, z)]]; let qi = 0;
+        const Q = (C, u0, v0, u1, v1, s) => { if (CULL[qi++]) { if (FF) fi++; return; } let U = s == 1 || s == .5 ? uv : uvS; if (FF) { const fc = FF[fi++]; if (!fc) return; U = tileUV(fc[0]); if (fc.length == 5) { u0 = fc[1]; v0 = fc[2]; u1 = fc[3]; v1 = fc[4]; } } const f = (a, b2) => [lerp(U[0], U[2], a), lerp(U[1], U[3], b2)]; pushQuad(out[0], C, [f(u0, v1), f(u1, v1), f(u1, v0), f(u0, v0)], [s, ll[1], ll[2]]); };
         Q([[X0, Y1, Z1], [X1, Y1, Z1], [X1, Y1, Z0], [X0, Y1, Z0]], bb[0], bb[2], bb[3], bb[5], 1); Q([[X0, Y0, Z0], [X1, Y0, Z0], [X1, Y0, Z1], [X0, Y0, Z1]], bb[0], bb[2], bb[3], bb[5], .5);
         Q([[X0, Y0, Z1], [X1, Y0, Z1], [X1, Y1, Z1], [X0, Y1, Z1]], bb[0], 1 - bb[4], bb[3], 1 - bb[1], .8); Q([[X1, Y0, Z0], [X0, Y0, Z0], [X0, Y1, Z0], [X1, Y1, Z0]], bb[0], 1 - bb[4], bb[3], 1 - bb[1], .8);
         Q([[X1, Y0, Z1], [X1, Y0, Z0], [X1, Y1, Z0], [X1, Y1, Z1]], bb[2], 1 - bb[4], bb[5], 1 - bb[1], .6); Q([[X0, Y0, Z0], [X0, Y0, Z1], [X0, Y1, Z1], [X0, Y1, Z0]], bb[2], 1 - bb[4], bb[5], 1 - bb[1], .6);
@@ -607,10 +609,14 @@ function elemRot(p, r) {
   else { [x, y] = [x * c - y * sn, x * sn + y * c]; x *= k; y *= k; }
   return [x + ox, y + oy, z + oz];
 }
-function emitMM(out, els, wx, y, wz, facing, ll, rot) {
+function emitMM(out, els, wx, y, wz, facing, ll, rot, cull) {
   const [rx, ry] = rot || facingRot(facing);
   for (const e of els) for (const d in e.faces) {
     const [t, u0, v0, u1, v1, r] = e.faces[d], T = tileUV(t), C = MMF[d](e.f, e.t).map(p => rotPt(elemRot(p, e.r), rx, ry));
+    if (cull) { // a face lying on the block's edge against an opaque neighbour is hidden anyway - and would flicker against it
+      const ax = C.every(p => Math.abs(p[0]) < 1e-3) ? [-1, 0, 0] : C.every(p => Math.abs(p[0] - 16) < 1e-3) ? [1, 0, 0] : C.every(p => Math.abs(p[1]) < 1e-3) ? [0, -1, 0] : C.every(p => Math.abs(p[1] - 16) < 1e-3) ? [0, 1, 0] : C.every(p => Math.abs(p[2]) < 1e-3) ? [0, 0, -1] : C.every(p => Math.abs(p[2] - 16) < 1e-3) ? [0, 0, 1] : null;
+      if (ax && cull(ax[0], ax[1], ax[2])) continue;
+    }
     let nv = MMN[d].map(v => v * 8 + 8); if (e.r) nv = elemRot(nv.map((v, i) => v - 8 + [e.r[0], e.r[1], e.r[2]][i]), e.r).map((v, i) => v + 8 - [e.r[0], e.r[1], e.r[2]][i]);
     const n = rotPt(nv, rx, ry).map(v => Math.round((v - 8) / 8)), s = n[1] > 0 ? 1 : n[1] < 0 ? .5 : n[2] ? .8 : .6;
     let uv = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]; for (let k = 0; k < (r || 0) / 90; k++) uv = [uv[3], uv[0], uv[1], uv[2]];
@@ -649,4 +655,4 @@ function mpMatch(w, c) {
   }
   return true;
 }
-function emitMP(out, b, c, wx, y, wz, ll) { for (const p of BL[b].mp) if (mpMatch(p.w, c)) emitMM(out, p.m, wx, y, wz, null, ll, [p.rx || 0, p.ry || 0]); }
+function emitMP(out, b, c, wx, y, wz, ll, cull) { for (const p of BL[b].mp) if (mpMatch(p.w, c)) emitMM(out, p.m, wx, y, wz, null, ll, [p.rx || 0, p.ry || 0], cull); }

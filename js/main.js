@@ -490,10 +490,15 @@ function useItem(hit, tm, h) {
   // torches, coral fans and signs placed on the side of a block become their wall version
   let wallFacing = null;
   { const pn = BL[place].n, WALL = { torch: 'wall_torch', soul_torch: 'soul_wall_torch', redstone_torch: 'redstone_wall_torch', copper_torch: 'copper_wall_torch' };
-    const wn = WALL[pn] || (/_coral_fan$/.test(pn) ? pn.replace('_coral_fan', '_coral_wall_fan') : /_sign$/.test(pn) && !/hanging|_wall_/.test(pn) ? pn.replace('_sign', '_wall_sign') : null);
+    const wn = WALL[pn] || (/_coral_fan$/.test(pn) ? pn.replace('_coral_fan', '_coral_wall_fan') : /_sign$/.test(pn) && !/hanging|_wall_/.test(pn) ? pn.replace('_sign', '_wall_sign') : /_banner$/.test(pn) && !/_wall_/.test(pn) ? pn.replace('_banner', '_wall_banner') : /(_head|_skull)$/.test(pn) && !/_wall_/.test(pn) ? pn.replace(/_(head|skull)$/, '_wall_$1') : BL[place].fyw ? pn : null);
     if (wn && BYNAME[wn] && hit.n[1] == 0) { place = BYNAME[wn]; wallFacing = hit.n[0] > 0 ? 'east' : hit.n[0] < 0 ? 'west' : hit.n[2] > 0 ? 'south' : 'north'; } }
   if (!canPlaceAt(...p) || p[1] < 0 || p[1] >= WH) return;
-  if ((SHAPE[place] == 6 || SHAPE[place] == 7) && !wallFacing && !SOLID[world.get(p[0], p[1] - 1, p[2])] && !(/hanging_sign$/.test(BL[place].n) && SOLID[world.get(p[0], p[1] + 1, p[2])])) return;
+  // only small things that sit on something need a block under them (any block, not just full cubes); everything else can go anywhere
+  { const pn = BL[place].n, below = world.get(p[0], p[1] - 1, p[2]), above = world.get(p[0], p[1] + 1, p[2]), hangs = hit.n[1] == -1;
+    const needsFloor = SHAPE[place] == 6 || /carpet$|pressure_plate$|rail$|^redstone_wire$|^repeater|^comparator|candle$|flower_pot$|^potted_|_head$|_skull$|_banner$|_sign$|dripleaf$|_coral(_fan)?$|^sea_pickle$|^frogspawn$/.test(pn) && !/wall_|hanging_sign/.test(pn);
+    if (!wallFacing && needsFloor && (!below || FLUID[below])) return;
+    if (/hanging_sign$/.test(pn) && (!above || FLUID[above])) return;
+    if (BL[place].mmh && !hangs && (!below || FLUID[below]) && above && !FLUID[above]) { /* lantern under a block hangs */ } }
   if (SHAPE[place] == 2 && !/fire|hanging|vines|propagule_hanging/.test(BL[place].n) && !SOLID[world.get(p[0], p[1] - 1, p[2])] && !/kelp|seagrass/.test(BL[place].n)) return;
   if (SOLID[place]) {
     const bb = [p[0], p[1], p[2], p[0] + 1, p[1] + 1, p[2] + 1];
@@ -507,6 +512,14 @@ function useItem(hit, tm, h) {
     bedHead = [p[0] + D[0], p[1], p[2] + D[1], look]; if (!canPlaceAt(bedHead[0], bedHead[1], bedHead[2]) || !BYNAME[BL[place].n + '_head']) return; }
   world.set(...p, place); if (TOP) world.set(p[0], p[1] + 1, p[2], TOP); rsPlaced(...p, place); rsNotify(...p); swing = 1; player.stats.placed++;
   if (wallFacing && BL[place].fy) world.state[p.join(',')] = { fd: wallFacing, fr: BL[place].fy[wallFacing] };
+  { // upside-down stairs, buttons on walls/ceilings, hanging lanterns
+    const B0 = BL[place], key0 = p.join(','), st0 = world.state[key0] || {}, f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north');
+    const side = hit.n[0] > 0 ? 'east' : hit.n[0] < 0 ? 'west' : hit.n[2] > 0 ? 'south' : hit.n[2] < 0 ? 'north' : null;
+    if (B0.fyt && hit.n[1] == -1 && st0.fd) { st0.fr = B0.fyt[st0.fd]; st0.top = 1; world.state[key0] = st0; }
+    if (B0.fyw2 && side) world.state[key0] = Object.assign(st0, { fd: side, fr: B0.fyw2[side] });
+    else if (B0.fyc && hit.n[1] == -1) world.state[key0] = Object.assign(st0, { fd: look, fr: B0.fyc[look] });
+    if (B0.mmh && (hit.n[1] == -1 || !world.get(p[0], p[1] - 1, p[2]))) world.state[key0] = Object.assign(st0, { hang: 1 });
+    const c0 = world.chunk(p[0] >> 4, p[2] >> 4); if (c0) c0.dirty = true; }
   if (bedHead) { const [hx, hy, hz, look] = bedHead, hb = BYNAME[BL[place].n + '_head']; world.set(hx, hy, hz, hb); world.state[p.join(',')] = { fd: look, fr: BL[place].fy[look] }; world.state[hx + ',' + hy + ',' + hz] = { fd: look, fr: BL[hb].fy[look] }; }
   blockSound(BL[place].n, 'place', 1, .8, [p[0] + .5, p[1] + .5, p[2] + .5]);
   consume();
