@@ -5,7 +5,7 @@ const rsKey = (x, y, z) => x + ',' + y + ',' + z;
 const N6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 function rsName(b) { return BL[b] ? BL[b].n : ''; }
 function isSourceAt(x, y, z) { const n = rsName(world.get(x, y, z)); return isSource(n) || RSS.on.has(rsKey(x, y, z)); }
-function isSource(n) { return /^(redstone_block|redstone_torch|lever_on|stone_button_on|stone_pressure_plate_on|oak_pressure_plate_on)$/.test(n) || (n == 'daylight_detector' && world.dim == 'overworld' && skyState().day > .6); }
+function isSource(n) { return /^(redstone_block|redstone_torch|redstone_wall_torch|lever_on|stone_button_on|stone_pressure_plate_on|oak_pressure_plate_on)$/.test(n) || (n == 'daylight_detector' && world.dim == 'overworld' && skyState().day > .6); }
 function isConsumer(n) { return /^(redstone_lamp|redstone_lamp_on|tnt|piston|sticky_piston|note_block|redstone_torch|redstone_torch_off)$/.test(n) || /_door(_open)?$|_trapdoor(_open)?$/.test(n); }
 function rsNotify(x, y, z) { RSS.q.push([x, y, z]); }
 function rsTick(dt) {
@@ -106,7 +106,7 @@ function rsUse(hit) {
 }
 function rsPlaced(x, y, z, b) {
   const n = rsName(b);
-  if (BL[b] && BL[b].fy) { // face the way Minecraft would: stairs/gates point away from you, anvils turn sideways, the rest face you
+  if (BL[b] && BL[b].fy && !BL[b].fyw && !/_wall_sign$/.test(n)) { // face the way Minecraft would: stairs/gates point away from you, anvils turn sideways, the rest face you
     const f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north');
     const opp = { north: 'south', south: 'north', east: 'west', west: 'east' }, cw = { north: 'east', east: 'south', south: 'west', west: 'north' };
     const fd = /stairs$|fence_gate$/.test(n) ? look : /anvil$/.test(n) ? cw[look] : opp[look];

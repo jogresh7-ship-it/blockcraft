@@ -350,6 +350,9 @@ function doBreak(hit, survival) {
   if (survival && blockProps(b).h < 0) return;
   if (!survival && /^(bedrock)$/.test(n) && false) return;
   if (/_door/.test(n) && !/trapdoor/.test(n)) { const oy = /_top/.test(n) ? y - 1 : y + 1; if (/_door/.test(BL[world.get(x, oy, z)]?.n || '')) world.set(x, oy, z, 0); }
+  if (BL[b].bed) { // beds are two blocks: remove the other half too
+    const st = world.state[x + ',' + y + ',' + z] || {}, D = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] }[st.fd || 'north'], head = /_bed_head$/.test(n), ox = x + (head ? -D[0] : D[0]), oz = z + (head ? -D[1] : D[1]);
+    if (BL[world.get(ox, y, oz)]?.bed) { world.set(ox, y, oz, 0); delete world.state[ox + ',' + y + ',' + oz]; } }
   if (BL[b].top) { const below = world.get(x, y - 1, z); if (BYNAME[BL[below]?.n + '_top'] == b) { world.set(x, y - 1, z, 0); if (survival) for (const [k, c] of drops(below, held() && held().k)) dropItem(k, c, x + .5, y - .5, z + .5); } }
   modEmit('blockBreak', x, y, z, n);
   world.set(x, y, z, 0); player.stats.mined++; player.exh += .005; if (survival && player.stats.mined % 10 == 0) earn(1);
@@ -402,7 +405,7 @@ function useItem(hit, tm, h) {
   if (!sneak && player.mode != 'spectator') {
     if (tb == 'crafting_table') { S.grid3 = Array(9).fill(null); go('crafting'); return; }
     if (/^(furnace|furnace_lit|smoker|blast_furnace)$/.test(tb)) { S.cont = world.containers[key] || (world.containers[key] = { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 1, cook: 0 }); S.contName = prettyName(hit.b); go('furnace'); return; }
-    if (/^(chest|barrel)$/.test(tb) || /shulker_box$/.test(tb)) { S.cont = world.containers[key] || (world.containers[key] = { type: 'chest', slots: Array(27).fill(null) }); S.contName = prettyName(hit.b); S.cpos = [hit.x, hit.y, hit.z]; SND.play('chestopen', .5); go('chest'); return; }
+    if (/^(chest|barrel)$/.test(tb) || /shulker_box$|_chest$/.test(tb)) { const ck = tb == 'ender_chest' ? 'ender' : key; S.cont = world.containers[ck] || (world.containers[ck] = { type: 'chest', slots: Array(27).fill(null) }); S.contName = prettyName(hit.b); S.cpos = [hit.x, hit.y, hit.z]; SND.play('chestopen', .5); go('chest'); return; }
     if (tb == 'tnt' && /flint_and_steel|fire_charge/.test(n)) { world.set(hit.x, hit.y, hit.z, 0); tnts.push({ x: hit.x + .5, y: hit.y, z: hit.z + .5, vx: 0, vy: 3, vz: 0, r: .49, h: .98, fuse: 4 }); SND.play('fuse'); wear(h, 1); return; }
     if (tb == 'note_block') { SND.play('note/harp', 1, Math.pow(2, ((world.N.hash(hit.x, hit.y, hit.z) * 24 | 0) - 12) / 12)); return; }
     if (tb == 'jukebox') { chat('§7Insert a music disc... (not available)'); return; }
@@ -428,8 +431,13 @@ function useItem(hit, tm, h) {
   { const sp = placeSpecial(h, hit, p); if (sp == 'ok') { blockSound(BL[h.k].n, 'place', 1, .8, [hit.x + .5, hit.y + .5, hit.z + .5]); swing = 1; player.stats.placed++; consume(); return; } if (sp == 'fail') return;
     if (sp == 'door') { if (!canPlaceAt(...p)) return; world.set(...p, h.k); world.set(p[0], p[1] + 1, p[2], BYNAME[BL[h.k].n + '_top']); SND.play('block/wooden_door/close', .6, 1, p); swing = 1; consume(); return; }
     if (sp) place = sp; }
+  // torches, coral fans and signs placed on the side of a block become their wall version
+  let wallFacing = null;
+  { const pn = BL[place].n, WALL = { torch: 'wall_torch', soul_torch: 'soul_wall_torch', redstone_torch: 'redstone_wall_torch', copper_torch: 'copper_wall_torch' };
+    const wn = WALL[pn] || (/_coral_fan$/.test(pn) ? pn.replace('_coral_fan', '_coral_wall_fan') : /_sign$/.test(pn) && !/hanging|_wall_/.test(pn) ? pn.replace('_sign', '_wall_sign') : null);
+    if (wn && BYNAME[wn] && hit.n[1] == 0) { place = BYNAME[wn]; wallFacing = hit.n[0] > 0 ? 'east' : hit.n[0] < 0 ? 'west' : hit.n[2] > 0 ? 'south' : 'north'; } }
   if (!canPlaceAt(...p) || p[1] < 0 || p[1] >= WH) return;
-  if ((SHAPE[place] == 6 || SHAPE[place] == 7) && !SOLID[world.get(p[0], p[1] - 1, p[2])]) return;
+  if ((SHAPE[place] == 6 || SHAPE[place] == 7) && !wallFacing && !SOLID[world.get(p[0], p[1] - 1, p[2])] && !(/hanging_sign$/.test(BL[place].n) && SOLID[world.get(p[0], p[1] + 1, p[2])])) return;
   if (SHAPE[place] == 2 && !/fire|hanging|vines|propagule_hanging/.test(BL[place].n) && !SOLID[world.get(p[0], p[1] - 1, p[2])] && !/kelp|seagrass/.test(BL[place].n)) return;
   if (SOLID[place]) {
     const bb = [p[0], p[1], p[2], p[0] + 1, p[1] + 1, p[2] + 1];
@@ -438,7 +446,12 @@ function useItem(hit, tm, h) {
   }
   const TOP = BYNAME[BL[place].n + '_top'];
   if (TOP && world.get(p[0], p[1] + 1, p[2])) return;
+  let bedHead = null;
+  if (BL[place].bed) { const f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north'), D = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] }[look];
+    bedHead = [p[0] + D[0], p[1], p[2] + D[1], look]; if (!canPlaceAt(bedHead[0], bedHead[1], bedHead[2]) || !BYNAME[BL[place].n + '_head']) return; }
   world.set(...p, place); if (TOP) world.set(p[0], p[1] + 1, p[2], TOP); rsPlaced(...p, place); rsNotify(...p); swing = 1; player.stats.placed++;
+  if (wallFacing && BL[place].fy) world.state[p.join(',')] = { fd: wallFacing, fr: BL[place].fy[wallFacing] };
+  if (bedHead) { const [hx, hy, hz, look] = bedHead, hb = BYNAME[BL[place].n + '_head']; world.set(hx, hy, hz, hb); world.state[p.join(',')] = { fd: look, fr: BL[place].fy[look] }; world.state[hx + ',' + hy + ',' + hz] = { fd: look, fr: BL[hb].fy[look] }; }
   blockSound(BL[place].n, 'place', 1, .8, [p[0] + .5, p[1] + .5, p[2] + .5]);
   consume();
 }

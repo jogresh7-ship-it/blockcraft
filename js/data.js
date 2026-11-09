@@ -44,6 +44,8 @@ function drops(id, held) {
   const n = BL[id].n, I = itemKey, r = Math.random(), t = held ? toolInfo(held) : null;
   if (!canHarvest(id, held)) return [];
   if (BL[id].top) return [];
+  if (/_bed_head$/.test(n)) return [];
+  { const W = n.replace(/^wall_torch$/, 'torch').replace('_wall_torch', '_torch').replace('_coral_wall_fan', '_coral_fan').replace('_wall_sign', '_sign'); if (W != n && BYNAME[W]) return [[I(W), 1]]; }
   const ALT = { lever_on: 'lever', stone_button_on: 'stone_button', stone_pressure_plate_on: 'stone_pressure_plate', oak_pressure_plate_on: 'oak_pressure_plate', redstone_lamp_on: 'redstone_lamp', furnace_lit: 'furnace', redstone_torch_off: 'redstone_torch' };
   if (ALT[n]) return [[I(ALT[n]), 1]];
   if (FLUID[id]) return [];
