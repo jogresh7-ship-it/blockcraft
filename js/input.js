@@ -4,12 +4,12 @@ const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) |
 const TOUCH = { on: false, joy: null, look: null, btn: {}, ids: {} };
 const PAD = { on: false, prev: [], cx: 0, cy: 0 };
 const key = (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code == 'Escape' ? 'Escape' : code == 'Space' ? ' ' : code.replace('Key', '').toLowerCase() }));
-function touchLayout() { // gui-unit rectangles
-  const s = 26, m = 8;
+function touchLayout() { // gui-unit rectangles, kept clear of the notch / home bar
+  const s = 34, m = 6, [st, sr, sb, sl] = typeof SAFE != 'undefined' ? SAFE : [0, 0, 0, 0], R = UW - sr - m, B = UH - sb - m, T = st + 4;
   return {
-    jump: [UW - s - m - 4, UH - s - 34, s, s, 'Jump'], sneak: [UW - 2 * s - m - 10, UH - s - 34, s, s, 'Sneak'],
-    inv: [UW / 2 + 95, UH - 22, 22, 20, '...'], pause: [UW - 26, 4, 22, 18, 'II'], chat: [UW - 52, 4, 22, 18, 'T'],
-    drop: [UW / 2 - 117, UH - 22, 22, 20, 'Q'], cam: [UW - 78, 4, 22, 18, 'F5'], fly: [UW - s - m - 4, UH - 2 * s - 40, s, s, 'Fly'],
+    jump: [R - s, B - s - 26, s, s, 'Jump'], sneak: [R - 2 * s - 6, B - s - 26, s, s, 'Sneak'], fly: [R - s, B - 2 * s - 32, s, s, 'Fly'],
+    inv: [UW / 2 + 95, UH - sb - 22, 22, 20, '...'], drop: [UW / 2 - 117, UH - sb - 22, 22, 20, 'Q'],
+    pause: [R - 26, T, 26, 20, 'II'], chat: [R - 56, T, 26, 20, 'T'], cam: [R - 86, T, 26, 20, 'F5'],
   };
 }
 const inRect = (x, y, r) => x >= r[0] && y >= r[1] && x < r[0] + r[2] && y < r[1] + r[3];
@@ -49,7 +49,7 @@ function setupTouch() {
     for (const t of e.changedTouches) {
       const info = TOUCH.ids[t.identifier]; if (!info) continue; const [x, y] = guiPos(t);
       if (info.menu) { mouse.x = x; mouse.y = y; if (Math.hypot(x - info.x, y - info.y) > 6) info.moved = 1; if (info.moved && /worlds|controls|stats|advancements/.test(S.screen)) { mouse.wheel -= (y - (info.ly ?? y)) / 18; } if (info.moved && (S.screen == 'inventory') && player && player.mode == 'creative') mouse.wheel -= (y - (info.ly ?? y)) / 18; info.ly = y; continue; }
-      if (info.joy && TOUCH.joy) { const j = TOUCH.joy; j.dx = clamp((x - j.ox) / 30, -1, 1); j.dy = clamp((y - j.oy) / 30, -1, 1); }
+      if (info.joy && TOUCH.joy) { const j = TOUCH.joy; j.dx = clamp((x - j.ox) / 26, -1, 1); j.dy = clamp((y - j.oy) / 26, -1, 1); }
       if (info.look && TOUCH.look && player) {
         const l = TOUCH.look, dx = t.clientX - l.lx, dy = t.clientY - l.ly; l.lx = t.clientX; l.ly = t.clientY; l.moved += Math.abs(dx) + Math.abs(dy);
         const s = (opts.sens * .6 + .2) * .012; player.yaw -= dx * s; player.pitch = clamp(player.pitch - dy * s, -1.5707, 1.5707);
@@ -68,6 +68,10 @@ function setupTouch() {
     }
     e.preventDefault();
   };
+  // no long-press menus, pinch zoom or double-tap zoom while playing; go full screen on Android after the first tap
+  document.addEventListener('contextmenu', e => { if (IS_MOBILE) e.preventDefault(); });
+  for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchend', () => { const el = document.documentElement; if (IS_MOBILE && !document.fullscreenElement && el.requestFullscreen && !TOUCH.fsTried) { TOUCH.fsTried = true; el.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => { })).catch(() => { }); } }, { once: false });
   document.addEventListener('touchstart', start, { passive: false }); document.addEventListener('touchmove', move, { passive: false });
   document.addEventListener('touchend', end, { passive: false }); document.addEventListener('touchcancel', end, { passive: false });
 }
@@ -82,8 +86,13 @@ function drawTouchHUD() {
   if (!TOUCH.on || S.screen != 'game' || hideHud) return;
   const L = touchLayout();
   for (const k in L) { if (k == 'fly' && player.mode == 'survival') continue; const [x, y, w, h, label] = L[k]; cx2.globalAlpha = TOUCH.btn[k] ? .9 : .55; nine(TOUCH.btn[k] ? 'widget_button_highlighted' : 'widget_button', x, y, w, h, 3, 3, 3, 3); textC(label, x + w / 2, y + h / 2 - 4, '#FFFFFF'); }
-  const j = TOUCH.joy; cx2.globalAlpha = .35; cx2.fillStyle = '#000';
-  const jx = j ? j.ox : 50, jy = j ? j.oy : UH - 60; cx2.beginPath(); cx2.arc(jx, jy, 30, 0, 7); cx2.fill(); cx2.globalAlpha = .6; cx2.fillStyle = '#ddd'; cx2.beginPath(); cx2.arc(jx + (j ? j.dx * 24 : 0), jy + (j ? j.dy * 24 : 0), 11, 0, 7); cx2.fill();
+  // movement stick: appears where your left thumb lands; resting position bottom-left
+  const j = TOUCH.joy, [, , sb, sl] = typeof SAFE != 'undefined' ? SAFE : [0, 0, 0, 0], R0 = 34;
+  const jx = j ? j.ox : sl + 14 + R0, jy = j ? j.oy : UH - sb - 26 - R0;
+  cx2.globalAlpha = .3; cx2.fillStyle = '#000'; cx2.beginPath(); cx2.arc(jx, jy, R0, 0, 7); cx2.fill();
+  cx2.globalAlpha = .5; cx2.strokeStyle = '#fff'; cx2.lineWidth = 1; cx2.beginPath(); cx2.arc(jx, jy, R0, 0, 7); cx2.stroke();
+  cx2.globalAlpha = .7; cx2.fillStyle = '#ddd'; cx2.beginPath(); cx2.arc(jx + (j ? j.dx * (R0 - 10) : 0), jy + (j ? j.dy * (R0 - 10) : 0), 13, 0, 7); cx2.fill();
+  if (j && j.dy < -.95) { cx2.globalAlpha = .9; textC('Sprint', jx, jy - R0 - 10, '#FFFF55'); }
   cx2.globalAlpha = 1;
 }
 // ---------- gamepad ----------

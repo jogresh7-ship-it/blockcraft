@@ -51,7 +51,7 @@ function loadingTick() {
       if (player.needGround) { player.y = world.topY(Math.floor(player.x), Math.floor(player.z)) + 1; player.needGround = false; player.spawn = [player.x, player.y, player.z]; }
       if (world.meta.mode == 'hardcore' && world.meta.dead) player.mode = 'spectator';
       if (S.afterLoad) { const f = S.afterLoad; S.afterLoad = null; f(); for (const c of world.chunks.values()) if (c.dirty) world.mesh(c); }
-      go('game'); chat('§7Press §fE§7 for inventory, §fT§7 to chat, §fF5§7 for third person'); modEmit('join'); if (world.meta.rain) SND.setRain(true);
+      go('game'); chat(TOUCH.on ? '§7Left thumb: move. Drag right side: look. §fTap§7 to place/use, §fhold§7 to break. §f...§7 = inventory' : '§7Press §fE§7 for inventory, §fT§7 to chat, §fF5§7 for third person'); modEmit('join'); if (world.meta.rain) SND.setRain(true);
     }
   }
 }
@@ -980,10 +980,17 @@ function setupInput() {
   document.getElementById('packfile').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadPackFile(f, true); });
 }
 // ---------------- main loop ----------------
+let SAFE = [0, 0, 0, 0]; // notch / home-bar insets in GUI units: top, right, bottom, left
+function safeInsets() { try { let p = document.getElementById('safeprobe'); if (!p) { p = document.createElement('div'); p.id = 'safeprobe'; p.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'; document.body.appendChild(p); } const s = getComputedStyle(p); return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map(v => parseFloat(v) || 0); } catch (e) { return [0, 0, 0, 0]; } }
 function resize() {
   const dpr = devicePixelRatio || 1, W = Math.floor(innerWidth * dpr), H = Math.floor(innerHeight * dpr);
-  glc.width = W; glc.height = H; ui.width = W; ui.height = H;
-  GS = opts.gui || Math.max(1, Math.min(Math.floor(W / 480), Math.floor(H / 330), 3)); if (opts.gui) GS = Math.min(opts.gui, Math.max(1, Math.floor(Math.min(W / 320, H / 240))));
+  // phones: draw the 3D world at a lower resolution (much faster); the menus stay sharp
+  const rs = IS_MOBILE ? Math.min(1, (opts.mres || 1.5) / dpr) : 1;
+  glc.width = Math.floor(W * rs); glc.height = Math.floor(H * rs); ui.width = W; ui.height = H;
+  if (IS_MOBILE) GS = Math.max(2, Math.min(Math.floor(H / 205), Math.floor(W / 370))); // big, finger-sized GUI (like Bedrock on phones)
+  else GS = Math.max(1, Math.min(Math.floor(W / 480), Math.floor(H / 330), 3));
+  if (opts.gui) GS = Math.min(opts.gui + (IS_MOBILE ? 1 : 0), Math.max(1, Math.floor(Math.min(W / 320, H / 240))));
+  SAFE = safeInsets().map(v => v * dpr / GS);
   UW = W / GS; UH = H / GS;
 }
 function frame(now) {

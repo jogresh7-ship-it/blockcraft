@@ -5,7 +5,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('blockcraft_' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   del(k) { try { localStorage.removeItem('blockcraft_' + k); } catch (e) { } },
 };
-const opts = Object.assign({ fov: 70, rd: 6, sens: .5, gui: 0, bob: false, clouds: true, fps: false, master: 1, music: .5, blocks: 1, mobs: 1, ambient: .7, ui: 1, smooth: true, font: 'improved' }, store.get('options2', {}));
+const opts = Object.assign({ fov: 70, rd: /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 4 : 6, sens: .5, gui: 0, bob: false, clouds: true, fps: false, master: 1, music: .5, blocks: 1, mobs: 1, ambient: .7, ui: 1, smooth: true, font: 'improved' }, store.get('options2', {}));
 function saveOpts() { store.set('options2', opts); Object.assign(SND.vol, { master: opts.master, music: opts.music, blocks: opts.blocks, mobs: opts.mobs, ambient: opts.ambient, ui: opts.ui }); SND.setMusicVol(); }
 const SPLASHES = ['Faithful to the original!', 'Now with sound packs!', 'Made in a browser!', '32x textures!', 'Punch a tree!', 'Infinite terrain!', 'Also try the real thing!', 'Voxel-tastic!', 'WebGL2!', 'Pixel perfect!', 'Bitmap font included!', 'Cubes all the way down!', 'Don\'t dig straight down!', 'Mind the lava!', '545 blocks!', '677 items!', 'Sheep included!', 'Moo!', 'Oink!', 'Ambient occlusion!'];
 const S = { screen: 'loading', prev: null, splash: SPLASHES[Math.random() * SPLASHES.length | 0], sel: -1, scroll: 0, cw: null, tab: 0, msg: '', loadP: 0, worlds: store.get('worlds', []), confirm: null, cscroll: 0, search: { q: '' }, ctab: 0 };
@@ -50,12 +50,14 @@ function scrTitle() {
   const sw = textW(S.splash); const f = 100 / (sw + 32) * sc; cx2.scale(f, f); textC(S.splash, 0, -8, '#FFFF00'); cx2.restore();
   if (S.bedrock) {
     // Bedrock-style: large stacked buttons
-    const bw = 220, bx = UW / 2 - bw / 2; let by = Math.max(ly + lg.h + 14, UH / 2 - 30);
-    if (button('Play', bx, by, bw, 24)) go('worlds');
-    if (button('Settings', bx, by + 30, bw, 24)) go('options');
-    if (button('Dressing Room', bx, by + 60, bw, 24)) go('skins');
-    if (button('Mods', bx, by + 90, bw / 2 - 2, 20)) { S.modmsg = ''; go('mods'); }
-    if (button('Credits', bx + bw / 2 + 2, by + 90, bw / 2 - 2, 20)) go('credits');
+    // squeeze the column to fit short (phone) screens instead of running off the bottom
+    const bw = 220, bx = UW / 2 - bw / 2, top = ly + lg.h + 8, step = clamp((UH - 14 - top - 20) / 3, 22, 30), bh = Math.min(24, step - 4);
+    let by = Math.max(top, Math.min(UH / 2 - 30, UH - 14 - 3 * step - 20));
+    if (button('Play', bx, by, bw, bh)) go('worlds');
+    if (button('Settings', bx, by + step, bw, bh)) go('options');
+    if (button('Dressing Room', bx, by + 2 * step, bw, bh)) go('skins');
+    if (button('Mods', bx, by + 3 * step, bw / 2 - 2, 20)) { S.modmsg = ''; go('mods'); }
+    if (button('Credits', bx + bw / 2 + 2, by + 3 * step, bw / 2 - 2, 20)) go('credits');
   } else {
     // Java-style
     const by = UH / 4 + 48, bx = UW / 2 - 100;
