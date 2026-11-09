@@ -1010,10 +1010,16 @@ function frame(now) {
     S.tip = null; clickUsed = false;
     if (world && player && S.screen != 'loading') drawHUD(dt);
     const scr = { title: scrTitle, worlds: scrWorlds, create: scrCreate, editworld: scrEditWorld, confirmdel: scrConfirmDel, options: scrOptions, video: scrVideo, sound: scrSound, controls: scrControls, credits: scrCredits, skins: scrSkins, mods: scrMods, packs: scrPacks, pause: scrPause, stats: scrStats, advancements: scrAdvancements, death: scrDeath, loading: scrLoading, inventory: scrInventory, crafting: scrCrafting, chest: scrChest, furnace: scrFurnace, chat: scrChat }[S.screen];
-    if (scr) scr();
     drawTouchHUD();
-    if (S.tip) tooltip(S.tip, mouse.x, mouse.y);
-    drawPadCursor(); drawPadHints();
+    // menus were laid out for at least 250x380 GUI units; on short phone screens shrink the whole menu to fit (taps are mapped too)
+    const fitH = { title: 0, chat: 0, loading: 0, inventory: 262, chest: 230 }[S.screen] ?? 250, fk = fitH ? Math.min(1, UH / fitH, UW / 380) : 1;
+    const sv = [GS, UW, UH, mouse.x, mouse.y];
+    if (fk < 1) { GS *= fk; UW /= fk; UH /= fk; mouse.x /= fk; mouse.y /= fk; cx2.setTransform(GS, 0, 0, GS, 0, 0); }
+    try {
+      if (scr) scr();
+      if (S.tip) tooltip(S.tip, mouse.x, mouse.y);
+      drawPadCursor(); drawPadHints();
+    } finally { if (fk < 1) { [GS, UW, UH] = sv; mouse.x = sv[3]; mouse.y = sv[4]; cx2.setTransform(GS, 0, 0, GS, 0, 0); } }
     ui.style.cursor = (S.screen == 'game' || S.screen == 'chat') ? 'none' : 'default';
   } catch (e) { console.error(e); cx2.setTransform(1, 0, 0, 1, 0, 0); cx2.fillStyle = '#f55'; cx2.font = '14px monospace'; cx2.fillText('Error: ' + e.message, 10, 20); }
   mouse.click = mouse.rclick = mouse.mclick = false; mouse.wheel = 0; typed = ''; keysPressed = [];
