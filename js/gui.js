@@ -60,6 +60,7 @@ function nine(k, x, y, w, h, bl, bt, br, bb) {
   }
 }
 function tiledBg(k, dark = 0.0, off = 0) {
+  if (S.bedrock && (k == 'menu_background' || k == 'menu_list_background')) { cx2.fillStyle = k == 'menu_background' ? BR.bg : BR.panel; cx2.fillRect(0, 0, UW, UH); return; }
   const im = IMG[k]; if (!im) { cx2.fillStyle = '#222'; cx2.fillRect(0, 0, UW, UH); return; }
   const t = im.width / 2;
   for (let x = 0; x < UW; x += t) for (let y = -((off | 0) % t); y < UH; y += t) cx2.drawImage(im, x, y, t, t);
@@ -67,8 +68,21 @@ function tiledBg(k, dark = 0.0, off = 0) {
 }
 const hover = (x, y, w, h) => mouse.x >= x && mouse.y >= y && mouse.x < x + w && mouse.y < y + h;
 let clickUsed = false;
+// ---------- Bedrock (phone/tablet) look: flat buttons, green main actions, dark header bar with a back arrow ----------
+const BR = { face: '#6D6E70', faceHv: '#8A8B8D', faceDis: '#3A3B3D', edge: '#1E1E1F', shadow: '#2E2F30', hi: '#A0A1A3', green: '#3C8527', greenHv: '#4FA33A', greenShadow: '#1D4D13', bar: '#313233', bg: '#48494A', panel: '#3A3B3D' };
+const BR_PRIMARY = /^(Play|Back to Game|Resume Game|Create New World|Create|Play Selected World|Respawn|Done|Save|Apply & Restart)$/;
+function brButton(label, x, y, w, h, enabled, hv, primary) {
+  x = Math.round(x); y = Math.round(y);
+  const face = !enabled ? BR.faceDis : primary ? (hv ? BR.greenHv : BR.green) : hv ? BR.faceHv : BR.face, sh = !enabled ? BR.edge : primary ? BR.greenShadow : BR.shadow;
+  cx2.fillStyle = BR.edge; cx2.fillRect(x, y, w, h);
+  cx2.fillStyle = sh; cx2.fillRect(x + 1, y + h - 3, w - 2, 2);
+  cx2.fillStyle = face; cx2.fillRect(x + 1, y + 1, w - 2, h - 4);
+  if (enabled) { cx2.fillStyle = 'rgba(255,255,255,.22)'; cx2.fillRect(x + 1, y + 1, w - 2, 1); }
+  textC(label, x + w / 2, y + (h - 8) / 2 - 1, enabled ? '#FFFFFF' : '#8A8A8A');
+}
 function button(label, x, y, w = 200, h = 20, enabled = true) {
   const hv = enabled && hover(x, y, w, h);
+  if (S.bedrock) { brButton(label, x, y, w, h, enabled, hv, BR_PRIMARY.test(label)); if (hv && mouse.click && !clickUsed) { clickUsed = true; SND.play('ui_click', .5); return true; } return false; }
   nine(enabled ? (hv ? 'widget_button_highlighted' : 'widget_button') : 'widget_button_disabled', x, y, w, h, 20, 4, 20, 4);
   textC(label, x + w / 2, y + (h - 8) / 2, enabled ? (hv ? '#FFFFA0' : '#FFFFFF') : '#A0A0A0');
   if (hv && mouse.click && !clickUsed) { clickUsed = true; SND.play('ui_click', .5); return true; }
@@ -77,6 +91,14 @@ function button(label, x, y, w = 200, h = 20, enabled = true) {
 let dragSlider = null;
 function slider(id, label, x, y, w, v) { // v 0..1 -> new v
   const hv = hover(x, y, w, 20);
+  if (S.bedrock) { // label above a green-filled track with a white knob
+    if (hv && mouse.click && !clickUsed) { clickUsed = true; dragSlider = id; }
+    if (dragSlider == id) { if (!mouse.down) { dragSlider = null; SND.play('ui_click', .4); } else v = clamp((mouse.x - x - 4) / (w - 8), 0, 1); }
+    text(label, x + 2, y + 1, '#FFFFFF'); const ty = y + 13, kx = x + 4 + Math.round(v * (w - 8));
+    cx2.fillStyle = BR.edge; cx2.fillRect(x, ty, w, 5); cx2.fillStyle = '#2A2B2C'; cx2.fillRect(x + 1, ty + 1, w - 2, 3); cx2.fillStyle = BR.green; cx2.fillRect(x + 1, ty + 1, kx - x - 1, 3);
+    cx2.fillStyle = BR.edge; cx2.fillRect(kx - 4, ty - 3, 8, 11); cx2.fillStyle = hv || dragSlider == id ? '#FFFFFF' : '#E0E0E0'; cx2.fillRect(kx - 3, ty - 2, 6, 9);
+    return v;
+  }
   nine(hv ? 'widget_slider_highlighted' : 'widget_slider', x, y, w, 20, 20, 4, 20, 4);
   if (hv && mouse.click && !clickUsed) { clickUsed = true; dragSlider = id; }
   if (dragSlider == id) { if (!mouse.down) { dragSlider = null; SND.play('ui_click', .4); } else v = clamp((mouse.x - x - 4) / (w - 8), 0, 1); }
@@ -105,6 +127,14 @@ function tooltip(lines, x, y) {
   lines.forEach((l, i) => text(l, x + 4, y + 4 + i * 10 + (i ? 2 : 0), i ? '#AAAAAA' : '#FFFFFF'));
 }
 function header(title) {
+  if (S.bedrock) { // Bedrock title bar with a back arrow (same as Esc)
+    cx2.fillStyle = BR.bar; cx2.fillRect(0, 0, UW, 24); cx2.fillStyle = BR.edge; cx2.fillRect(0, 24, UW, 1);
+    textC(title, UW / 2, 8, '#FFFFFF');
+    const hv = hover(4, 2, 30, 20); cx2.fillStyle = hv ? BR.faceHv : BR.face; cx2.fillRect(4, 3, 30, 18); cx2.fillStyle = BR.edge; cx2.fillRect(4, 19, 30, 2);
+    cx2.fillStyle = '#FFFFFF'; for (let i = 0; i < 5; i++) { cx2.fillRect(14 + i, 12 - i, 1, 1 + 2 * i); } cx2.fillRect(19, 11, 7, 3); // arrow
+    if (hv && mouse.click && !clickUsed) { clickUsed = true; SND.play('ui_click', .5); setTimeout(() => { window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' })); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' })); }, 0); }
+    return;
+  }
   textC(title, UW / 2, 15, '#FFFFFF');
 }
 function sepLines(top, bottom) {

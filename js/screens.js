@@ -11,7 +11,7 @@ const SPLASHES = ['Faithful to the original!', 'Now with sound packs!', 'Made in
 const S = { screen: 'loading', prev: null, splash: SPLASHES[Math.random() * SPLASHES.length | 0], sel: -1, scroll: 0, cw: null, tab: 0, msg: '', loadP: 0, worlds: store.get('worlds', []), confirm: null, cscroll: 0, search: { q: '' }, ctab: 0 };
 function go(s) { S.prev = S.screen; S.screen = s; focus = null; S.scroll = 0; if (s == 'game') lockPointer(); else unlockPointer(); }
 const inGame = () => !!world;
-function screenBg() { if (inGame()) { cx2.fillStyle = 'rgba(16,16,16,.6)'; cx2.fillRect(0, 0, UW, UH); } else tiledBg('menu_background', 0.55); }
+function screenBg() { if (inGame()) { cx2.fillStyle = S.bedrock ? 'rgba(30,30,31,.75)' : 'rgba(16,16,16,.6)'; cx2.fillRect(0, 0, UW, UH); } else tiledBg('menu_background', 0.55); }
 
 // ---------- title ----------
 let titleCanvas;
@@ -130,6 +130,7 @@ function scrConfirmDel() {
 const DIFFS = ['Peaceful', 'Easy', 'Normal', 'Hard'];
 function tabBtn(label, x, y, w, sel) {
   const hv = hover(x, y, w, 24);
+  if (S.bedrock) { brButton(label, x, y + 2, w, 20, true, hv, sel); if (hv && mouse.click && !clickUsed) { clickUsed = true; SND.play('ui_click', .5); return true; } return false; }
   nine(sel ? (hv ? 'widget_tab_selected_highlighted' : 'widget_tab_selected') : hv ? 'widget_tab_highlighted' : 'widget_tab', x, y, w, 24, 2, 2, 2, 2);
   textC(label, x + w / 2, y + 8, sel ? '#FFFFFF' : '#A0A0A0');
   if (hv && mouse.click && !clickUsed) { clickUsed = true; SND.play('ui_click', .5); return true; } return false;
@@ -224,8 +225,8 @@ function scrControls() {
 }
 // ---------- in-game menus ----------
 function scrPause() {
-  cx2.fillStyle = 'rgba(16,16,16,.6)'; cx2.fillRect(0, 0, UW, UH);
-  textC('Game Menu', UW / 2, 40, '#FFFFFF'); const x = UW / 2 - 102, y = UH / 4 + 8;
+  cx2.fillStyle = S.bedrock ? 'rgba(30,30,31,.75)' : 'rgba(16,16,16,.6)'; cx2.fillRect(0, 0, UW, UH);
+  if (S.bedrock) header('Game Menu'); else textC('Game Menu', UW / 2, 40, '#FFFFFF'); const x = UW / 2 - 102, y = UH / 4 + 8;
   if (button('Back to Game', x, y, 204)) go('game');
   if (button('Advancements', x, y + 24, 98)) go('advancements');
   if (button('Statistics', x + 106, y + 24, 98)) go('stats');
