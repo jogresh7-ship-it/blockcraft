@@ -15,6 +15,10 @@ function newPlayer(meta) {
 function openWorld(meta, fresh) {
   S.loadTitle = fresh ? 'Generating world' : 'Loading world'; S.loadSub = 'Building terrain'; S.loadP = 0; go('loading');
   const data = store.get('world_' + meta.id, null);
+  if (data && !data.ib) { // saves from before there were 1000+ blocks stored items as 1000 + n
+    const fix = o => { if (!o || typeof o != 'object') return; if (Array.isArray(o)) { o.forEach(fix); return; } if (typeof o.k == 'number' && typeof o.c == 'number' && o.k >= 1000 && o.k < 4096) o.k += 3096; for (const v of Object.values(o)) if (v && typeof v == 'object') fix(v); };
+    fix(data.player); fix(data.containers); data.ib = 4096;
+  }
   meta.time = data?.time ?? 1000; meta.rain = data?.rain || false; meta.weatherT = data?.weatherT ?? 600;
   world = new World(Object.assign(meta, { edits: data?.edits || {}, dimEdits: data?.dimEdits, dim: data?.dim || 'overworld', state: data?.state || {}, containers: data?.containers || {} }));
   if (meta.flat) { const hh = world.height.bind(world); world.height = (x, z) => world.dim == 'nether' ? hh(x, z) : ({ h: 4, bio: 'plains' }); }
@@ -54,7 +58,7 @@ function loadingTick() {
 function saveWorld() {
   if (!world) return true;
   const m = world.meta; m.last = Date.now();
-  const data = { player: Object.assign({}, player, { craft2: [null, null, null, null] }), time: m.time, rain: m.rain, weatherT: m.weatherT, dimEdits: m.dimEdits, dim: world.dim, state: m.state, containers: world.containers, mobs: mobs.slice(0, 60).map(o => ({ type: o.type, x: o.x, y: o.y, z: o.z, yaw: o.yaw, hp: o.hp, sheared: o.sheared, wool: o.wool })) };
+  const data = { ib: 4096, player: Object.assign({}, player, { craft2: [null, null, null, null] }), time: m.time, rain: m.rain, weatherT: m.weatherT, dimEdits: m.dimEdits, dim: world.dim, state: m.state, containers: world.containers, mobs: mobs.slice(0, 60).map(o => ({ type: o.type, x: o.x, y: o.y, z: o.z, yaw: o.yaw, hp: o.hp, sheared: o.sheared, wool: o.wool })) };
   const ok = store.set('world_' + m.id, data);
   const meta = Object.assign({}, m); delete meta.edits; delete meta.containers; delete meta.dimEdits; delete meta.state;
   S.iconCache = {}; S.worlds = S.worlds.map(w => w.id == m.id ? meta : w); store.set('worlds', S.worlds);

@@ -47,7 +47,7 @@ const IMG = {};
 function loadImg(k, src) { return new Promise((res, rej) => { const i = new Image(); if (window.EMBED) src = EMBED[src] || src; i.onload = () => { IMG[k] = i; res(i); }; i.onerror = () => { console.warn('missing', src); res(null); }; i.src = src; }); }
 let REG, BL, BYNAME = {}, ITEMS, NB;
 let SHAPE, ALPHA, EMIT, OPAQUE, SOLID, TEX, SBOX, FLUID, FLVL;
-const ITEM_BASE = 1000;
+const ITEM_BASE = 4096; // item keys start here (blocks use 0..4095); old saves used 1000 and are converted on load
 const GUI_FILES = ['font', 'menu_background', 'menu_list_background', 'inworld_menu_background', 'header_separator', 'footer_separator', 'inventory', 'crafting_table',
   'furnace', 'generic_54', 'tab_items', 'tab_item_search', 'tab_inventory', 'sun', 'clouds', 'rain', 'snowfall', 'underwater', 'pig', 'cow', 'sheep', 'sheep_wool',
   'widget_button', 'widget_button_highlighted', 'widget_button_disabled', 'widget_slider', 'widget_slider_highlighted', 'widget_slider_handle', 'widget_slider_handle_highlighted',

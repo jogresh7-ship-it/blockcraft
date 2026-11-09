@@ -7,7 +7,7 @@ A Minecraft-like voxel game written in plain JavaScript and WebGL2, with no game
 ## Features
 - Realistic world generation: continents, ridged mountains, winding rivers, beaches, swamps, and about 25 biomes
 - Caves, ore veins, the Nether, redstone, mobs, survival and creative modes
-- Over 900 blocks, including vanilla block models (anvils, lanterns, stairs, campfires, and more)
+- Over 1,250 blocks with vanilla models, including fences, walls and panes that connect, potted plants, slabs, buttons, rails, pistons and more
 - Java- and Bedrock-style menus, skins, third-person view, and mod and resource-pack importing (any Java resource pack `.zip`)
 - Keyboard and mouse, controller, and touch (on phones and tablets)
 

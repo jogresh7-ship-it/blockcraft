@@ -129,7 +129,7 @@ function buildIcons() {
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
   // shaped blocks with no item sprite get a real 3D icon
-  const shaped = []; for (let i = 1; i < NB; i++) if ((SHAPE[i] == 7 || BL[i].mm) && ITEMS.indexOf(BL[i].n) < 0 && !BL[i].plant && !/^(redstone_wire|lily_pad|leaf_litter|wildflowers|pink_petals|ladder|vine|glow_lichen)$|rail$/.test(BL[i].n)) shaped.push(i);
+  const shaped = []; for (let i = 1; i < NB; i++) if ((SHAPE[i] == 7 || BL[i].mm || BL[i].mp) && ITEMS.indexOf(BL[i].n) < 0 && !BL[i].plant && !/^(redstone_wire|lily_pad|leaf_litter|wildflowers|pink_petals|ladder|vine|glow_lichen)$|rail$/.test(BL[i].n)) shaped.push(i);
   try { renderModelIcons(shaped); } catch (e) { console.warn('3D icons', e); }
 }
 function drawIcon(k, x, y, s = 16) {
@@ -146,7 +146,10 @@ function drawStack(st, x, y) {
 // Renders each block's real geometry with the Minecraft inventory camera (30 deg tilt, 225 deg turn, 0.625 scale).
 function blockIconGeom(i) {
   const out = [], b = BL[i], L = s => [s, 1, 1];
-  if (b.mm) { emitMM(out, b.mm, 0, 0, 0, [0, 1, 0], [1, 1, 1]); return out; }
+  if (b.mm) { emitMM(out, b.mm, 0, 0, 0, [0, 1, 0], [1, 1, 1], b.mr && !/piston/.test(b.n) ? b.mr : null); return out; }
+  if (b.mp) { const k = b.mpk, c = { north: false, south: false, east: false, west: false, up: false, down: false };
+    if (k == 'fence' || k == 'pane') { c.north = c.south = true; } else if (k == 'wall') { c.north = c.south = 'low'; c.east = c.west = 'none'; c.up = true; } else if (k == 'attach') c.south = true;
+    emitMP(out, i, c, 0, 0, 0, [1, 1, 1]); return out; }
   for (const [BB, TT, FF] of (b.bx || [[b.bb || [0, 0, 0, 16, 16, 16], TEX[i * 4]]])) {
     const uv = tileUV(TT), uvS = b.sidev ? tileUV(TEX[i * 4 + 2]) : uv, bb = BB.map(v => v / 16), [X0, Y0, Z0, X1, Y1, Z1] = bb; let fi = 0;
     const Q = (C, u0, v0, u1, v1, s) => { let U = s == 1 || s == .5 ? uv : uvS; if (FF) { const fc = FF[fi++]; if (!fc) return; U = tileUV(fc[0]); if (fc.length == 5) { u0 = fc[1]; v0 = fc[2]; u1 = fc[3]; v1 = fc[4]; } } const f = (a, b2) => [lerp(U[0], U[2], a), lerp(U[1], U[3], b2)]; pushQuad(out, C, [f(u0, v1), f(u1, v1), f(u1, v0), f(u0, v0)], L(s)); };

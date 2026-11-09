@@ -485,9 +485,10 @@ class World {
         if (BL[b].mm) { // full Minecraft model with block rotation (pistons)
           const st = this.state[wx + ',' + y + ',' + wz] || {}; let f = st.f;
           if (!f && /piston_head/.test(BL[b].n)) for (const d of [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) { const ps = this.state[(wx - d[0]) + ',' + (y - d[1]) + ',' + (wz - d[2])]; if (ps && ps.f && ps.f[0] == d[0] && ps.f[1] == d[1] && ps.f[2] == d[2]) { f = d; break; } }
-          emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll);
+          emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, BL[b].mr && !/piston/.test(BL[b].n) ? BL[b].mr : null);
           continue;
         }
+        if (BL[b].mp) { emitMP(out[0], b, mpConn(b, getB, wx - x0, y, wz - z0), wx, y, wz, ll); continue; }
         for (const [BB, TT, FF] of (BL[b].bx || [[BL[b].bb, TEX[b * 4]]])) {
         const uv = tileUV(TT), uvS = BL[b].sidev ? tileUV(TEX[b * 4 + 2]) : uv;
         const bb = BB.map(v => v / 16), X0 = wx + bb[0], Y0 = y + bb[1], Z0 = wz + bb[2], X1 = wx + bb[3], Y1 = y + bb[4], Z1 = wz + bb[5];
@@ -597,14 +598,55 @@ function rotPt(p, rx, ry) { // around block centre (8,8,8); x first, then y (Min
   for (let k = 0; k < ry / 90; k++) [x, z] = [-z, x];
   return [x + 8, y + 8, z + 8];
 }
-function emitMM(out, els, wx, y, wz, facing, ll) {
-  const [rx, ry] = facingRot(facing);
+// rotate a model element point around its own pivot (element "rotation": origin, axis, angle, rescale)
+function elemRot(p, r) {
+  if (!r) return p; const [ox, oy, oz, ax, ang, resc] = r, a = ang * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a), k = resc ? 1 / c : 1;
+  let x = p[0] - ox, y = p[1] - oy, z = p[2] - oz;
+  if (ax == 'y') { [x, z] = [x * c + z * sn, -x * sn + z * c]; x *= k; z *= k; }
+  else if (ax == 'x') { [y, z] = [y * c - z * sn, y * sn + z * c]; y *= k; z *= k; }
+  else { [x, y] = [x * c - y * sn, x * sn + y * c]; x *= k; y *= k; }
+  return [x + ox, y + oy, z + oz];
+}
+function emitMM(out, els, wx, y, wz, facing, ll, rot) {
+  const [rx, ry] = rot || facingRot(facing);
   for (const e of els) for (const d in e.faces) {
-    const [t, u0, v0, u1, v1, r] = e.faces[d], T = tileUV(t), C = MMF[d](e.f, e.t).map(p => rotPt(p, rx, ry));
-    const n = rotPt(MMN[d].map(v => v * 8 + 8), rx, ry).map(v => Math.round((v - 8) / 8)), s = n[1] > 0 ? 1 : n[1] < 0 ? .5 : n[2] ? .8 : .6;
+    const [t, u0, v0, u1, v1, r] = e.faces[d], T = tileUV(t), C = MMF[d](e.f, e.t).map(p => rotPt(elemRot(p, e.r), rx, ry));
+    let nv = MMN[d].map(v => v * 8 + 8); if (e.r) nv = elemRot(nv.map((v, i) => v - 8 + [e.r[0], e.r[1], e.r[2]][i]), e.r).map((v, i) => v + 8 - [e.r[0], e.r[1], e.r[2]][i]);
+    const n = rotPt(nv, rx, ry).map(v => Math.round((v - 8) / 8)), s = n[1] > 0 ? 1 : n[1] < 0 ? .5 : n[2] ? .8 : .6;
     let uv = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]; for (let k = 0; k < (r || 0) / 90; k++) uv = [uv[3], uv[0], uv[1], uv[2]];
     const U = uv.map(([u, v]) => [lerp(T[0], T[2], u / 16), lerp(T[1], T[3], v / 16)]);
     // pushQuad wants counter-clockwise corners; MC order TL,TR,BR,BL is clockwise seen from outside -> reverse
     pushQuad(out, [C[3], C[2], C[1], C[0]].map(p => [wx + p[0] / 16, y + p[1] / 16, wz + p[2] / 16]), [U[3], U[2], U[1], U[0]], [s, ll[1], ll[2]]);
   }
 }
+// ---- multipart blocks (fences, walls, panes, bars, vines): which parts show depends on the neighbours ----
+const MP_DIRS = { north: [0, 0, -1], south: [0, 0, 1], east: [1, 0, 0], west: [-1, 0, 0], up: [0, 1, 0], down: [0, -1, 0] };
+const MP_DEF = { facing: 'north', has_bottle_0: 'false', has_bottle_1: 'false', has_bottle_2: 'false', age: '0', leaves: 'none', side_chain: 'unconnected', powered: 'false', slot_0_occupied: 'false', slot_1_occupied: 'false', slot_2_occupied: 'false' };
+function mpConn(b, getB, x, y, z) {
+  const k = BL[b].mpk, c = {};
+  for (const d in MP_DIRS) {
+    const [dx, dy, dz] = MP_DIRS[d], nb = getB(x + dx, y + dy, z + dz), nn = BL[nb] ? BL[nb].n : '';
+    if (k == 'attach') { c[d] = !!(OPAQUE[nb] || (d == 'up' && LEAF[nb])); continue; }
+    if (dy) { c[d] = false; continue; }
+    const solid = OPAQUE[nb] && !LEAF[nb];
+    if (k == 'fence') c[d] = solid || (BL[nb] && (BL[nb].mpk == 'fence' && /nether_brick/.test(nn) == /nether_brick/.test(BL[b].n)) || /fence_gate$/.test(nn));
+    else if (k == 'wall') c[d] = solid || (BL[nb] && BL[nb].mpk == 'wall') || /fence_gate$/.test(nn);
+    else if (k == 'pane') c[d] = solid || (BL[nb] && BL[nb].mpk == 'pane') || /glass$/.test(nn);
+    else c[d] = false;
+  }
+  if (k == 'wall') { const ns = c.north && c.south && !c.east && !c.west, ew = c.east && c.west && !c.north && !c.south, tall = !!OPAQUE[getB(x, y + 1, z)]; c.up = !(ns || ew); for (const d of ['north', 'south', 'east', 'west']) c[d] = c[d] ? (tall ? 'tall' : 'low') : 'none'; }
+  if (k == 'attach' && !c.north && !c.south && !c.east && !c.west && !c.up) c.down = true;
+  return c;
+}
+function mpMatch(w, c) {
+  if (!w) return true;
+  if (w.OR) return w.OR.some(q => mpMatch(q, c));
+  if (w.AND) return w.AND.every(q => mpMatch(q, c));
+  for (const key in w) {
+    const want = String(w[key]).split('|'); let have = key in c ? c[key] : MP_DEF[key];
+    if (have === undefined) have = 'false'; if (have === true) have = 'true'; if (have === false) have = 'false';
+    if (!want.includes(String(have))) return false;
+  }
+  return true;
+}
+function emitMP(out, b, c, wx, y, wz, ll) { for (const p of BL[b].mp) if (mpMatch(p.w, c)) emitMM(out, p.m, wx, y, wz, null, ll, [p.rx || 0, p.ry || 0]); }
