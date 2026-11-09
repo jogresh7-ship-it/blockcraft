@@ -6,7 +6,7 @@ const N6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
 function rsName(b) { return BL[b] ? BL[b].n : ''; }
 function isSourceAt(x, y, z) { const n = rsName(world.get(x, y, z)); return isSource(n) || RSS.on.has(rsKey(x, y, z)); }
 function isSource(n) { return /^(redstone_block|redstone_torch|redstone_wall_torch|lever_on|stone_button_on|stone_pressure_plate_on|oak_pressure_plate_on)$/.test(n) || (n == 'daylight_detector' && world.dim == 'overworld' && skyState().day > .6); }
-function isConsumer(n) { return /^(redstone_lamp|redstone_lamp_on|tnt|piston|sticky_piston|note_block|redstone_torch|redstone_torch_off)$/.test(n) || /_door(_open)?$|_trapdoor(_open)?$/.test(n); }
+function isConsumer(n) { return /^(redstone_lamp|redstone_lamp_on|tnt|piston|sticky_piston|note_block|redstone_torch|redstone_torch_off|command_block|repeating_command_block|chain_command_block)$/.test(n) || /_door(_open)?$|_trapdoor(_open)?$/.test(n); }
 function rsNotify(x, y, z) { RSS.q.push([x, y, z]); }
 function rsTick(dt) {
   for (const t of RSS.timers) t.t -= dt;
@@ -68,6 +68,7 @@ function rsUpdate(cx, cy, cz) {
     if (n == 'redstone_lamp' && on) world.set(x, y, z, BYNAME.redstone_lamp_on);
     else if (n == 'redstone_lamp_on' && !on) world.set(x, y, z, BYNAME.redstone_lamp);
     else if (n == 'tnt' && on) { world.set(x, y, z, 0); tnts.push({ x: x + .5, y, z: z + .5, vx: 0, vy: 3, vz: 0, r: .49, h: .98, fuse: 4 }); SND.play('fuse', 1, 1, [x, y, z]); }
+    else if (/command_block$/.test(n)) { if (on && (!st.on || n == 'repeating_command_block')) { st.out = runCommandBlock(st.cmd, x, y, z); if (n != 'chain_command_block') runChain(x, y, z, 0); } world.state[k] = Object.assign(st, { on }); }
     else if (n == 'note_block') { if (on && !st.on) SND.play('note/harp', 1, Math.pow(2, ((st.note || 0) - 12) / 12), [x, y, z]); world.state[k] = Object.assign(st, { on }); }
     else if (/_door(_open)?$|_trapdoor(_open)?$/.test(n)) { if (!/_top/.test(n)) setDoorPowered(x, y, z, on || (/_door/.test(n) && !/trapdoor/.test(n) && powered(x, y + 1, z))); }
     else if (n == 'piston' || n == 'sticky_piston') { if (on && !st.ext) pistonExtend(x, y, z, n == 'sticky_piston'); else if (!on && st.ext) pistonRetract(x, y, z, n == 'sticky_piston'); }
@@ -114,4 +115,16 @@ function rsPlaced(x, y, z, b) {
     const c = world.chunk(x >> 4, z >> 4); if (c) c.dirty = true;
   }
   if (n == 'piston' || n == 'sticky_piston') { const f = fwd(); const a = [Math.abs(f[0]), Math.abs(f[1]), Math.abs(f[2])], i = a.indexOf(Math.max(...a)); const dir = [0, 0, 0]; dir[i] = Math.sign(f[i]); world.state[rsKey(x, y, z)] = { f: dir.map(v => -v) }; }
+}
+
+// chain command blocks fire right after the block pointing into them
+function runChain(x, y, z, d) {
+  if (d > 32) return;
+  for (const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
+    const nx = x + dx, ny = y + dy, nz = z + dz;
+    if (REG.blocks[world.get(nx, ny, nz)]?.n != 'chain_command_block') continue;
+    const st = world.state[rsKey(nx, ny, nz)] = world.state[rsKey(nx, ny, nz)] || {};
+    if (st.ran === (performance.now() / 50 | 0)) continue; st.ran = performance.now() / 50 | 0;
+    st.out = runCommandBlock(st.cmd, nx, ny, nz); runChain(nx, ny, nz, d + 1);
+  }
 }

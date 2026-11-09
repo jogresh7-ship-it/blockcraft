@@ -113,7 +113,7 @@ function textField(id, obj, key, x, y, w, h = 20, placeholder = '') {
   nine(focus == id ? 'widget_text_field_highlighted' : 'widget_text_field', x, y, w, h, 1, 1, 1, 1);
   if (focus == id) {
     for (const k of keysPressed) { if (k == 'Backspace') obj[key] = obj[key].slice(0, -1); }
-    if (typed) obj[key] = (obj[key] + typed).slice(0, 64);
+    if (typed) obj[key] = (obj[key] + typed).slice(0, id == 'cmd' ? 256 : 64);
   }
   let s = obj[key]; while (textW(s) > w - 10 && s.length) s = s.slice(1);
   if (!s && focus != id) text(placeholder, x + 4, y + (h - 8) / 2, '#707070', false);

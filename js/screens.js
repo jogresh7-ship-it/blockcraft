@@ -91,8 +91,9 @@ function listFrame(top, bottom) {
   cx2.save(); cx2.beginPath(); cx2.rect(0, top, UW, bottom - top); cx2.clip(); tiledBg('menu_list_background', .2, S.scroll); cx2.restore(); sepLines(top, bottom);
 }
 function scrWorlds() {
-  tiledBg('menu_background', .55); header('Select World');
-  const top = 32, bottom = UH - 64; listFrame(top, bottom);
+  tiledBg('menu_background', .55); header(S.bedrock ? 'Play' : 'Select World');
+  if (S.bedrock) { const tw = Math.min(150, UW / 2 - 12); if (button('Worlds', UW / 2 - tw - 2, 32, tw, 20, false)) { } if (button('Friends (Multiplayer)', UW / 2 + 2, 32, tw, 20)) go('multiplayer'); }
+  const top = S.bedrock ? 56 : 32, bottom = UH - 64; listFrame(top, bottom);
   const W = S.worlds.slice().sort((a, b) => b.last - a.last);
   if (mouse.wheel && hover(0, top, UW, bottom - top)) S.scroll = clamp(S.scroll + mouse.wheel * 18, 0, Math.max(0, W.length * 36 - (bottom - top) + 8));
   cx2.save(); cx2.beginPath(); cx2.rect(0, top, UW, bottom - top); cx2.clip();
@@ -400,12 +401,31 @@ function scrCrafting() {
   drawCarried();
 }
 function containerAt(p) { const k = p.join(','); return world.containers[k]; }
+function scrCommandBlock() {
+  tiledBg('menu_background', .55); header('Set Console Command');
+  const w = Math.min(UW - 20, 320), x = UW / 2 - w / 2;
+  text('Console Command', x, 44, '#A0A0A0'); textField('cmd', S.cmdEdit, 'cmd', x, 56, w);
+  text('§7e.g. say Hello, time set day, summon zombie, setblock ~ ~1 ~ stone', x, 80, '#808080', false);
+  const st = world.state[S.cmdKey] || {}; if (st.out) text('Previous Output: ' + st.out, x, 94, '#A0A0A0', false);
+  const done = () => { (world.state[S.cmdKey] = world.state[S.cmdKey] || {}).cmd = S.cmdEdit.cmd.replace(/^\//, ''); world.dirty = true; };
+  if (button('Done', UW / 2 - 102, UH - 40, 100, 20)) { done(); focus = null; go(null); }
+  if (button('Cancel', UW / 2 + 2, UH - 40, 100, 20)) { focus = null; go(null); }
+}
+function runCommandBlock(cmd, x, y, z) {
+  if (!cmd) return '';
+  let out = '';
+  const oc = world.meta.cheats; world.meta.cheats = true; const oldChat = chat; chat = m => { out = String(m).replace(/§./g, ''); if (cmd.startsWith('say ')) oldChat('[@] ' + cmd.slice(4)); };
+  // ~ coordinates are relative to the command block
+  try { const p = [player.x, player.y, player.z]; player.x = x + .5; player.y = y; player.z = z + .5; const tp = /^tp\b/.test(cmd); runCommand(cmd); if (!tp) { player.x = p[0]; player.y = p[1]; player.z = p[2]; } } catch (e) { out = e.message; }
+  chat = oldChat; world.meta.cheats = oc; return out;
+}
 function scrChest() {
   cx2.fillStyle = 'rgba(16,16,16,.6)'; cx2.fillRect(0, 0, UW, UH);
-  const rows = 3, W = 176, H = 114 + rows * 18, gx = Math.round(UW / 2 - W / 2), gy = Math.round(UH / 2 - H / 2), C = S.cont;
+  const C = S.cont, N = C.slots.length, cols = N == 9 ? 3 : N == 5 ? 5 : 9, rows = Math.ceil(N / cols), ox = (9 - cols) * 9, W = 176, H = 114 + rows * 18, gx = Math.round(UW / 2 - W / 2), gy = Math.round(UH / 2 - H / 2);
   spr('generic_54', gx, gy, W, rows * 18 + 17, 0, 0, W, rows * 18 + 17); spr('generic_54', gx, gy + rows * 18 + 17, W, 96, 0, 126, W, 96);
   text(S.contName, gx + 8, gy + 6, '#404040', false); text('Inventory', gx + 8, gy + rows * 18 + 20, '#404040', false);
-  const cs = []; for (let i = 0; i < rows * 9; i++) cs.push({ x: 8 + (i % 9) * 18, y: 18 + (i / 9 | 0) * 18, get: () => C.slots[i], set: v => C.slots[i] = v, grp: 'cont' });
+  if (cols < 9) { cx2.fillStyle = '#C6C6C6'; cx2.fillRect(gx + 7, gy + 17, ox, rows * 18); cx2.fillRect(gx + 7 + ox + cols * 18, gy + 17, ox, rows * 18); }
+  const cs = []; for (let i = 0; i < N; i++) cs.push({ x: 8 + ox + (i % cols) * 18, y: 18 + (i / cols | 0) * 18, get: () => C.slots[i], set: v => C.slots[i] = v, grp: 'cont' });
   const pl = slotsPlayer(8, rows * 18 + 31, rows * 18 + 89);
   handleSlots([...cs, ...pl], gx, gy, s => { const st = s.get(); s.set(null); const l = s.grp == 'cont' ? (giveItem(st.k, st.c, st.dmg)) : moveInto(st, cs); if (l) s.set({ k: st.k, c: l, dmg: st.dmg }); });
   drawCarried();

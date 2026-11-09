@@ -462,6 +462,8 @@ function useItem(hit, tm, h) {
     if (!RSS.on.has(key)) { RSS.on.add(key); rsNotify(...pos); SND.play('random/click', .3, .6, pos); setTimeout(() => { RSS.on.delete(key); rsNotify(...pos); SND.play('random/click', .3, .5, pos); }, /stone|blackstone/.test(tb) ? 1000 : 1500); }
     swing = 1; return; }
   if (!sneak && player.mode != 'spectator') {
+    if (/command_block$/.test(tb)) { if (!(player.mode == 'creative' || world.meta.cheats)) { chat('§cCommand blocks need Creative mode or cheats'); return; } const st = world.state[key] = world.state[key] || {}; S.cmdKey = key; S.cmdEdit = { cmd: st.cmd || '' }; S.contName = prettyName(hit.b); go('cmdblock'); return; }
+    if (/^(dispenser|dropper|hopper|crafter)$/.test(tb)) { const n = tb == 'hopper' ? 5 : 9; S.cont = world.containers[key] || (world.containers[key] = { type: 'chest', slots: Array(n).fill(null) }); S.contName = prettyName(hit.b); S.cpos = null; SND.play('ui_click', .4); go('chest'); return; }
     if (tb == 'crafting_table') { S.grid3 = Array(9).fill(null); go('crafting'); return; }
     if (/^(furnace|furnace_lit|smoker|blast_furnace)$/.test(tb)) { S.cont = world.containers[key] || (world.containers[key] = { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 1, cook: 0 }); S.contName = prettyName(hit.b); go('furnace'); return; }
     if (/^(chest|barrel)$/.test(tb) || /shulker_box$|_chest$/.test(tb)) { const ck = tb == 'ender_chest' ? 'ender' : key; S.cont = world.containers[ck] || (world.containers[ck] = { type: 'chest', slots: Array(27).fill(null) }); S.contName = prettyName(hit.b); S.cpos = [hit.x, hit.y, hit.z]; SND.play('chestopen', .5); go('chest'); return; }
@@ -1014,7 +1016,7 @@ function frame(now) {
     cx2.setTransform(1, 0, 0, 1, 0, 0); cx2.clearRect(0, 0, ui.width, ui.height); cx2.setTransform(GS, 0, 0, GS, 0, 0); cx2.imageSmoothingEnabled = false;
     S.tip = null; clickUsed = false;
     if (world && player && S.screen != 'loading') drawHUD(dt);
-    const scr = { title: scrTitle, worlds: scrWorlds, create: scrCreate, editworld: scrEditWorld, confirmdel: scrConfirmDel, options: scrOptions, video: scrVideo, sound: scrSound, controls: scrControls, credits: scrCredits, skins: scrSkins, mods: scrMods, packs: scrPacks, pause: scrPause, stats: scrStats, advancements: scrAdvancements, death: scrDeath, loading: scrLoading, inventory: scrInventory, crafting: scrCrafting, chest: scrChest, furnace: scrFurnace, chat: scrChat, multiplayer: scrMultiplayer }[S.screen];
+    const scr = { title: scrTitle, worlds: scrWorlds, create: scrCreate, editworld: scrEditWorld, confirmdel: scrConfirmDel, options: scrOptions, video: scrVideo, sound: scrSound, controls: scrControls, credits: scrCredits, skins: scrSkins, mods: scrMods, packs: scrPacks, pause: scrPause, stats: scrStats, advancements: scrAdvancements, death: scrDeath, loading: scrLoading, inventory: scrInventory, crafting: scrCrafting, chest: scrChest, cmdblock: scrCommandBlock, furnace: scrFurnace, chat: scrChat, multiplayer: scrMultiplayer }[S.screen];
     drawTouchHUD();
     // menus were laid out for at least 250x380 GUI units; on short phone screens shrink the whole menu to fit (taps are mapped too)
     const fitH = { title: 0, chat: 0, loading: 0, inventory: 262, chest: 230 }[S.screen] ?? 250, fk = fitH ? Math.min(1, UH / fitH, UW / 380) : 1;
