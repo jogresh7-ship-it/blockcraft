@@ -92,7 +92,7 @@ function padFrame(dt) {
   const g = pads[0], B = g.buttons.map(b => b.pressed), A = g.axes, was = PAD.prev; PAD.prev = B;
   const press = i => B[i] && !was[i], rel = i => !B[i] && was[i];
   const dz = v => Math.abs(v) < .18 ? 0 : (v - Math.sign(v) * .18) / .82;
-  if (B.some(Boolean) || A.some(a => Math.abs(a) > .3)) { if (!PAD.on) { PAD.on = true; noLock = true; PAD.cx = UW / 2; PAD.cy = UH / 2; chat && world && chat('§7Controller connected: ' + g.id.slice(0, 40)); } }
+  if (B.some(Boolean) || A.some(a => Math.abs(a) > .3)) { if (!PAD.on) { PAD.on = true; PAD.cx = UW / 2; PAD.cy = UH / 2; chat && world && chat('§7Controller connected: ' + g.id.slice(0, 40)); } }
   if (!PAD.on) return;
   if (S.screen == 'game' && player) {
     const lx = dz(A[0]), ly = dz(A[1]), rx = dz(A[2] || 0), ry = dz(A[3] || 0);

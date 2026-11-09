@@ -839,14 +839,17 @@ function drawHUD(dt) {
     right.forEach((s, i) => { if (!s) return; s = s.replace('§n', ''); const w = textW(s); cx2.fillStyle = 'rgba(80,80,80,.56)'; cx2.fillRect(UW - w - 3, 1 + i * 9, w + 2, 9); text(s, UW - w - 2, 2 + i * 9, '#E0E0E0', false); });
   } else if (opts.fps) text(fps + ' fps', 2, 2, '#FFFFFF');
   if (!debug) modEmit('hud', cx2, UW, UH, dt); // mods can draw on the HUD
+  if (S.screen == 'game' && !locked && !noLock && !PAD.on) { cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(0, 0, UW, UH); textC('Click to continue playing', UW / 2, UH / 2 - 4, '#FFFFFF'); }
 }
 // ---------------- input ----------------
-function lockPointer() { if (noLock) return; try { const p = ui.requestPointerLock(); if (p && p.catch) p.catch(() => { noLock = true; }); } catch (e) { noLock = true; } }
+// the browser may refuse a lock (e.g. right after Esc or without a click); never give up - ask again on the next click
+function lockPointer() { if (noLock || document.pointerLockElement === ui) return; try { const p = ui.requestPointerLock(); if (p && p.catch) p.catch(() => { S.needClick = true; }); } catch (e) { S.needClick = true; } }
 function unlockPointer() { if (document.pointerLockElement) document.exitPointerLock(); }
 function setupInput() {
-  document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === ui; if (!locked && S.screen == 'game' && !S.justClosed) go('pause'); S.justClosed = false; });
-  document.addEventListener('pointerlockerror', () => { noLock = true; });
+  document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === ui; if (locked) S.needClick = false; if (!locked && S.screen == 'game' && !S.justClosed) go('pause'); S.justClosed = false; });
+  document.addEventListener('pointerlockerror', () => { S.needClick = true; });
   addEventListener('mousemove', e => {
+    if (PAD.on && Math.abs(e.movementX) + Math.abs(e.movementY) > 4) PAD.on = false; // back to mouse after using a controller
     const r = ui.getBoundingClientRect(); mouse.x = (e.clientX - r.left) * devicePixelRatio / GS; mouse.y = (e.clientY - r.top) * devicePixelRatio / GS;
     if (S.screen == 'game' && player && (locked || noLock)) { const s = (opts.sens * .6 + .2) * .006; player.yaw -= e.movementX * s; player.pitch = clamp(player.pitch - e.movementY * s, -1.5707, 1.5707); }
   });
