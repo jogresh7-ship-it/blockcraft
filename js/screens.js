@@ -56,13 +56,15 @@ function scrTitle() {
     if (button('Play', bx, by, bw, bh)) go('worlds');
     if (button('Settings', bx, by + step, bw, bh)) go('options');
     if (button('Dressing Room', bx, by + 2 * step, bw, bh)) go('skins');
-    if (button('Mods', bx, by + 3 * step, bw / 2 - 2, 20)) { S.modmsg = ''; go('mods'); }
-    if (button('Credits', bx + bw / 2 + 2, by + 3 * step, bw / 2 - 2, 20)) go('credits');
+    const w3 = (bw - 4) / 3;
+    if (button('Mods', bx, by + 3 * step, w3, 20)) { S.modmsg = ''; go('mods'); }
+    if (button('Friends', bx + w3 + 2, by + 3 * step, w3, 20)) go('multiplayer');
+    if (button('Credits', bx + 2 * w3 + 4, by + 3 * step, w3, 20)) go('credits');
   } else {
     // Java-style
     const by = UH / 4 + 48, bx = UW / 2 - 100;
     if (button('Singleplayer', bx, by)) go('worlds');
-    button('Multiplayer', bx, by + 24, 200, 20, false); if (hover(bx, by + 24, 200, 20)) S.tip = ['Multiplayer is not available', 'in the browser edition'];
+    if (button('Multiplayer', bx, by + 24, 200, 20)) go('multiplayer');
     if (button('Mods', bx, by + 48, 98)) { S.modmsg = ''; go('mods'); }
     if (button('Skins', bx + 102, by + 48, 98)) go('skins');
     if (button('Options...', bx, by + 84, 98)) go('options');
@@ -231,7 +233,11 @@ function scrPause() {
   if (button('Advancements', x, y + 24, 98)) go('advancements');
   if (button('Statistics', x + 106, y + 24, 98)) go('stats');
   if (button('Skins', x, y + 48, 98)) go('skins');
-  if (button('Report Bugs', x + 106, y + 48, 98, 20, false)) { }
+  { // multiplayer: host opens the world, friends see who's connected
+    const remote = world && world.meta.remote, lbl = remote ? 'Online' : NET.role == 'host' ? (NET.code ? 'Code: ' + NET.code : 'Opening...') : 'Open to Friends';
+    if (button(lbl, x + 106, y + 48, 98, 20, !remote && NET.role != 'host')) { netHost().catch(e => chat('§c' + e.message)); }
+    if (NET.role == 'host' && NET.code) textC('§7Friends join with code §e' + NET.code + '§7 (' + NET.conns.size + ' connected)', UW / 2, y + 122, '#FFFFFF');
+    else if (remote) textC('§7Playing on a friend\'s world', UW / 2, y + 122, '#FFFFFF'); }
   if (button('Options...', x, y + 72, 98)) go('options');
   if (button('Mods', x + 106, y + 72, 98)) { S.modmsg = ''; go('mods'); }
   if (button('Save and Quit to Title', x, y + 96, 204)) quitWorld();
@@ -495,7 +501,7 @@ const chatLog = [];
 function chat(msg) { chatLog.push({ msg, t: performance.now() }); if (chatLog.length > 100) chatLog.shift(); }
 function scrChat() {
   if (!S.chat) S.chat = { s: '' };
-  for (const k of keysPressed) { if (k == 'Backspace') S.chat.s = S.chat.s.slice(0, -1); if (k == 'Enter') { const s = S.chat.s.trim(); S.chat = null; go('game'); if (s) { if (s[0] == '/') runCommand(s.slice(1)); else chat(`<${player.name}> ${s}`); S.history = S.history || []; S.history.push(s); } return; } if (k == 'ArrowUp' && S.history && S.history.length) S.chat.s = S.history[S.history.length - 1]; }
+  for (const k of keysPressed) { if (k == 'Backspace') S.chat.s = S.chat.s.slice(0, -1); if (k == 'Enter') { const s = S.chat.s.trim(); S.chat = null; go('game'); if (s) { if (s[0] == '/') runCommand(s.slice(1)); else { chat(`<${player.name}> ${s}`); netOut({ t: 'chat', msg: `<${player.name}> ${s}` }); } S.history = S.history || []; S.history.push(s); } return; } if (k == 'ArrowUp' && S.history && S.history.length) S.chat.s = S.history[S.history.length - 1]; }
   if (typed) S.chat.s += typed;
   cx2.fillStyle = 'rgba(0,0,0,.5)'; cx2.fillRect(2, UH - 14, UW - 4, 12);
   text(S.chat.s + ((performance.now() / 300 | 0) % 2 ? '_' : ''), 4, UH - 12, '#FFFFFF');

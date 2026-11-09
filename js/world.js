@@ -63,7 +63,7 @@ class World {
   getOr(x, y, z, def) { if (y < 0) return def; if (y >= WH) return 0; const c = this.chunks.get((x >> 4) + ',' + (z >> 4)); if (!c) return def; return c.d[lidx(x & 15, y, z & 15)]; }
   set(x, y, z, v, record = true) {
     if (y < 0 || y >= WH) return; const cx = x >> 4, cz = z >> 4, c = this.chunk(cx, cz); if (!c) return;
-    const li = lidx(x & 15, y, z & 15); c.d[li] = v; c.dirty = true; c.lightDirty = true; if (this.onSet) this.onSet(x, y, z);
+    const li = lidx(x & 15, y, z & 15); c.d[li] = v; c.dirty = true; c.lightDirty = true; if (this.onSet) this.onSet(x, y, z); if (typeof NET != 'undefined' && NET.cap) NET.cap.push([x, y, z]);
     if (record) { const k = cx + ',' + cz; (this.edits[k] || (this.edits[k] = {}))[li] = v; }
     const lx = x & 15, lz = z & 15;
     const mark = (a, b) => { const n = this.chunk(a, b); if (n) n.dirty = true; };

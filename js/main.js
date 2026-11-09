@@ -14,7 +14,7 @@ function newPlayer(meta) {
 }
 function openWorld(meta, fresh) {
   S.loadTitle = fresh ? 'Generating world' : 'Loading world'; S.loadSub = 'Building terrain'; S.loadP = 0; go('loading');
-  const data = store.get('world_' + meta.id, null);
+  const data = meta.remote ? NET.joinData : store.get('world_' + meta.id, null);
   if (data && !data.ib) { // saves from before there were 1000+ blocks stored items as 1000 + n
     const fix = o => { if (!o || typeof o != 'object') return; if (Array.isArray(o)) { o.forEach(fix); return; } if (typeof o.k == 'number' && typeof o.c == 'number' && o.k >= 1000 && o.k < 4096) o.k += 3096; for (const v of Object.values(o)) if (v && typeof v == 'object') fix(v); };
     fix(data.player); fix(data.containers); data.ib = 4096;
@@ -56,7 +56,7 @@ function loadingTick() {
   }
 }
 function saveWorld() {
-  if (!world) return true;
+  if (!world || world.meta.remote) return true; // a friend's world is saved by the host
   const m = world.meta; m.last = Date.now();
   const data = { ib: 4096, player: Object.assign({}, player, { craft2: [null, null, null, null] }), time: m.time, rain: m.rain, weatherT: m.weatherT, dimEdits: m.dimEdits, dim: world.dim, state: m.state, containers: world.containers, mobs: mobs.slice(0, 60).map(o => ({ type: o.type, x: o.x, y: o.y, z: o.z, yaw: o.yaw, hp: o.hp, sheared: o.sheared, wool: o.wool })) };
   const ok = store.set('world_' + m.id, data);
@@ -69,6 +69,7 @@ function captureIcon() {
   try { const c = document.createElement('canvas'); c.width = c.height = 64; const s = Math.min(glc.width, glc.height); c.getContext('2d').drawImage(glc, (glc.width - s) / 2, (glc.height - s) / 2, s, s, 0, 0, 64, 64); world.meta.icon = c.toDataURL('image/jpeg', .8); } catch (e) { }
 }
 function quitWorld() {
+  netStop();
   if (S.screen != 'death') { render(0); captureIcon(); }
   saveWorld(); SND.setRain(false); SND.stopMusic();
   for (const c of world.chunks.values()) if (c.meshes) c.meshes.forEach(freeMesh);
@@ -212,6 +213,7 @@ function makeMob(type, x, y, z) { const d = MOBDEF[type]; const sz = d.slime ? [
 function spawnMob(type, x, y, z) { const m = makeMob(type, x, y, z); mobs.push(m); return m; }
 function updateMobs(dt) {
   for (const m of mobs) {
+    if (m.ghost) continue; // a copy of the host's mob
     const c = world.chunk(Math.floor(m.x / 16), Math.floor(m.z / 16)); if (!c || !c.meshes) continue;
     const D = MOBDEF[m.type]; m.target = null;
     if (D.wolf && m.tamed) { const dx = player.x - m.x, dz = player.z - m.z, dist = Math.hypot(dx, dz); if (dist > 3) { m.yawT = Math.atan2(-dx, -dz); m.mv = dist > 6 ? 1.8 : 1; m.wt = 1; } else if (m.mv > 1) m.mv = 0; if (dist > 20) { m.x = player.x + 1; m.y = player.y; m.z = player.z + 1; } }
@@ -264,6 +266,7 @@ function hurtMob(m, dmg, kx, kz, quiet) {
   } else SND.play(d.hurt, 1, 1.2, [m.x, m.y, m.z]);
 }
 function naturalSpawn(c) {
+  if (NET.role == 'client') return; // the host's mobs are streamed in
   if (mobs.length > 40 || world.meta.flat && Math.random() < .5) return;
   const H = world.N.hash(c.cx, 1234, c.cz); if (H > .12) return;
   if (world.dim == 'nether') return;
@@ -377,13 +380,13 @@ function updatePlayer(dt) {
   if (mouse.down && !spect) {
     if (tm && attackCd <= 0) { attackCd = .5; swing = 1; const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, attackDamage(h && h.k) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 8; i++) particles.push({ x: tm.x, y: tm.y + tm.h * .7, z: tm.z, vx: (Math.random() - .5) * 4, vy: Math.random() * 3, vz: (Math.random() - .5) * 4, life: .5, tile: TEX[B('white_wool') * 4], g: 1, s: .05 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
     else if (hit && !tm) {
-      if (creative) { if (attackCd <= 0) { attackCd = .25; const h = held(); if (!(h && toolInfo(h.k) && toolInfo(h.k).type == 'sword')) doBreak(hit, false); swing = 1; } }
+      if (creative) { if (attackCd <= 0) { attackCd = .25; const h = held(); if (!(h && toolInfo(h.k) && toolInfo(h.k).type == 'sword')) netBegin(); doBreak(hit, false); netEnd(hit); swing = 1; } }
       else {
         if (!breaking || breaking.x != hit.x || breaking.y != hit.y || breaking.z != hit.z) breaking = { x: hit.x, y: hit.y, z: hit.z, p: 0, b: hit.b, snd: 0 };
         const t = api.settings.instantMine && blockProps(hit.b).h >= 0 ? 0 : breakTime(hit.b, held() && held().k, headWater, P.ground || P.fly);
         breaking.p += t == 0 ? 1 : dt / t; swing = Math.max(swing, .6); breaking.snd -= dt;
         if (breaking.snd <= 0) { breaking.snd = .25; blockSound(BL[hit.b].n, 'step', .3, .5, [hit.x + .5, hit.y + .5, hit.z + .5]); spawnBreakParticles(hit, 1); }
-        if (breaking.p >= 1) { doBreak(hit, true); breaking = null; attackCd = .3; }
+        if (breaking.p >= 1) { netBegin(); doBreak(hit, true); netEnd(hit); breaking = null; attackCd = .3; }
       }
     }
   } else breaking = null;
@@ -394,7 +397,7 @@ function updatePlayer(dt) {
     if (fv && (P.food < 20 || /golden_apple|chorus/.test(keyName(h.k)) || P.mode == 'creative')) {
       eatT += dt; if ((P.eatS = (P.eatS || 0) - dt) <= 0) { P.eatS = .22; SND.play('eat', .5, .8 + Math.random() * .4); spawnEatParticles(h.k); }
       if (eatT >= 1.6) { eatT = 0; P.food = Math.min(20, P.food + fv); P.sat = Math.min(P.food, P.sat + fv * 1.2); if (P.mode == 'survival') { h.c--; if (!h.c) P.inv[P.sel] = null; } P.stats.eaten++; SND.play('burp', .5); award('eat'); const n = keyName(h.k); if (/stew|soup/.test(n)) giveItem(itemKey('item:bowl'), 1); }
-    } else if (placeCd <= 0) { eatT = 0; placeCd = .25; useItem(hit, tm, h); }
+    } else if (placeCd <= 0) { eatT = 0; placeCd = .25; netBegin(); useItem(hit, tm, h); netEnd(hit); }
   } else { eatT = 0; placeCd = Math.min(placeCd, 0); }
   if (mouse.mclick && hit) { const k = hit.b; if (creative) { const i = P.inv.findIndex((s, i) => i < 9 && s && s.k == k); if (i >= 0) P.sel = i; else P.inv[P.sel] = { k, c: 1 }; } else { const i = P.inv.findIndex((s, i) => i < 9 && s && s.k == k); if (i >= 0) P.sel = i; } }
 }
@@ -631,7 +634,7 @@ function spawnEatParticles(k) {
 }
 // ---------------- world tick ----------------
 function updateWorld(dt) {
-  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt);
+  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); netTick(dt);
   if (world.dim == 'nether') m.rain = false;
   m.weatherT -= dt; if (m.weatherT <= 0 && world.dim != 'nether') { m.rain = !m.rain && Math.random() < .5; m.thunder = m.rain && Math.random() < .3; m.weatherT = m.rain ? 300 + Math.random() * 400 : 600 + Math.random() * 1200; SND.setRain(m.rain); }
   if (m.thunder && Math.random() < dt / 20) { S.flash = .3; setTimeout(() => SND.play('thunder', .7), 600); }
@@ -700,7 +703,7 @@ function render(dt) {
   const hurt = P.hurtT > 0 ? Math.sin(P.hurtT / .5 * Math.PI) * .25 : 0;
   const rot = M4.chain(M4.rx(-camPitch), M4.ry(-camYaw));
   const view = M4.mul(rot, M4.trans(-eye[0], -eye[1], -eye[2]));
-  const PV = M4.mul(proj, view);
+  const PV = M4.mul(proj, view); NET.PV = PV;
   gl.useProgram(PROG.p); gl.uniformMatrix4fv(u.uPV, false, PV); gl.uniform3f(u.uCam, eye[0], eye[1], eye[2]);
   gl.uniform3f(u.uFog, fogC[0], fogC[1], fogC[2]);
   gl.uniform1f(u.uMinL, api.settings.fullbright ? 1 : sk.nether ? .28 : .09); const fogF = underwater ? 20 : inLava ? 2 : sk.nether ? Math.min(80, opts.rd * 12) : opts.rd * 16 * (world.meta.rain ? .8 : 1), fogN = underwater ? 0 : inLava ? 0 : fogF * .6;
@@ -779,7 +782,7 @@ function lightAt(x, y, z) { const c = world.chunk(Math.floor(x) >> 4, Math.floor
 function renderEntities(sk) {
   const u = PROG.u, t = performance.now() / 1000;
   const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly } : null;
-  for (const m of (pobj ? [...mobs, pobj] : mobs)) {
+  for (const m of [...mobs, ...netAvatarsFor(), ...(pobj ? [pobj] : [])]) {
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
     const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; const parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), M4.scale(sc, sc, sc));
     const sw = Math.sin(m.walk) * .7 * Math.min(1, Math.hypot(m.vx, m.vz));
@@ -798,9 +801,10 @@ function renderEntities(sk) {
       if (p.rot) M = M4.mul(M, M4.rx(p.rot[0]));
       if (m.fuse > 0) { const s = 1 + (1.5 - m.fuse) * .1; M = M4.chain(M4.trans(m.x, m.y, m.z), M4.scale(s, s, s), M4.trans(-m.x, -m.y, -m.z), M); }
       const tx = p.tex == 'ghast' && m.shootT > 0 ? 'ghast_shooting' : p.tex == 'wolf' && m.tamed ? 'wolf_tame' : p.tex == 'wolf' && m.provoked ? 'wolf_angry' : p.tex;
+      const txs = m.skinTex && (p.tex || 'steve') == MOBDEF.player.tex ? m.skinTex : null;
       if (p.trans) { gl.enable(gl.BLEND); drawMesh(p.mesh, tx, { model: M, alpha: .75, alphaTest: .05 }); gl.disable(gl.BLEND); continue; }
       if (p.hand && (m.holdK || D0.hold)) { const [im, it] = itemMesh(m.holdK || itemKey(D0.hold)); const HM = M4.chain(M, M4.trans(0, -p.box[1] / 2 - 1, -1), M4.rx(-Math.PI / 2), M4.ry(Math.PI / 2), M4.rz((m.holdK ? keyName(m.holdK) == 'bow' : D0.hold == 'item:bow') ? -Math.PI / 4 : Math.PI / 4 * 3), M4.scale(10, 10, 10)); drawMesh(im, it, { model: HM, alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] }); }
-      drawMesh(p.mesh, tx, { model: M, tint: m.hurtT > 0 ? [1, 0, 0, .4] : fl ? [1, 1, 1, .6] : [0, 0, 0, 0], alphaTest: .1, full: p.glow ? 1 : 0 });
+      drawMesh(p.mesh, txs || tx, { model: M, tint: m.hurtT > 0 ? [1, 0, 0, .4] : fl ? [1, 1, 1, .6] : [0, 0, 0, 0], alphaTest: .1, full: p.glow ? 1 : 0 });
     }
   }
   for (const it of items) {
@@ -920,6 +924,7 @@ function drawHUD(dt) {
     left.forEach((s, i) => { if (!s) return; cx2.fillStyle = 'rgba(80,80,80,.56)'; cx2.fillRect(1, 1 + i * 9, textW(s) + 2, 9); text(s, 2, 2 + i * 9, '#E0E0E0', false); });
     right.forEach((s, i) => { if (!s) return; s = s.replace('§n', ''); const w = textW(s); cx2.fillStyle = 'rgba(80,80,80,.56)'; cx2.fillRect(UW - w - 3, 1 + i * 9, w + 2, 9); text(s, UW - w - 2, 2 + i * 9, '#E0E0E0', false); });
   } else if (opts.fps) text(fps + ' fps', 2, 2, '#FFFFFF');
+  if (NET.PV && S.screen == 'game') netDrawNames(NET.PV);
   if (!debug) modEmit('hud', cx2, UW, UH, dt); // mods can draw on the HUD
   if (S.screen == 'game' && !locked && !noLock && !PAD.on) { cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(0, 0, UW, UH); textC('Click to continue playing', UW / 2, UH / 2 - 4, '#FFFFFF'); }
 }
@@ -955,7 +960,7 @@ function setupInput() {
     const sc = S.screen;
     if (e.code == 'Escape') {
       if (sc == 'game') go('pause'); else if (sc == 'pause') go('game'); else if (sc == 'marketItem') go('market'); else if (sc == 'packs') go(world ? 'options' : 'title'); else if (sc == 'skins' || sc == 'mods') go(world ? 'pause' : 'title'); else if (sc == 'market') go(world ? 'pause' : 'title'); else if (['inventory', 'crafting', 'chest', 'furnace'].includes(sc)) closeContainer(); else if (sc == 'chat') { S.chat = null; go('game'); }
-      else if (['options', 'stats', 'advancements'].includes(sc)) go(world ? 'pause' : 'title'); else if (['video', 'sound', 'controls', 'credits'].includes(sc)) go(world && sc != 'credits' ? 'options' : world ? 'options' : 'title'); else if (['worlds'].includes(sc)) go('title'); else if (['create', 'confirmdel', 'editworld'].includes(sc)) go('worlds');
+      else if (['options', 'stats', 'advancements'].includes(sc)) go(world ? 'pause' : 'title'); else if (['video', 'sound', 'controls', 'credits'].includes(sc)) go(world && sc != 'credits' ? 'options' : world ? 'options' : 'title'); else if (['worlds', 'multiplayer'].includes(sc)) go('title'); else if (['create', 'confirmdel', 'editworld'].includes(sc)) go('worlds');
       return;
     }
     if (sc == 'game') {
@@ -1009,7 +1014,7 @@ function frame(now) {
     cx2.setTransform(1, 0, 0, 1, 0, 0); cx2.clearRect(0, 0, ui.width, ui.height); cx2.setTransform(GS, 0, 0, GS, 0, 0); cx2.imageSmoothingEnabled = false;
     S.tip = null; clickUsed = false;
     if (world && player && S.screen != 'loading') drawHUD(dt);
-    const scr = { title: scrTitle, worlds: scrWorlds, create: scrCreate, editworld: scrEditWorld, confirmdel: scrConfirmDel, options: scrOptions, video: scrVideo, sound: scrSound, controls: scrControls, credits: scrCredits, skins: scrSkins, mods: scrMods, packs: scrPacks, pause: scrPause, stats: scrStats, advancements: scrAdvancements, death: scrDeath, loading: scrLoading, inventory: scrInventory, crafting: scrCrafting, chest: scrChest, furnace: scrFurnace, chat: scrChat }[S.screen];
+    const scr = { title: scrTitle, worlds: scrWorlds, create: scrCreate, editworld: scrEditWorld, confirmdel: scrConfirmDel, options: scrOptions, video: scrVideo, sound: scrSound, controls: scrControls, credits: scrCredits, skins: scrSkins, mods: scrMods, packs: scrPacks, pause: scrPause, stats: scrStats, advancements: scrAdvancements, death: scrDeath, loading: scrLoading, inventory: scrInventory, crafting: scrCrafting, chest: scrChest, furnace: scrFurnace, chat: scrChat, multiplayer: scrMultiplayer }[S.screen];
     drawTouchHUD();
     // menus were laid out for at least 250x380 GUI units; on short phone screens shrink the whole menu to fit (taps are mapped too)
     const fitH = { title: 0, chat: 0, loading: 0, inventory: 262, chest: 230 }[S.screen] ?? 250, fk = fitH ? Math.min(1, UH / fitH, UW / 380) : 1;

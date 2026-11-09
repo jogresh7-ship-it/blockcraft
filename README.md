@@ -11,6 +11,9 @@ A Minecraft-like voxel game written in plain JavaScript and WebGL2, with no game
 - Java- and Bedrock-style menus, skins, third-person view, and mod and resource-pack importing (any Java resource pack `.zip`)
 - Keyboard and mouse, controller, and touch (on phones and tablets)
 
+## Multiplayer
+The host picks **Open to Friends** in the pause menu and gets a 6-letter code. Friends tap **Multiplayer** (or **Friends** on phones) on the title screen and enter it. Connections go browser-to-browser (WebRTC, matchmaking by the free PeerJS service), so both players need internet. Positions, skins, block changes, chat, time and mobs are shared; the host's browser keeps the world.
+
 ## Mods
 Zip a mod's folder (for example `mods/minimap`) and import it from the Mods screen. Mods get an `api` object with events such as `tick`, `hud`, `join` and `blockBreak`.
 - **Minimap:** a minimap in the top-right corner. Press M for the full world map and N to zoom.
