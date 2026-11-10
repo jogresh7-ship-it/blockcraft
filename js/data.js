@@ -45,7 +45,7 @@ function drops(id, held) {
   if (!canHarvest(id, held)) return [];
   if (BL[id].top) return [];
   if (/_bed_head$/.test(n)) return [];
-  { const W = n.replace(/^wall_torch$/, 'torch').replace('_wall_torch', '_torch').replace('_coral_wall_fan', '_coral_fan').replace('_wall_sign', '_sign').replace('_wall_banner', '_banner').replace('_wall_head', '_head').replace('_wall_skull', '_skull'); if (W != n && BYNAME[W]) return [[I(W), 1]]; }
+  { const W = n.replace(/^wall_torch$/, 'torch').replace('_wall_torch', '_torch').replace('_coral_wall_fan', '_coral_fan').replace('_wall_hanging_sign', '_hanging_sign').replace('_wall_sign', '_sign').replace('_wall_banner', '_banner').replace('_wall_head', '_head').replace('_wall_skull', '_skull'); if (W != n && BYNAME[W]) return [[I(W), 1]]; }
   if (BL[id].invisible) return [];
   const ALT = { lever_on: 'lever', stone_button_on: 'stone_button', stone_pressure_plate_on: 'stone_pressure_plate', oak_pressure_plate_on: 'oak_pressure_plate', redstone_lamp_on: 'redstone_lamp', furnace_lit: 'furnace', redstone_torch_off: 'redstone_torch' };
   if (ALT[n]) return [[I(ALT[n]), 1]];

@@ -711,7 +711,7 @@ function useItem(hit, tm, h) {
   // torches, coral fans and signs placed on the side of a block become their wall version
   let wallFacing = null;
   { const pn = BL[place].n, WALL = { torch: 'wall_torch', soul_torch: 'soul_wall_torch', redstone_torch: 'redstone_wall_torch', copper_torch: 'copper_wall_torch' };
-    const wn = WALL[pn] || (/_coral_fan$/.test(pn) ? pn.replace('_coral_fan', '_coral_wall_fan') : /_sign$/.test(pn) && !/hanging|_wall_/.test(pn) ? pn.replace('_sign', '_wall_sign') : /_banner$/.test(pn) && !/_wall_/.test(pn) ? pn.replace('_banner', '_wall_banner') : /(_head|_skull)$/.test(pn) && !/_wall_/.test(pn) ? pn.replace(/_(head|skull)$/, '_wall_$1') : BL[place].fyw ? pn : null);
+    const wn = WALL[pn] || (/_coral_fan$/.test(pn) ? pn.replace('_coral_fan', '_coral_wall_fan') : /_hanging_sign$/.test(pn) && !/_wall_/.test(pn) ? pn.replace('_hanging_sign', '_wall_hanging_sign') : /_sign$/.test(pn) && !/hanging|_wall_/.test(pn) ? pn.replace('_sign', '_wall_sign') : /_banner$/.test(pn) && !/_wall_/.test(pn) ? pn.replace('_banner', '_wall_banner') : /(_head|_skull)$/.test(pn) && !/_wall_/.test(pn) ? pn.replace(/_(head|skull)$/, '_wall_$1') : BL[place].fyw ? pn : null);
     if (wn && BYNAME[wn] && hit.n[1] == 0) { place = BYNAME[wn]; wallFacing = hit.n[0] > 0 ? 'east' : hit.n[0] < 0 ? 'west' : hit.n[2] > 0 ? 'south' : 'north'; } }
   if (!canPlaceAt(...p) || p[1] < 0 || p[1] >= WH) return;
   // only small things that sit on something need a block under them (any block, not just full cubes); everything else can go anywhere
