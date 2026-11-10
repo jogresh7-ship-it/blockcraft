@@ -20,7 +20,10 @@ def resolve(p):
 buf = io.BytesIO(); n = 0
 with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
     for p in sorted(want):
-        if 'title/background/panorama' in p: continue
+        if 'title/background/panorama' in p: # the templates ship blank panoramas: use Mojang's official title panorama (bedrock-samples)
+            q = '/root/bs/bedrock-samples-main/resource_pack/textures/ui/' + p.split('/')[-1]
+            if os.path.exists(q) and os.path.getsize(q) > 1000: z.write(q, p); n += 1
+            continue
         r = resolve(p)
         if r:
             z.write(r, p); n += 1

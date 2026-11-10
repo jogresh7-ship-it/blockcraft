@@ -872,7 +872,7 @@ function spawnEatParticles(k) {
 }
 // ---------------- world tick ----------------
 function updateWorld(dt) {
-  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); lidTick(dt); effTick(dt); fishTick(dt); rocketTick(dt); if (player.fish) drawFishLine(); netTick(dt);
+  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); lidTick(dt); effTick(dt); cloudTick(dt); fishTick(dt); rocketTick(dt); if (player.fish) drawFishLine(); netTick(dt);
   if (world.dim == 'nether') m.rain = false;
   m.weatherT -= dt; if (m.weatherT <= 0 && world.dim != 'nether') { m.rain = !m.rain && Math.random() < .5; m.thunder = m.rain && Math.random() < .3; m.weatherT = m.rain ? 300 + Math.random() * 400 : 600 + Math.random() * 1200; SND.setRain(m.rain); }
   if (m.thunder && Math.random() < dt / 20) { S.flash = .3; setTimeout(() => SND.play('thunder', .7), 600); }
@@ -1026,6 +1026,7 @@ function cubeQuads(arr, x, y, z, uv, s = 1) {
 }
 const itemMeshCache = {};
 function itemMesh(k) { // returns [mesh, tex] centered at origin, unit size
+  if (k >= 9000 && typeof POTK != 'undefined' && POTK[k]) k = POTK[k].baseK || itemKey('item:potion');
   if (itemMeshCache[k]) return itemMeshCache[k];
   const arr = []; let tex = 'blocks';
   if (k < ITEM_BASE && (SHAPE[k] == 1 || SHAPE[k] == 5)) {

@@ -164,6 +164,7 @@ function buildIcons() {
 }
 function drawIcon(k, x, y, s = 16) {
   if (!k) return;
+  if (k >= 9000) { drawPotionIcon(k, x, y, s); return; }
   if (k >= ITEM_BASE) { const i = k - ITEM_BASE, it = IMG.items.width / REG.icols; cx2.drawImage(IMG.items, (i % REG.icols) * it, Math.floor(i / REG.icols) * it, it, it, x, y, s, s); }
   else cx2.drawImage(ICONS, (k % 32) * 32, Math.floor(k / 32) * 32, 32, 32, x, y, s, s);
 }

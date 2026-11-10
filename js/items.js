@@ -75,7 +75,7 @@ function afterDrink(n, h) {
   const P = player, back = k => { if (P.mode == 'survival') giveItem(itemKey(k), 1); }; // the eat code already used up the item
   if (n == 'milk_bucket') { clearEff(); P.wither = 0; back('item:bucket'); }
   if (n == 'honey_bottle') { clearEff('poison'); P.food = Math.min(20, P.food + 6); P.sat = Math.min(P.food, P.sat + 1.2); back('item:glass_bottle'); }
-  if (n == 'potion') { addEff('regeneration', 45, 0); addEff('instant_health', 0, 0); back('item:glass_bottle'); }
+  if (n == 'potion') { const PT = POTK[h.k]; if (PT) potionEffect(PT); else addEff('regeneration', 45, 0); back('item:glass_bottle'); }
   if (n == 'ominous_bottle') { chat('§5You feel an ominous presence...'); }
 }
 // ---- right-click items: returns true when the item handled the click ----
@@ -87,6 +87,7 @@ function useSpecial(h, hit) {
   if (n == 'snowball' || n == 'egg') { one(); SND.play('random/bow', .5, .5); launch('item:' + n, 22, { onHit: (m, x, y, z) => { for (let i = 0; i < 6; i++) spark('generic', x, y, z, { life: .4 }); if (m) hurtMob(m, m.type == 'blaze' && n == 'snowball' ? 3 : 0.01, 0, 0); if (n == 'egg' && Math.random() < .125) spawnMob('chicken', x, y, z); } }); P.cool[n] = .25; return true; }
   if (n == 'ender_pearl') { one(); SND.play('random/bow', .5, .5); P.cool[n] = 1; launch('item:ender_pearl', 22, { onHit: (m, x, y, z) => { P.x = x; P.y = y + .1; P.z = z; P.vx = P.vy = P.vz = 0; hurtPlayer(5, 'fell from a high place', true); P.fallStart = P.y; SND.play('mob/endermen/portal', .8); for (let i = 0; i < 20; i++) spark('spell', x + (Math.random() - .5), y + Math.random() * 2, z + (Math.random() - .5)); if (Math.random() < .05) spawnMob('endermite', x, y, z); } }); return true; }
   if (n == 'wind_charge') { one(); P.cool[n] = .5; SND.play('entity/wind_charge/wind_burst1', .6); launch('item:wind_charge', 30, { grav: 0, onHit: (m, x, y, z) => windBurst(x, y, z) }); return true; }
+  if ((n == 'splash_potion' || n == 'lingering_potion') && POTK[h.k]) { const PT = POTK[h.k]; one(); SND.play('random/bow', .5, .5); launch('item:' + n, 14, { k: h.k, onHit: (m, x, y, z) => potionSplash(PT, x, y, z, n == 'lingering_potion') }); return true; }
   if (n == 'splash_potion' || n == 'lingering_potion') { one(); SND.play('random/bow', .5, .5); launch('item:' + n, 14, { onHit: (m, x, y, z) => { SND.play('random/glass1', 1); for (let i = 0; i < 30; i++) spark('effect', x + (Math.random() - .5) * 3, y + Math.random(), z + (Math.random() - .5) * 3); if (Math.hypot(x - P.x, y - P.y, z - P.z) < 4) { addEff('instant_health', 0, 0); addEff('regeneration', 20, 0); } for (const mm of mobs) if (Math.hypot(mm.x - x, mm.z - z) < 4 && MOBDEF[mm.type].hostile && /zombie|skeleton|wither|drowned|husk|stray|phantom|zoglin|piglin/.test(mm.type)) hurtMob(mm, 6, 0, 0); } }); return true; }
   if (n == 'trident') { one(); SND.play('item/trident/throw1', 1); launch('item:trident', 26, { grav: 10, onHit: (m, x, y, z) => { if (m) hurtMob(m, 8, 0, 0); SND.play('item/trident/hit_ground1', .8); dropItem(itemKey('item:trident'), 1, x, y + .2, z); } }); P.cool[n] = .8; return true; }
   if (n == 'fire_charge' && !hit) { one(); SND.play('mob/ghast/fireball4', .8); const f = fwd(); arrows.push({ x: P.x + f[0], y: P.y + 1.5, z: P.z + f[2], vx: f[0] * 14, vy: f[1] * 14, vz: f[2] * 14, life: 6, fire: 1, byPlayer: true }); return true; }
@@ -111,16 +112,17 @@ function holdTick(h, dt, down) {
   P.blocking = down && shieldHeld() && !/bow|crossbow|spyglass/.test(n) && !foodVal(h?.k) ? (P.blocking || 0) + dt : 0;
   P.spy = down && n == 'spyglass'; if (P.spy && !P.spyWas) SND.play('item/spyglass/use', .6); P.spyWas = P.spy;
   const ranged = n == 'bow' || n == 'crossbow';
-  if (ranged && down) { const hasArrow = P.mode == 'creative' || P.inv.some(s => s && keyName(s.k) == 'arrow'); if (!hasArrow) { P.draw = 0; return true; }
+  if (ranged && down) { const hasArrow = P.mode == 'creative' || P.inv.some(s => s && /^(arrow|tipped_arrow|spectral_arrow)$/.test(keyName(s.k))); if (!hasArrow) { P.draw = 0; return true; }
     if (n == 'crossbow' && P.loaded) { P.loaded = false; fireArrow(1, h, 'crossbow'); P.cbWait = .3; return true; }
     if (P.cbWait > 0) { P.cbWait -= dt; return true; }
     P.draw = (P.draw || 0) + dt; if (n == 'crossbow' && P.draw >= 1.25 && !P.loaded) { P.loaded = true; P.draw = 0; takeArrow(); SND.play('item/crossbow/loading_end', .8); } return true; }
   if (ranged && !down && P.draw > 0) { const d = P.draw; P.draw = 0; if (n == 'bow' && d > .1) { const pw = Math.min(1, (d * d + d * 2) / 3); takeArrow(); fireArrow(pw, h, 'bow'); } }
   return ranged || n == 'spyglass' || (down && !!shieldHeld() && !foodVal(h?.k) && !(h && h.k < ITEM_BASE));
 }
-function takeArrow() { const P = player; if (P.mode == 'creative') return; const i = P.inv.findIndex(s => s && keyName(s.k) == 'arrow'); if (i >= 0) { P.inv[i].c--; if (!P.inv[i].c) P.inv[i] = null; } }
+function takeArrow() { const P = player, oh = P.offhand && /^(arrow|tipped_arrow|spectral_arrow)$/.test(keyName(P.offhand.k)) ? P.offhand : null; let s = oh, i = -1; if (!s) { i = P.inv.findIndex(s => s && /^(arrow|tipped_arrow|spectral_arrow)$/.test(keyName(s.k))); s = P.inv[i]; } if (!s) return null; P.nextArrow = s.k; if (P.mode == 'creative') return s.k; s.c--; if (!s.c) { if (oh) P.offhand = null; else P.inv[i] = null; } return s.k; }
 function fireArrow(pw, h, kind) {
-  const crit = pw >= 1; launch('item:arrow', kind == 'crossbow' ? 50 : 50 * pw, { grav: 20, life: 30, pick: player.mode == 'survival', dmg: Math.ceil((kind == 'crossbow' ? 9 : 6 * pw) + (crit ? Math.random() * 3 : 0)) });
+  const crit = pw >= 1, ak = player.nextArrow, PT = ak && POTK[ak], spec = ak && keyName(ak) == 'spectral_arrow';
+  launch('item:arrow', kind == 'crossbow' ? 50 : 50 * pw, { k: ak || itemKey('item:arrow'), onHit: PT || spec ? (m, x, y, z) => { if (m) { hurtMob(m, Math.ceil(kind == 'crossbow' ? 9 : 6 * pw), 0, 0); if (PT) mobPotion(m, PT, .125); if (spec) { m.eff = m.eff || {}; m.eff.glowing = { t: 10, a: 0 }; } } else if (player.mode == 'survival') dropItem(ak, 1, x, y + .2, z); } : null, grav: 20, life: 30, pick: player.mode == 'survival' && !PT && !spec, dmg: Math.ceil((kind == 'crossbow' ? 9 : 6 * pw) + (crit ? Math.random() * 3 : 0)) });
   SND.play(kind == 'crossbow' ? 'item/crossbow/shoot1' : 'random/bow', 1, 1 / (Math.random() * .4 + 1.2) + pw * .5); wear(h, 1); player.stats.shots = (player.stats.shots || 0) + 1;
 }
 // ---- fishing bobber, firework rockets ----
@@ -167,3 +169,60 @@ function drawItemHud() {
   if (S.totemT > 0) { S.totemT -= 1 / 60; const k = 2 - S.totemT, sc = Math.min(1, k * 3) * (1 + Math.max(0, k - 1.2) * .5), a = Math.min(1, S.totemT * 2), sz = 96 * sc; cx2.globalAlpha = a; const key = itemKey('item:totem_of_undying'); if (key && typeof drawIcon == 'function') drawIcon(key, UW / 2 - sz / 2, UH / 2 - sz / 2 - Math.sin(k * 3) * 10, sz); cx2.globalAlpha = 1; }
 }
 function drawFishLine(view) { /* the bobber is drawn as a small particle */ const f = player.fish; if (f && Math.random() < .5) spark('generic', f.x, f.y + (f.bite > 0 ? -.15 : Math.sin(performance.now() / 300) * .05), f.z, { life: .12, vy: 0, vx: 0, vz: 0, g: 0 }); }
+// ---------- potions: every Java potion type as a drinkable, splash, lingering potion and tipped arrow ----------
+// each variant is its own item key (POT_BASE + type*4 + form) so they stack, save and show separately
+const POT_BASE = 9000, POT_FORMS = ['potion', 'splash_potion', 'lingering_potion', 'tipped_arrow'];
+const POTIONS = [ // [id, name, effect, seconds, amplifier, colour]  (Java durations)
+  ['water', 'Water', null, 0, 0, '#385DC6'], ['awkward', 'Awkward', null, 0, 0, '#385DC6'],
+  ['healing', 'Healing', 'instant_health', 0, 0, '#F82423'], ['strong_healing', 'Healing II', 'instant_health', 0, 1, '#F82423'],
+  ['harming', 'Harming', 'instant_damage', 0, 0, '#430A09'], ['strong_harming', 'Harming II', 'instant_damage', 0, 1, '#430A09'],
+  ['poison', 'Poison', 'poison', 45, 0, '#87A363'], ['long_poison', 'Poison (8:00)', 'poison', 90, 0, '#87A363'], ['strong_poison', 'Poison II', 'poison', 21, 1, '#87A363'],
+  ['regeneration', 'Regeneration', 'regeneration', 45, 0, '#CD5CAB'], ['strong_regeneration', 'Regeneration II', 'regeneration', 22, 1, '#CD5CAB'],
+  ['swiftness', 'Swiftness', 'speed', 180, 0, '#33EBFF'], ['strong_swiftness', 'Swiftness II', 'speed', 90, 1, '#33EBFF'],
+  ['slowness', 'Slowness', 'slowness', 90, 0, '#8BAFE0'], ['strength', 'Strength', 'strength', 180, 0, '#FFC700'], ['strong_strength', 'Strength II', 'strength', 90, 1, '#FFC700'],
+  ['weakness', 'Weakness', 'weakness', 90, 0, '#484D48'], ['leaping', 'Leaping', 'jump_boost', 180, 0, '#FDFF84'], ['strong_leaping', 'Leaping II', 'jump_boost', 90, 1, '#FDFF84'],
+  ['fire_resistance', 'Fire Resistance', 'fire_resistance', 180, 0, '#FF9900'], ['water_breathing', 'Water Breathing', 'water_breathing', 180, 0, '#98DAC0'],
+  ['night_vision', 'Night Vision', 'night_vision', 180, 0, '#C2FF66'], ['invisibility', 'Invisibility', 'invisibility', 180, 0, '#F6F6F6'],
+  ['slow_falling', 'Slow Falling', 'slow_falling', 90, 0, '#F3CFB9'], ['turtle_master', 'the Turtle Master', 'resistance', 20, 2, '#8D82E6'], ['luck', 'Luck', null, 0, 0, '#59C106'],
+];
+const POTK = {};
+function registerPotions() {
+  POTIONS.forEach((p, t) => POT_FORMS.forEach((f, fi) => { const k = POT_BASE + t * 4 + fi, base = f == 'tipped_arrow' ? 'tipped_arrow_base' : f;
+    const name = f == 'tipped_arrow' ? (p[0] == 'water' ? 'Arrow of Splashing' : 'Arrow of ' + p[1]) : (f == 'potion' ? '' : f == 'splash_potion' ? 'Splash ' : 'Lingering ') + (p[0] == 'water' ? 'Water Bottle' : p[0] == 'awkward' ? 'Awkward Potion' : 'Potion of ' + p[1]);
+    POTK[k] = { t, f, form: fi, base, baseK: itemKey('item:' + base), name, p }; BYNAME[(f == 'tipped_arrow' ? 'arrow_of_' : f + '_of_') + p[0]] = k; }));
+}
+const potKeys = form => POTIONS.map((p, t) => POT_BASE + t * 4 + form).filter(k => !(form == 3 && POTK[k].p[0] == 'awkward'));
+const potTint = {};
+function drawPotionIcon(k, x, y, s) { // bottle/arrow + the liquid (or arrow head) tinted the potion's colour
+  const P = POTK[k]; if (!P) return; const key = k + ':' + s; let c = potTint[key];
+  if (!c) { c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; const it = IMG.items.width / REG.icols;
+    const blit = bk => { const i = bk - ITEM_BASE; g.drawImage(IMG.items, (i % REG.icols) * it, Math.floor(i / REG.icols) * it, it, it, 0, 0, 32, 32); };
+    const tinted = src => { const t = document.createElement('canvas'); t.width = t.height = 32; const tg = t.getContext('2d'); tg.imageSmoothingEnabled = false; src(tg); tg.globalCompositeOperation = 'source-atop'; tg.fillStyle = P.p[5]; tg.globalAlpha = .85; tg.fillRect(0, 0, 32, 32); return t; };
+    if (P.f == 'tipped_arrow') { blit(P.baseK); const hk = itemKey('item:tipped_arrow_head'); if (hk) g.drawImage(tinted(tg => { const i = hk - ITEM_BASE; tg.drawImage(IMG.items, (i % REG.icols) * it, Math.floor(i / REG.icols) * it, it, it, 0, 0, 32, 32); }), 0, 0); }
+    else { if (IMG.potion_overlay) g.drawImage(tinted(tg => tg.drawImage(IMG.potion_overlay, 0, 0, 32, 32)), 0, 0); blit(P.baseK); if (!IMG.potion_overlay) { g.globalCompositeOperation = 'source-atop'; g.globalAlpha = .35; g.fillStyle = P.p[5]; g.fillRect(0, 0, 32, 32); } }
+    potTint[key] = c; }
+  cx2.drawImage(c, x, y, s, s);
+}
+function potionEffect(P, mult = 1) { const [id, , e, sec, a] = P.p; if (id == 'turtle_master') { addEff('resistance', 20 * mult, 2); addEff('slowness', 20 * mult, 3); return; } if (e) addEff(e, Math.max(1, sec * mult), a); }
+function mobPotion(m, P, mult = 1) { const [, , e, sec, a] = P.p, undead = /zombie|skeleton|wither|drowned|husk|stray|phantom|zoglin|piglin|skeleton_horse|zombie_horse/.test(m.type);
+  if (e == 'instant_health') { if (undead) hurtMob(m, 6 * 2 ** a * mult, 0, 0); else m.hp = Math.min(MOBDEF[m.type].hp, m.hp + 4 * 2 ** a); }
+  else if (e == 'instant_damage') { if (undead) m.hp = Math.min(MOBDEF[m.type].hp, m.hp + 4 * 2 ** a); else hurtMob(m, 6 * 2 ** a * mult, 0, 0); }
+  else if (e) { m.eff = m.eff || {}; m.eff[e] = { t: sec * mult, a }; } }
+// splash / lingering landing
+function potionSplash(P, x, y, z, linger) {
+  SND.play('random/glass' + (1 + (Math.random() * 3 | 0)), 1, 1, [x, y, z]);
+  for (let i = 0; i < 40; i++) spark('effect', x + (Math.random() - .5) * 3, y + Math.random() * 1.2, z + (Math.random() - .5) * 3, { extra: { tint: P.p[5] } });
+  const pl = player, d = Math.hypot(pl.x - x, pl.y + .9 - y, pl.z - z); if (d < 4) potionEffect(P, linger ? .25 : 1 - d / 5);
+  for (const m of mobs) { const md = Math.hypot(m.x - x, m.y - y, m.z - z); if (md < 4) mobPotion(m, P, linger ? .25 : 1 - md / 5); }
+  if (linger) clouds.push({ x, y, z, r: 3, t: 15, P });
+}
+let clouds = [];
+function cloudTick(dt) { // lingering potion clouds and potion effects on mobs
+  for (const c of clouds) { c.t -= dt; c.r = 3 * Math.min(1, c.t / 15) + .5; c.acc = (c.acc || 0) + dt; if (Math.random() < .7) { const a = Math.random() * 6.28, r = Math.random() * c.r; spark('effect', c.x + Math.cos(a) * r, c.y + .1, c.z + Math.sin(a) * r, { life: .6 }); }
+    if (c.acc > 1) { c.acc = 0; const pl = player; if (Math.hypot(pl.x - c.x, pl.z - c.z) < c.r && Math.abs(pl.y - c.y) < 2) potionEffect(c.P, .25); for (const m of mobs) if (Math.hypot(m.x - c.x, m.z - c.z) < c.r) mobPotion(m, c.P, .25); } }
+  clouds = clouds.filter(c => c.t > 0);
+  for (const m of mobs) if (m.eff) for (const e in m.eff) { const o = m.eff[e]; o.t -= dt; o.acc = (o.acc || 0) + dt; if (o.t <= 0) { delete m.eff[e]; continue; }
+    if ((e == 'poison' && m.hp > 1 || e == 'wither') && o.acc >= 1.25 / 2 ** o.a) { o.acc = 0; hurtMob(m, 1, 0, 0); }
+    if (e == 'regeneration' && o.acc >= 2.5 / 2 ** o.a) { o.acc = 0; m.hp = Math.min(MOBDEF[m.type].hp, m.hp + 1); }
+    if (e == 'slowness') { m.vx *= .7; m.vz *= .7; } if (Math.random() < .05) spark('effect', m.x, m.y + m.h, m.z, { life: .5 }); }
+}

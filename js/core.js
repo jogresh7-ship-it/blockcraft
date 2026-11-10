@@ -82,10 +82,11 @@ async function loadAssets(progress) {
     ...GUI_FILES.map(f => loadImg(f, 'gui/' + f + '.png'))];
   let done = 0; jobs.forEach(j => j.then(() => progress && progress(++done / jobs.length)));
   await Promise.all(jobs);
+  if (typeof registerPotions == 'function') registerPotions();
 }
 const itemKey = n => BYNAME[n] ?? BYNAME['item:' + n];
-const keyName = k => k >= ITEM_BASE ? ITEMS[k - ITEM_BASE] : BL[k]?.n;
-const prettyName = k => (keyName(k) || '?').split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+const keyName = k => k >= 9000 ? (typeof POTK != 'undefined' && POTK[k] ? POTK[k].f : undefined) : k >= ITEM_BASE ? ITEMS[k - ITEM_BASE] : BL[k]?.n;
+const prettyName = k => k >= 9000 && typeof POTK != 'undefined' && POTK[k] ? POTK[k].name : (keyName(k) || '?').split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
 const MAXSTACK = k => { const n = keyName(k) || ''; return /(_pickaxe|_axe|_shovel|_sword|_hoe|_helmet|_chestplate|_leggings|_boots|bucket$|^bow$|shears|flint_and_steel|fishing_rod|trident|elytra|totem|_boat|minecart|saddle|potion|music_disc|_horse_armor|stew|soup|_spear|mace)/.test(n) && n != 'bucket' ? 1 : /(ender_pearl|snowball|egg$|^bucket$|_sign)/.test(n) ? 16 : 64; };
 
 // ---------- shader packs (ports of the look of popular Java shader packs): sun strength, shade strength, saturation, contrast, shade colour, sunlight colour ----------

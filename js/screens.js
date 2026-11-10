@@ -491,6 +491,7 @@ function buildCreativeTabs() {
   const take = arr => arr.filter(k => { if (used.has(k)) return false; used.add(k); return true; });
   const op = take([...B(isOp), ...It(isOp)]), colored = take(B(isColored)), red = take([...B(isRed), ...It(isRed)]), func = take(B(isFunc)), nat = take(B(isNatural));
   const eggs = take(It(n => isEgg(n) && MOBDEF[n.replace('_spawn_egg', '')])), tools = take(It(isTool)), combat = take(It(isCombat)), food = take(It(isFood));
+  if (typeof potKeys == 'function') { food.push(...potKeys(0), ...potKeys(1), ...potKeys(2)); combat.push(...potKeys(3)); }
   const build = take(blocks.map(b => b.id)); const ingr = take(items.map(i => i.k));
   const all = [...build, ...colored, ...nat, ...func, ...red, ...tools, ...combat, ...food, ...ingr, ...eggs, ...op];
   CTABS = [
