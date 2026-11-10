@@ -31,3 +31,4 @@ Blockcraft is a fan project. It is not affiliated with Mojang or Microsoft.
 
 ## Credits
 Horse, villager and witch model geometry is based on "Minecraft - Horse", "Minecraft - Villager" and "Minecraft - Witch" by Vincent Yanez (https://sketchfab.com/vinceyanez), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
+Pillager, vindicator and evoker references by None_Yaroslav (https://sketchfab.com/None_Yaroslav), zombie villager reference by Vincent Yanez, CC-BY-4.0.
