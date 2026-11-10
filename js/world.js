@@ -503,8 +503,7 @@ class World {
         const tg = [0, 0, 0], tf = [0, 0, 0];
         for (const g in w) { const f = w[g] / tot, c = BT && BT.groups[g]; for (let i = 0; i < 3; i++) { tg[i] += f * (c ? c[0][i] / BT.base.g[i] : 1); tf[i] += f * (c ? c[1][i] / BT.base.f[i] : 1); } }
         CW[(x + 1) + (z + 1) * 18] = { g: tg, f: tf };
-        if (x >= 0 && z >= 0 && x < 16 && z < 16) { let h = Math.imul(wx * 73856093 ^ wz * 19349663, 0x27d4eb2d); h ^= h >>> 15; let r = ((h >>> 0) % 10000) / 10000 * tot, pick = 0;
-          for (const g in w) { r -= w[g]; if (r <= 0) { pick = g; break; } } bgrp[x + z * 16] = pick == 0 ? undefined : pick; } }
+        if (x >= 0 && z >= 0 && x < 16 && z < 16) { let pick = 0, best = -1; for (const g in w) if (w[g] > best) { best = w[g]; pick = g; } /* grass block sides use the column main biome */ bgrp[x + z * 16] = pick == 0 ? undefined : pick; } }
       // corner tints = average of the 4 columns touching each corner
       TCOR = { g: new Float32Array(17 * 17 * 3), f: new Float32Array(17 * 17 * 3) };
       for (const k of ['g', 'f']) for (let z = 0; z <= 16; z++) for (let x = 0; x <= 16; x++) for (let i = 0; i < 3; i++)
