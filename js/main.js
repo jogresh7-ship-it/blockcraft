@@ -963,8 +963,8 @@ function renderEntities(sk) {
       if (p.wing) rzv += p.wing * (m.ground === false || m.vy < -1 ? .6 + Math.sin(t * 28) * .6 : 0); // chickens flap while falling
       if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
       if (p.vw) ay += p.vw * (.5 + Math.sin(t * 18) * .35); // vex wings flutter
-      if (p.dwing) rzv += Math.sign(p.dwing) * (Math.sin(t * 2.2) * .55 + (Math.abs(p.dwing) > 1 ? Math.sin(t * 2.2 - .6) * .3 : 0)); // dragon wing beats
-      if (p.dleg !== undefined) ax += (p.dleg ? .55 : .35) + Math.sin(t * 2.2 + p.dleg) * .08; // dragon legs hang back while it flies
+      if (p.dwing) rzv += Math.sign(p.dwing) * Math.sin(t * 2.2) * .5; // dragon wing beats
+      if (p.dleg !== undefined) ax -= (p.dleg ? 1.15 : .9) + Math.sin(t * 2.2 + p.dleg) * .08; // dragon legs hang back while it flies
       if (p.dtail !== undefined) ay += Math.sin(t * 1.5 - p.dtail * .35) * .04 * p.dtail;
       if (p.jaw) ax += m.target ? Math.max(0, Math.sin(t * 4)) * .35 : .05;
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
