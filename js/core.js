@@ -93,16 +93,18 @@ let gl, PROG, TEXS = {};
 const VS = `#version 300 es
 in vec3 aPos; in vec2 aUv; in vec3 aL;
 uniform mat4 uPV, uM; uniform float uFrames, uFrame; uniform vec3 uCam;
-out vec2 vUv; out vec3 vL; out float vDist;
-void main(){ vec4 w = uM*vec4(aPos,1.0); gl_Position = uPV*w; vUv = vec2(aUv.x,(aUv.y+uFrame)/uFrames); vL=aL; vDist = length(w.xyz - uCam); }`;
+out vec2 vUv; out vec3 vL; out vec3 vT; out float vDist;
+void main(){ vec4 w = uM*vec4(aPos,1.0); gl_Position = uPV*w; vUv = vec2(aUv.x,(aUv.y+uFrame)/uFrames); vL=aL; vT=vec3(1.0);
+  if (aL.x >= 2.0) { float code = floor(aL.x*0.5); vL.x = aL.x - code*2.0; code -= 1.0; vT = vec3(floor(code/1024.0), mod(floor(code/32.0),32.0), mod(code,32.0))/31.0*2.0; }
+  vDist = length(w.xyz - uCam); }`;
 const FS = `#version 300 es
 precision mediump float;
-in vec2 vUv; in vec3 vL; in float vDist;
+in vec2 vUv; in vec3 vL; in vec3 vT; in float vDist;
 uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL; uniform vec3 uFog; uniform vec4 uTint;
 out vec4 o;
 void main(){ vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float l = max(vL.y*uDay, vL.z); l = mix(max(l,uMinL), 1.0, uFull);
-  vec3 col = c.rgb * vL.x * l; col = mix(col, uTint.rgb, uTint.a);
+  vec3 col = min(c.rgb * vT, vec3(1.0)) * vL.x * l; col = mix(col, uTint.rgb, uTint.a);
   float f = clamp((vDist-uFogN)/(uFogF-uFogN),0.0,1.0);
   o = vec4(mix(col, uFog, f), min(1.0, c.a*uAlpha)); }`;
 function initGL(canvas) {

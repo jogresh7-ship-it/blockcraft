@@ -4,7 +4,8 @@ const lidx = (x, y, z) => x + CS * (z + CS * y);
 let WLOG, WATER_ID, LEAF;
 // biome colours: grass, ferns and leaves use their biome's own green (or yellow/brown), like Minecraft's colour maps
 let TVMAP = {}; const BIO_GROUP = { forest: 'forest', flower_forest: 'forest', birch: 'birch', dark_forest: 'dark_forest', jungle: 'jungle', swamp: 'swamp', taiga: 'taiga', old_growth_taiga: 'taiga', snowy_taiga: 'snowy', snowy_plains: 'snowy', snowy_mountains: 'snowy', snowy_beach: 'snowy', savanna: 'savanna', desert: 'savanna', badlands: 'badlands', meadow: 'meadow', cherry: 'cherry', mountains: 'mountains', dappled_forest: 'dappled' };
-function buildTVMap() { TVMAP = {}; const BT = REG.biomeTint; if (!BT) return; for (const [n, t] of Object.entries(BT.tiles)) { const m = {}; for (const g in BT.groups) m[g] = t[g]; TVMAP[REG.tiles[n]] = m; } }
+let SMK = {}; // base tile -> tint kind ('g' grass / 'f' foliage) for tiles tinted smoothly per vertex
+function buildTVMap() { TVMAP = {}; SMK = {}; if (REG.biomeTint) for (const [n, t] of Object.entries(REG.biomeTint.tiles)) if (n != 'grass_block_side_tinted' && REG.tiles[n] !== undefined) SMK[REG.tiles[n]] = t.k; const BT = REG.biomeTint; if (!BT) return; for (const [n, t] of Object.entries(BT.tiles)) { const m = {}; for (const g in BT.groups) m[g] = t[g]; TVMAP[REG.tiles[n]] = m; } }
 function buildBiomeTiles() {
   const BT = REG.biomeTint; if (!BT || !IMG.blocks) return; let A = IMG.blocks;
   if (!(A instanceof HTMLCanvasElement)) { const c = document.createElement('canvas'); c.width = A.width; c.height = A.height; c.getContext('2d').drawImage(A, 0, 0); A = c; IMG.blocks = c; }
@@ -484,15 +485,23 @@ class World {
       { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], f: 0, s: 1 }, { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], f: 1, s: .5 },
       { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], f: 3, s: .8 }, { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], f: 2, s: .8 }];
     const aoT = [0.45, 0.65, 0.82, 1];
-    const bgrp = new Array(256); if (this.dim == 'overworld' || !this.dim) {
-      // soft biome borders: sample biomes on a coarse grid around the chunk and let each column pick from its neighbourhood with
-      // distance-weighted odds, so one biome's grass and leaves fade into the next over ~10 blocks instead of switching at a line
+    const bgrp = new Array(256), CW = []; let TCOR = null; if (this.dim == 'overworld' || !this.dim) {
+      // soft biome borders: every column gets distance-weighted biome mix from a coarse grid around it. Grass, plants and leaves
+      // are then tinted per vertex (so colours fade smoothly between biomes); grass block sides pick a tile variant from the mix
       const R = 5, G = new Map(); const gb = (cx, cz) => { const k = cx + ',' + cz; let v = G.get(k); if (v === undefined) { v = BIO_GROUP[this.biome(cx * 2, cz * 2)] || 0; G.set(k, v); } return v; };
-      for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) { const wx = x0 + x, wz = z0 + z, w = {}; let tot = 0;
+      const BT = REG.biomeTint;
+      for (let z = -1; z <= 16; z++) for (let x = -1; x <= 16; x++) { const wx = x0 + x, wz = z0 + z, w = {}; let tot = 0;
         for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { const d2 = dx * dx + dz * dz; if (d2 > R * R) continue; const g = gb(Math.floor(wx / 2) + dx, Math.floor(wz / 2) + dz), wt = 1 / (1 + d2); w[g] = (w[g] || 0) + wt; tot += wt; }
-        let h = Math.imul(wx * 73856093 ^ wz * 19349663, 0x27d4eb2d); h ^= h >>> 15; let r = ((h >>> 0) % 10000) / 10000 * tot, pick = 0;
-        for (const g in w) { r -= w[g]; if (r <= 0) { pick = g; break; } } bgrp[x + z * 16] = pick == 0 ? undefined : pick; } }
-    const TV = (t, lx, lz) => { const g = bgrp[lx + lz * 16]; if (!g) return t; const v = TVMAP[t]; return v ? v[g] ?? t : t; };
+        const tg = [0, 0, 0], tf = [0, 0, 0];
+        for (const g in w) { const f = w[g] / tot, c = BT && BT.groups[g]; for (let i = 0; i < 3; i++) { tg[i] += f * (c ? c[0][i] / BT.base.g[i] : 1); tf[i] += f * (c ? c[1][i] / BT.base.f[i] : 1); } }
+        CW[(x + 1) + (z + 1) * 18] = { g: tg, f: tf };
+        if (x >= 0 && z >= 0 && x < 16 && z < 16) { let h = Math.imul(wx * 73856093 ^ wz * 19349663, 0x27d4eb2d); h ^= h >>> 15; let r = ((h >>> 0) % 10000) / 10000 * tot, pick = 0;
+          for (const g in w) { r -= w[g]; if (r <= 0) { pick = g; break; } } bgrp[x + z * 16] = pick == 0 ? undefined : pick; } }
+      // corner tints = average of the 4 columns touching each corner
+      TCOR = { g: new Float32Array(17 * 17 * 3), f: new Float32Array(17 * 17 * 3) };
+      for (const k of ['g', 'f']) for (let z = 0; z <= 16; z++) for (let x = 0; x <= 16; x++) for (let i = 0; i < 3; i++)
+        TCOR[k][(x + z * 17) * 3 + i] = (CW[x + z * 18][k][i] + CW[x + 1 + z * 18][k][i] + CW[x + (z + 1) * 18][k][i] + CW[x + 1 + (z + 1) * 18][k][i]) / 4; }
+    const TV = (t, lx, lz) => { if (TCOR && SMK[t]) return t; const g = bgrp[lx + lz * 16]; if (!g) return t; const v = TVMAP[t]; return v ? v[g] ?? t : t; };
     for (let y = 0; y < WH; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       let b = d[lidx(x, y, z)]; if (!b) continue; let sh = SHAPE[b]; const wx = x0 + x, wz = z0 + z;
       if (sh == 2) { // cross
@@ -575,6 +584,10 @@ class World {
         pushQuad(out[sh == 3 ? 2 : sh == 4 ? 3 : ALPHA[b] == 2 ? 1 : 0], C, U, LL);
       }
     }
+    if (TCOR) for (let i = 0; i < 2; i++) { const o = out[i]; // encode the biome tint into the shade channel: (code+1)*2 + shade
+      for (let v = 0; v < o.length; v += 8) { const t = Math.floor(o[v + 3] * REG.cols) + Math.floor(o[v + 4] * REG.rows) * REG.cols, k = SMK[t]; if (!k) continue;
+        const lx = Math.max(0, Math.min(16, Math.round(o[v] - x0))), lz = Math.max(0, Math.min(16, Math.round(o[v + 2] - z0))), j = (lx + lz * 17) * 3, T = TCOR[k];
+        const q = i2 => Math.max(0, Math.min(31, Math.round(T[j + i2] / 2 * 31))); o[v + 5] = ((q(0) * 1024 + q(1) * 32 + q(2)) + 1) * 2 + Math.min(1.99, o[v + 5]); } }
     if (!c.meshes) c.meshes = [null, null, null, null];
     for (let i = 0; i < 4; i++) {
       if (out[i].length) c.meshes[i] = mkMesh(new Float32Array(out[i]), c.meshes[i]);

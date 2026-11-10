@@ -11,7 +11,10 @@ const peerId = code => 'blockcraft-mp-' + code.toUpperCase();
 function netSend(c, msg) { try { if (c && c.open) c.send(msg); } catch (e) { } }
 function netBroadcast(msg, except) { for (const [id, c] of NET.conns) if (id !== except) netSend(c, msg); }
 function netOut(msg) { if (NET.role == 'host') netBroadcast(msg); else if (NET.role == 'client') netSend(NET.host, msg); }
-function netMyState() { const P = player; return { t: 'p', id: NET.myId, name: player.name, skin: (typeof PROFILE != 'undefined' && PROFILE.skin) || 'steve', x: +P.x.toFixed(2), y: +P.y.toFixed(2), z: +P.z.toFixed(2), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), dim: world.dim, sneak: !!P.sneak, held: held() ? held().k : 0 }; }
+function netMyState() { const P = player; return { t: 'p', id: NET.myId, name: player.name, skin: (typeof PROFILE != 'undefined' && PROFILE.skin) || 'steve', x: +P.x.toFixed(2), y: +P.y.toFixed(2), z: +P.z.toFixed(2), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), dim: world.dim, sneak: !!((keys.ShiftLeft || keys.ShiftRight) && !P.fly), held: held() ? held().k : 0,
+  // pose + animation state so other players see crouching, sprinting, sitting, swimming, crawling, gliding, swinging, getting hurt and armour
+  sw: typeof swing != 'undefined' && swing > 0 ? 1 : 0, hurt: P.hurtT > 0 ? 1 : 0, spr: P.sprint ? 1 : 0, sit: P.sit ? 1 : 0, swim: P.swimPose ? 1 : 0, glide: P.glide ? 1 : 0, crawl: P.crawlPose ? 1 : 0, sleep: P.sleeping ? 1 : 0,
+  arm: P.armor.map(s => s ? keyName(s.k) : 0), off: P.offhand ? P.offhand.k : 0, eat: typeof eatT != 'undefined' && eatT > 0 ? 1 : 0, dead: P.dead ? 1 : 0 }; }
 // ---- hosting ----
 async function netHost(fixed) {
   if (NET.role) return NET.code;
@@ -86,9 +89,11 @@ function netAvatar(d) {
   let a = NET.avatars.get(d.id);
   if (!a) { a = { id: d.id, type: 'player', remote: 1, x: d.x, y: d.y, z: d.z, yaw: d.yaw, walk: 0, vx: 0, vz: 0, r: .3, h: 1.8, hp: 20, target: 1, lookP: 0 }; NET.avatars.set(d.id, a); if (NET.role == 'host' || world) chat('§e' + d.name + ' is here'); }
   a.last = d; a.name = d.name; a.tx = d.x; a.ty = d.y; a.tz = d.z; a.tyaw = d.yaw; a.lookP = d.pitch; a.dim = d.dim; a.sneak = d.sneak; a.holdK = d.held || 0;
+  if (d.sw && !(a.swingT > 0) && !a.lastSw) a.swingT = 1; a.lastSw = d.sw; if (d.hurt && !(a.hurtT > 0) && !a.lastHurt) a.hurtT = .5; a.lastHurt = d.hurt;
+  a.sprinting = !!d.spr; a.sitting = !!d.sit; a.swim = !!d.swim; a.glide = !!d.glide; a.crawl = !!d.crawl; a.sleeping = !!d.sleep; a.dead = !!d.dead; a.armorN = d.arm || []; a.offK = d.off || 0; a.eating = !!d.eat;
   a.skinTex = IMG['skin_' + d.skin] ? 'skin_' + d.skin : null;
 }
-function netAvatarsFor() { const out = []; if (!world) return out; for (const a of NET.avatars.values()) if (a.dim == world.dim && a.tx !== undefined) out.push(a); return out; }
+function netAvatarsFor() { const out = []; if (!world) return out; for (const a of NET.avatars.values()) if (a.dim == world.dim && a.tx !== undefined && !a.dead) out.push(a); return out; }
 // ---- block changes: everything a player action sets is captured and sent ----
 function netBegin() { if (NET.role) NET.cap = []; }
 function netEnd(hit) {
@@ -128,7 +133,7 @@ function netTick(dt) {
   for (const a of NET.avatars.values()) {
     if (a.tx === undefined) continue; const dx = a.tx - a.x, dz = a.tz - a.z;
     a.vx = dx / Math.max(dt, .001) * .1; a.vz = dz / Math.max(dt, .001) * .1; a.x += dx * k; a.y += (a.ty - a.y) * k; a.z += dz * k;
-    let dy = a.tyaw - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); a.yaw += dy * k; a.walk += Math.hypot(dx, dz) * 2.5;
+    let dy = a.tyaw - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); a.yaw += dy * k; a.walk += Math.hypot(dx, dz) * 2.5; if (a.swingT > 0) a.swingT = Math.max(0, a.swingT - dt * 3); if (a.hurtT > 0) a.hurtT -= dt; if (a.eating) { a.swingT = .3 + Math.abs(Math.sin(performance.now() / 120)) * .2; }
   }
   if (NET.role == 'client') for (const m of mobs) if (m.ghost && m.tx !== undefined) { const dx = m.tx - m.x, dz = m.tz - m.z; m.vx = dx * 4; m.vz = dz * 4; m.x += dx * k; m.y += (m.ty - m.y) * k; m.z += dz * k; let dy = m.tyaw - m.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); m.yaw += dy * k; m.walk += Math.hypot(dx, dz) * 2.5; if (m.hurtT > 0) m.hurtT -= dt; }
   if (NET.role == 'host' && NET.conns.size) {
