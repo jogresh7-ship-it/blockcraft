@@ -112,7 +112,7 @@ void main(){ vec4 w = uM*vec4(aPos,1.0); vec3 L = aL; if (L.x < 0.0) { L.x = -L.
 const FS = `#version 300 es
 precision mediump float;
 in vec2 vUv; in vec3 vL; in vec3 vT; in vec3 vRel;
-uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint; uniform vec4 uSP, uSP2; uniform vec3 uShade, uWarm, uFogT, uGrade, uSetC, uNightC, uTorch; uniform vec2 uRes; uniform float uTM;
+uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint; uniform vec4 uSP, uSP2; uniform vec3 uShade, uWarm, uFogT, uGrade, uSetC, uNightC, uTorch; uniform vec2 uRes; uniform float uTM, uBright;
 out vec4 o;
 void main(){ float vDist = length(vRel); vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float l = max(vL.y*uDay, vL.z); l = mix(max(l,uMinL), 1.0, uFull);
@@ -141,6 +141,7 @@ void main(){ float vDist = length(vRel); vec4 c = texture(uTex, vUv); if(c.a < u
     vec2 sc = gl_FragCoord.xy / uRes - 0.5; col *= 1.0 - dot(sc, sc) * uSP2.x; // vignette
     f = f*f*(3.0-2.0*f); }
   vec3 fc = uShaderF > 0.5 && uFull < 0.5 ? mix(uFog, uFogT, uSP2.y) : uFog;
+  col = pow(max(col, vec3(0.0)), vec3(1.0 / (1.0 + uBright * 0.8))); // brightness setting lifts dark areas
   o = vec4(mix(col, fc, f), min(1.0, c.a*uAlpha)); }`;
 function initGL(canvas) {
   const ca = { antialias: false, alpha: false, powerPreference: 'default', failIfMajorPerformanceCaveat: false };
@@ -151,7 +152,7 @@ function initGL(canvas) {
   gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aUv'); gl.bindAttribLocation(p, 2, 'aL'); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
   PROG = { p, u: {} };
-  for (const n of ['uSetC', 'uNightC', 'uTorch', 'uTM', 'uSP2', 'uFogT', 'uGrade', 'uRes', 'uSP', 'uShade', 'uWarm', 'uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
+  for (const n of ['uBright', 'uSetC', 'uNightC', 'uTorch', 'uTM', 'uSP2', 'uFogT', 'uGrade', 'uRes', 'uSP', 'uShade', 'uWarm', 'uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
   gl.useProgram(p); gl.uniform1f(PROG.u.uMinL, .09);
   try { buildBiomeTiles(); } catch (e) { console.warn('biome tiles', e); }
   gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

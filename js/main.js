@@ -899,6 +899,10 @@ function updateWorld(dt) {
 }
 // ---------------- rendering ----------------
 let dyn = {};
+function cloudData() { // the cloud texture as an on/off grid (from the active resource pack)
+  if (cloudData.img === IMG.clouds && cloudData.d) return cloudData.d; const im = IMG.clouds; if (!im) return null; cloudData.img = im;
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 256, 256); const p = g.getImageData(0, 0, 256, 256).data, a = new Uint8Array(65536);
+  for (let i = 0; i < 65536; i++) a[i] = p[i * 4 + 3] > 100 ? 1 : 0; dyn.c3key = null; return cloudData.d = { w: 256, a }; }
 function dynMesh(name, arr) { dyn[name] = mkMesh(new Float32Array(arr), dyn[name]); return dyn[name]; }
 function skyState() {
   if (world && world.dim == 'nether') return { a: 0, day: 0, sky: [.2, .03, .03], fog: [.2, .04, .03], sunset: 0, nether: 1 };
@@ -939,7 +943,7 @@ function render(dt) {
   const PV = M4.mul(proj, view); NET.PV = PV;
   gl.useProgram(PROG.p); gl.uniformMatrix4fv(u.uPV, false, PV); gl.uniform3f(u.uCam, eye[0], eye[1], eye[2]);
   gl.uniform3f(u.uFog, fogC[0], fogC[1], fogC[2]);
-  gl.uniform1f(u.uMinL, api.settings.fullbright ? 1 : sk.nether ? .28 : .09); const fogF = underwater ? 20 : inLava ? 2 : sk.nether ? Math.min(80, opts.rd * 12) : opts.rd * 16 * (world.meta.rain ? .8 : 1), fogN = underwater ? 0 : inLava ? 0 : fogF * .6;
+  gl.uniform1f(u.uMinL, api.settings.fullbright ? 1 : (sk.nether ? .28 : .09) + (opts.bright || 0) * .18); gl.uniform1f(u.uBright, opts.bright || 0); const fogF = underwater ? 20 : inLava ? 2 : sk.nether ? Math.min(80, opts.rd * 12) : opts.rd * 16 * (world.meta.rain ? .8 : 1), fogN = underwater ? 0 : inLava ? 0 : fogF * .6;
   // sky objects
   gl.depthMask(false); gl.uniform1f(u.uFogN, 1e4); gl.uniform1f(u.uFogF, 2e4); gl.uniform1f(u.uDay, 1);
   if (!underwater && !sk.nether) {
@@ -984,9 +988,16 @@ function render(dt) {
   for (let i = vis.length - 1; i >= 0; i--) { const c = vis[i][1]; drawMesh(c.meshes[2], 'water', { frames: IMG.water.height / IMG.water.width, frame: fr % (IMG.water.height / IMG.water.width), alphaTest: 0, alpha: 1.15 }); }
   renderParticles(view, sk);
   gl.useProgram(PROG.p); gl.uniformMatrix4fv(u.uPV, false, PV); gl.uniform3f(u.uCam, eye[0], eye[1], eye[2]); gl.uniformMatrix4fv(u.uM, false, ID); // particles change these
-  if (opts.clouds && !sk.nether) { const cy = 192.5, sz = 640, t = performance.now() / 1000 * .6 + world.meta.time * 0; const sc = 1 / (12 * 256), ox = (eye[0] + t) * sc, oz = eye[2] * sc, h = sz * sc; const arr = []; pushQuad(arr, [[eye[0] - sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] + sz], [eye[0] - sz, cy, eye[2] + sz]], [[ox - h, oz - h], [ox + h, oz - h], [ox + h, oz + h], [ox - h, oz + h]], [1, 1, 1]); gl.uniform1f(u.uFogN, 100); gl.uniform1f(u.uFogF, 500); gl.uniform1f(u.uDay, Math.max(.25, sk.day)); if (opts.shaders) { // shader pack clouds: three stacked soft layers drifting at different speeds = puffy, volumetric-looking clouds
-      gl.enable(gl.BLEND); gl.depthMask(false); for (let L = 0; L < 3; L++) { const a2 = [], yy = cy + L * 1.6, o2 = L * .37 + t * sc * L * .4; pushQuad(a2, [[eye[0] - sz, yy, eye[2] - sz], [eye[0] + sz, yy, eye[2] - sz], [eye[0] + sz, yy, eye[2] + sz], [eye[0] - sz, yy, eye[2] + sz]], [[ox - h + o2, oz - h], [ox + h + o2, oz - h], [ox + h + o2, oz + h], [ox - h + o2, oz + h]], [L == 0 ? .82 : 1, 1, 1]);
-        drawMesh(dynMesh('cloud' + L, a2), 'clouds', { alphaTest: .05, alpha: L == 1 ? .55 : .35, full: 0 }); } gl.depthMask(true); gl.disable(gl.BLEND); }
+  if (opts.clouds && !sk.nether) { const cy = 192.5, sz = 640, t = performance.now() / 1000 * .6 + world.meta.time * 0; const sc = 1 / (12 * 256), ox = (eye[0] + t) * sc, oz = eye[2] * sc, h = sz * sc; const arr = []; pushQuad(arr, [[eye[0] - sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] + sz], [eye[0] - sz, cy, eye[2] + sz]], [[ox - h, oz - h], [ox + h, oz - h], [ox + h, oz + h], [ox - h, oz + h]], [1, 1, 1]); gl.uniform1f(u.uFogN, 100); gl.uniform1f(u.uFogF, 500); gl.uniform1f(u.uDay, Math.max(.25, sk.day)); if (opts.shaders) { // shader pack clouds: real 3D cloud volumes built from the cloud map (each pixel = a 12x4x12 puff), lit top/bottom/sides
+      const CD = cloudData(); if (CD) { const W = CD.w, cs = 12, tt = t, cx0 = Math.floor((eye[0] + tt) / cs), cz0 = Math.floor(eye[2] / cs), key = cx0 + ',' + cz0;
+        if (dyn.c3key != key) { dyn.c3key = key; const A = [], R = 22, on = (x, z) => CD.a[(((z % W) + W) % W) * W + (((x % W) + W) % W)];
+          for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { if (dx * dx + dz * dz > R * R) continue; const gx = cx0 + dx, gz = cz0 + dz; if (!on(gx, gz)) continue;
+            const x0 = gx * cs, x1 = x0 + cs, z0 = gz * cs, z1 = z0 + cs, y0 = cy, y1 = cy + 4, Q = (c, l) => pushQuad(A, c, [[0, 0], [1, 0], [1, 1], [0, 1]], [l, 1, 1]);
+            Q([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], 1); Q([[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]], .68);
+            if (!on(gx - 1, gz)) Q([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], .82); if (!on(gx + 1, gz)) Q([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], .82);
+            if (!on(gx, gz - 1)) Q([[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], .9); if (!on(gx, gz + 1)) Q([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], .9); }
+          dynMesh('cloud3d', A); }
+        gl.enable(gl.BLEND); drawMesh(dyn.cloud3d, 'white', { model: M4.trans(-tt, 0, 0), alphaTest: 0, alpha: .82, full: 0 }); gl.disable(gl.BLEND); } }
     else drawMesh(dynMesh('cloud', arr), 'clouds', { alphaTest: .3, alpha: .8, full: 0 }); gl.uniform1f(u.uFogN, fogN); gl.uniform1f(u.uFogF, fogF); gl.uniform1f(u.uDay, sk.day); }
   // rain / snow
   if (world.meta.rain && !sk.nether) renderRain(eye);

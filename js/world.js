@@ -320,6 +320,12 @@ class World {
       const wx = x0 + lx, wz = z0 + lz, h = hm[lx + lz * 16], bio = bm[lx + lz * 16], top = d[lidx(lx, h, lz)], r = H(wx, 999, wz), above = h + 1 < WH ? d[lidx(lx, h + 1, lz)] : 0;
       if (above == I.water) {
         if ((top == I.sand || top == I.gravel || top == I.clay || top == X('mud')) && r < (bio == 'river' || bio == 'swamp' ? .3 : .16)) { if (SEA - h >= 3 && r < .05 && X('tall_seagrass')) { put(lx, h + 1, lz, X('tall_seagrass'), 1); } else put(lx, h + 1, lz, I.seagrass, 1); }
+        // coral reefs in warm, shallow-ish ocean: coral blocks, coral and fans on top, sea pickles
+        const dep = SEA - h; if (dep >= 3 && dep <= 14 && /ocean/.test(bio) && !/frozen|cold/.test(bio) && N.n2(wx / 28 + 300, wz / 28) > .22) {
+          const CK = ['tube', 'brain', 'bubble', 'fire', 'horn'], k1 = CK[Math.floor(H(wx, 71, wz) * 5)], k2 = CK[Math.floor(N.n2(wx / 9, wz / 9 + 50) * 2.5 + 2.5) % 5];
+          d[lidx(lx, h, lz)] = X(k2 + '_coral_block') || top; if (H(wx, 72, wz) < .3 && dep > 4) { d[lidx(lx, h + 1, lz)] = X(k1 + '_coral_block'); if (H(wx, 73, wz) < .5) put(lx, h + 2, lz, X(k1 + (H(wx, 74, wz) < .5 ? '_coral' : '_coral_fan')), 1); }
+          else { const q = H(wx, 75, wz); if (q < .45) put(lx, h + 1, lz, X(k1 + '_coral'), 1); else if (q < .75) put(lx, h + 1, lz, X(k1 + '_coral_fan'), 1); else if (q < .82) put(lx, h + 1, lz, X('sea_pickle'), 1); else if (q < .9) put(lx, h + 1, lz, I.seagrass, 1); }
+          continue; }
         if (r > .95 && h < SEA - 4 && !/river|frozen/.test(bio)) { const kh = Math.min(SEA - h - 1, 3 + Math.floor(H(wx, 4, wz) * 10)); for (let k = 1; k <= kh; k++) put(lx, h + k, lz, I.kelp_plant, 1); }
         continue;
       }

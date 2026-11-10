@@ -116,7 +116,7 @@ function scrWorlds() {
     if (w.icon) { S.iconCache = S.iconCache || {}; let im = S.iconCache[w.id]; if (!im) { im = new Image(); im.src = w.icon; S.iconCache[w.id] = im; } if (im.complete && im.naturalWidth) cx2.drawImage(im, x, y, 32, 32); else if (IMG.pack) cx2.drawImage(IMG.pack, x, y, 32, 32); } else if (IMG.pack) cx2.drawImage(IMG.pack, x, y, 32, 32);
     if (hv) { cx2.fillStyle = 'rgba(160,160,160,.5)'; cx2.fillRect(x, y, 32, 32); spr(hover(x, y, 32, 32) ? 'world_list_join_highlighted' : 'world_list_join', x, y, 32, 32); }
     text(w.name, x + 35, y + 1, '#FFFFFF'); text(`${w.name.replace(/\W/g, '')} (${fmtDate(w.last)})`, x + 35, y + 12, '#808080', false);
-    text((w.mode == 'hardcore' ? '§cHardcore Mode!' : w.mode == 'creative' ? 'Creative Mode' : 'Survival Mode') + (w.flat ? ', Superflat' : '') + (w.dead ? ' §c(Dead)' : ''), x + 35, y + 22, '#808080', false);
+    text((w.mode == 'hardcore' ? '§cHardcore Mode!' : w.mode == 'creative' ? 'Creative Mode' : 'Survival Mode') + (w.map ? ', Parkour Map' : w.flat ? ', Superflat' : '') + (w.dead ? ' §c(Dead)' : ''), x + 35, y + 22, '#808080', false);
     if (hv && mouse.click && !clickUsed) { clickUsed = true; if (S.sel == w.id && performance.now() - (S.lastClick || 0) < 400 || hover(x, y, 32, 32)) { openWorld(w); } S.sel = w.id; S.lastClick = performance.now(); SND.play('ui_click', .5); }
   });
   if (!W.length) textC('No worlds yet. Create one!', UW / 2, top + 30, '#A0A0A0');
@@ -164,7 +164,7 @@ function scrCreate() {
     if (button('Difficulty: ' + (c.mode == 'hardcore' ? 'Hard' : DIFFS[c.diff]), x, y + 90, 210, 20, c.mode != 'hardcore')) c.diff = (c.diff + 1) % 4;
     if (button('Allow Commands: ' + (c.cheats || c.mode == 'creative' ? 'ON' : 'OFF'), x, y + 114, 210, 20, c.mode != 'hardcore')) c.cheats = !c.cheats;
   } else if (c.tab == 1) {
-    if (button('World Type: ' + (c.flat ? 'Superflat' : 'Default'), x, y, 210)) c.flat = !c.flat;
+    if (button('World Type: ' + (c.map ? 'Spiral Parkour' : c.flat ? 'Superflat' : 'Default'), x, y, 210)) { if (c.map) { c.map = null; c.flat = false; } else if (c.flat) { c.flat = false; c.map = window.MAPS && MAPS.spiral ? 'spiral' : null; } else c.flat = true; }
     text('Seed for the World Generator', x, y + 30, '#A0A0A0'); textField('wseed', c, 'seed', x, y + 42, 210, 20, 'Leave blank for a random seed');
     if (button('Generate Structures: ON', x, y + 70, 210, 20, false)) { }
   } else {
@@ -178,7 +178,7 @@ function scrCreate() {
 function seedOf(s) { if (!s) return (Math.random() * 2 ** 31) | 0; if (/^-?\d+$/.test(s)) return parseInt(s) | 0; let h = 0; for (const ch of s) h = (Math.imul(31, h) + ch.charCodeAt(0)) | 0; return h; }
 function createWorld(c) {
   const id = Date.now().toString(36);
-  const meta = { id, name: c.name || 'New World', seed: seedOf(c.seed), mode: c.mode, diff: c.mode == 'hardcore' ? 3 : c.diff, cheats: c.cheats || c.mode == 'creative', flat: c.flat, created: Date.now(), last: Date.now(), gen: 3 };
+  const meta = { id, name: c.name || 'New World', seed: seedOf(c.seed), mode: c.mode, diff: c.mode == 'hardcore' ? 3 : c.diff, cheats: c.cheats || c.mode == 'creative', flat: c.flat && !c.map, map: c.map || undefined, created: Date.now(), last: Date.now(), gen: 3 };
   if (c.kit) meta.kit = c.kit; if (c.nether) meta.startNether = 1;
   S.worlds.push(meta); store.set('worlds', S.worlds); openWorld(meta, true);
 }
@@ -204,6 +204,7 @@ function scrVideo() {
   if (button('Clouds: ' + (opts.clouds ? 'Fancy' : 'OFF'), x, y + 24, 150)) opts.clouds = !opts.clouds;
   if (button('Smooth Lighting: ' + (opts.smooth ? 'ON' : 'OFF'), x + 160, y + 24, 150)) { opts.smooth = !opts.smooth; }
   { const k = +opts.shaders || 0; if (button('Shaders: ' + (k ? SHADER_PACKS[k].name : 'OFF'), x, y + 72, 150)) { opts.shaders = (k + 1) % SHADER_PACKS.length; if (opts.shaders) opts.clouds = true; } }
+  opts.bright = slider('bright', 'Brightness: ' + (opts.bright > .01 ? '+' + Math.round((opts.bright || 0) * 100) + '%' : 'Normal'), x + 160, y + 72, 150, opts.bright || 0);
   if (button('Show FPS: ' + (opts.fps ? 'ON' : 'OFF'), x, y + 48, 150)) opts.fps = !opts.fps;
   opts.rd = Math.round(2 + slider('rd2', 'Render Distance: ' + opts.rd + ' chunks', x + 160, y + 48, 150, (opts.rd - 2) / 30) * 30);
   if (button('Auto Performance: ' + (opts.autoPerf ? 'ON' : 'OFF'), x, y + 96, 150)) opts.autoPerf = !opts.autoPerf;
