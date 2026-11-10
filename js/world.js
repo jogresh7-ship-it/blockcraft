@@ -2,7 +2,23 @@
 const CS = 16, WH = 128, SEA = 62, CV = CS * CS * WH;
 const lidx = (x, y, z) => x + CS * (z + CS * y);
 let WLOG, WATER_ID, LEAF;
-function initWorldTables() { WLOG = new Uint8Array(NB); LEAF = new Uint8Array(NB); WATER_ID = BYNAME.water; BL.forEach((b, i) => { if (/^(seagrass|kelp|kelp_plant|tall_seagrass|tall_seagrass_top|sea_pickle)$|coral(?!_block)/.test(b.n) && !/^dead_/.test(b.n) && SHAPE[i] != 1) WLOG[i] = 1; if (b.n.endsWith('leaves')) LEAF[i] = 1; }); }
+// biome colours: grass, ferns and leaves use their biome's own green (or yellow/brown), like Minecraft's colour maps
+let TVMAP = {}; const BIO_GROUP = { forest: 'forest', flower_forest: 'forest', birch: 'birch', dark_forest: 'dark_forest', jungle: 'jungle', swamp: 'swamp', taiga: 'taiga', old_growth_taiga: 'taiga', snowy_taiga: 'snowy', snowy_plains: 'snowy', snowy_mountains: 'snowy', snowy_beach: 'snowy', savanna: 'savanna', desert: 'savanna', badlands: 'badlands', meadow: 'meadow', cherry: 'cherry', mountains: 'mountains', dappled_forest: 'dappled' };
+function buildTVMap() { TVMAP = {}; const BT = REG.biomeTint; if (!BT) return; for (const [n, t] of Object.entries(BT.tiles)) { const m = {}; for (const g in BT.groups) m[g] = t[g]; TVMAP[REG.tiles[n]] = m; } }
+function buildBiomeTiles() {
+  const BT = REG.biomeTint; if (!BT || !IMG.blocks) return; let A = IMG.blocks;
+  if (!(A instanceof HTMLCanvasElement)) { const c = document.createElement('canvas'); c.width = A.width; c.height = A.height; c.getContext('2d').drawImage(A, 0, 0); A = c; IMG.blocks = c; }
+  const g = A.getContext('2d', { willReadFrequently: true }), ts = A.width / REG.cols;
+  for (const [n, t] of Object.entries(BT.tiles)) {
+    const i = REG.tiles[n]; if (i === undefined) continue; const src = g.getImageData((i % REG.cols) * ts, Math.floor(i / REG.cols) * ts, ts, ts), base = BT.base[t.k];
+    for (const [gn, cols] of Object.entries(BT.groups)) {
+      const c = cols[t.k == 'g' ? 0 : 1], d = new ImageData(new Uint8ClampedArray(src.data), ts, ts), p = d.data;
+      for (let k = 0; k < p.length; k += 4) { if (!p[k + 3]) continue; if (n == 'grass_block_side_tinted' && !(p[k + 1] > p[k] + 8 && p[k + 1] > p[k + 2])) continue; p[k] = Math.min(255, p[k] * c[0] / base[0]); p[k + 1] = Math.min(255, p[k + 1] * c[1] / base[1]); p[k + 2] = Math.min(255, p[k + 2] * c[2] / base[2]); }
+      const j = t[gn]; g.putImageData(d, (j % REG.cols) * ts, Math.floor(j / REG.cols) * ts);
+    }
+  }
+}
+function initWorldTables() { buildTVMap(); WLOG = new Uint8Array(NB); LEAF = new Uint8Array(NB); WATER_ID = BYNAME.water; BL.forEach((b, i) => { if (/^(seagrass|kelp|kelp_plant|tall_seagrass|tall_seagrass_top|sea_pickle)$|coral(?!_block)/.test(b.n) && !/^dead_/.test(b.n) && SHAPE[i] != 1) WLOG[i] = 1; if (b.n.endsWith('leaves')) LEAF[i] = 1; }); }
 const B = n => BYNAME[n] || 0;
 
 class World {
@@ -468,10 +484,12 @@ class World {
       { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], f: 0, s: 1 }, { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], f: 1, s: .5 },
       { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], f: 3, s: .8 }, { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], f: 2, s: .8 }];
     const aoT = [0.45, 0.65, 0.82, 1];
+    const bgrp = new Array(256); if (this.dim == 'overworld' || !this.dim) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) bgrp[x + z * 16] = BIO_GROUP[this.biome(x0 + x, z0 + z)];
+    const TV = (t, lx, lz) => { const g = bgrp[lx + lz * 16]; if (!g) return t; const v = TVMAP[t]; return v ? v[g] ?? t : t; };
     for (let y = 0; y < WH; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       let b = d[lidx(x, y, z)]; if (!b) continue; let sh = SHAPE[b]; const wx = x0 + x, wz = z0 + z;
       if (sh == 2) { // cross
-        const l = getL(x, y, z), uv = tileUV(TEX[b * 4]), ll = [1, lv(l >> 4), EMIT[b] ? 1 : lv(l & 15)];
+        const l = getL(x, y, z), uv = tileUV(TV(TEX[b * 4], x, z)), ll = [1, lv(l >> 4), EMIT[b] ? 1 : lv(l & 15)];
         const o = out[0], j = (this.N.hash(wx, 0, wz) - .5) * .3;
         const U = [[uv[0], uv[3]], [uv[2], uv[3]], [uv[2], uv[1]], [uv[0], uv[1]]];
         pushQuad(o, [[wx + .15 + j, y, wz + .15], [wx + .85 + j, y, wz + .85], [wx + .85 + j, y + 1, wz + .85], [wx + .15 + j, y + 1, wz + .15]], U, ll);
@@ -522,7 +540,7 @@ class World {
         else if (sh == 4) { if (FLUID[nb] == 2 || OPAQUE[nb]) continue; }
         else if (sh == 5) { if (F.n[1] && OPAQUE[nb]) continue; }
         else { if (OPAQUE[nb]) continue; if (nb == b && !LEAF[b]) continue; if (ALPHA[b] == 0 && SHAPE[nb] == 3 && false) continue; }
-        const tex = sh >= 3 && sh <= 4 ? 0 : TEX[b * 4 + F.f];
+        const tex = sh >= 3 && sh <= 4 ? 0 : TV(TEX[b * 4 + F.f], x, z);
         const uv = sh == 3 || sh == 4 ? [0, 0, 1, 1] : tileUV(tex);
         const lc = getL(nx, ny, nz);
         const C = [], U = [], LL = [];

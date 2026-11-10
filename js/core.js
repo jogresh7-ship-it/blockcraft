@@ -116,6 +116,7 @@ function initGL(canvas) {
   PROG = { p, u: {} };
   for (const n of ['uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
   gl.useProgram(p); gl.uniform1f(PROG.u.uMinL, .09);
+  try { buildBiomeTiles(); } catch (e) { console.warn('biome tiles', e); }
   gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   for (const k of ['particles', 'blocks', 'items', 'water', 'lava', 'sun', 'clouds', 'rain', 'snowfall', 'pig', 'cow', 'sheep', 'sheep_wool', 'steve', 'skin_steve', 'skin_alex', 'skin_ari', 'skin_efe', 'skin_kai', 'skin_makena', 'skin_noor', 'skin_sunny', 'skin_zuri', 'husk', 'drowned', 'stray', 'wither_skeleton', 'cave_spider', 'mooshroom_red', 'piglin', 'piglin_brute', 'bogged', 'enderman', 'slime', 'magmacube', 'ghast', 'ghast_shooting', 'zombified_piglin', 'wolf', 'wolf_tame', 'wolf_angry', 'zombie', 'skeleton', 'creeper', 'spider', 'spider_eyes', ...[0, 1, 2, 3, 4, 5, 6, 7].map(i => 'moon' + i), ...[0, 1, 2, 3, 4, 5].map(i => 'panorama_' + i)])
     if (IMG[k]) TEXS[k] = mkTex(IMG[k], k == 'clouds' || k == 'rain' || k == 'snowfall', k.startsWith('panorama'));

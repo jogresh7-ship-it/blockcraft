@@ -82,6 +82,7 @@ async function buildFromZip(zip, setP) {
   return out;
 }
 function uploadAll() {
+  try { buildBiomeTiles(); } catch (e) { }
   for (const k in TEXS) if (IMG[k] && k != 'white') { gl.bindTexture(gl.TEXTURE_2D, TEXS[k]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, IMG[k]); }
   fontCache.clear(); initGUI(ui); buildIcons(); titleCanvas = null; for (const k in MODELS) delete MODELS[k]; applySkin();
 }
