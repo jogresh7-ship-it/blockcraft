@@ -8,7 +8,7 @@ for (const s of ['steve', 'alex', 'ari', 'efe', 'kai', 'makena', 'noor', 'sunny'
 const TINTS = { grass: [124, 189, 107], foliage: [89, 174, 48], spruce: [97, 153, 97], birch: [128, 167, 85], water: [63, 118, 228] };
 function tintFor(n) {
   if (/leaves$/.test(n) && !/cherry|azalea|pale_oak|poplar/.test(n)) return /spruce/.test(n) ? TINTS.spruce : /birch/.test(n) ? TINTS.birch : TINTS.foliage;
-  if (n == 'leaf_litter') return [178, 128, 72];
+  if (n == 'leaf_litter') return [204, 100, 36];
   if (/^(grass_block_top|short_grass|fern|tall_grass_bottom|tall_grass_top|large_fern_bottom|large_fern_top|sugar_cane|vine|lily_pad|bush|grass_block_side_overlay)$/.test(n)) return /grass|bush/.test(n) ? TINTS.grass : TINTS.foliage;
   if (/^water_(still|flow)$/.test(n)) return TINTS.water;
   return null;
