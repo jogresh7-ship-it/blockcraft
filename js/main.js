@@ -916,7 +916,7 @@ function skyState() {
 function camMatrices(fovMul = 1) {
   const W = glc.width, H = glc.height; const P = player;
   if (P) P.fovK = lerp(P.fovK || 1, P.sprint ? (P.fly ? 1.1 : 1.08) : 1, .08); let fov = opts.fov * (P ? P.fovK : 1) * fovMul;
-  const proj = M4.persp(fov * Math.PI / 180, W / H, .05, Math.max(1000, opts.rd * 24));
+  const proj = M4.persp(fov * Math.PI / 180, W / H, .1, Math.max(1000, opts.rd * 24));
   return proj;
 }
 function render(dt) {
@@ -991,13 +991,22 @@ function render(dt) {
   if (opts.clouds && !sk.nether) { const cy = 192.5, sz = 640, t = performance.now() / 1000 * .6 + world.meta.time * 0; const sc = 1 / (12 * 256), ox = (eye[0] + t) * sc, oz = eye[2] * sc, h = sz * sc; const arr = []; pushQuad(arr, [[eye[0] - sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] + sz], [eye[0] - sz, cy, eye[2] + sz]], [[ox - h, oz - h], [ox + h, oz - h], [ox + h, oz + h], [ox - h, oz + h]], [1, 1, 1]); gl.uniform1f(u.uFogN, 100); gl.uniform1f(u.uFogF, 500); gl.uniform1f(u.uDay, Math.max(.25, sk.day)); if (opts.shaders) { // shader pack clouds: real 3D cloud volumes built from the cloud map (each pixel = a 12x4x12 puff), lit top/bottom/sides
       const CD = cloudData(); if (CD) { const W = CD.w, cs = 12, tt = t, cx0 = Math.floor((eye[0] + tt) / cs), cz0 = Math.floor(eye[2] / cs), key = cx0 + ',' + cz0;
         if (dyn.c3key != key) { dyn.c3key = key; const A = [], R = 22, on = (x, z) => CD.a[(((z % W) + W) % W) * W + (((x % W) + W) % W)];
-          for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { if (dx * dx + dz * dz > R * R) continue; const gx = cx0 + dx, gz = cz0 + dz; if (!on(gx, gz)) continue;
-            const x0 = gx * cs, x1 = x0 + cs, z0 = gz * cs, z1 = z0 + cs, y0 = cy, y1 = cy + 4, Q = (c, l) => pushQuad(A, c, [[0, 0], [1, 0], [1, 1], [0, 1]], [l, 1, 1]);
-            Q([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], 1); Q([[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]], .68);
-            if (!on(gx - 1, gz)) Q([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], .82); if (!on(gx + 1, gz)) Q([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], .82);
-            if (!on(gx, gz - 1)) Q([[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], .9); if (!on(gx, gz + 1)) Q([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], .9); }
+          // rounded clouds: each cell is thicker the further it is from the cloud's edge, so clouds bulge in the middle and thin out at the rim
+          const ed = (x, z) => { if (!on(x, z)) return -1; let e = 0; for (let r = 1; r <= 3; r++) { let all = 1; for (let k = -r; k <= r && all; k++) if (!on(x + k, z - r) || !on(x + k, z + r) || !on(x - r, z + k) || !on(x + r, z + k)) all = 0; if (!all) break; e = r; } return e; };
+          const TOP = e => e < 0 ? null : cy + 1.2 + e * 1.3, BOT = e => e < 0 ? null : cy - e * .5;
+          const Q = (c, ls) => pushQuad(A, c, [[0, 0], [1, 0], [1, 1], [0, 1]], ls.map(l => [l, 1, 1]));
+          const EC = new Map(), E = (x, z) => { const k = x + ',' + z; let v = EC.get(k); if (v === undefined) { v = ed(x, z); EC.set(k, v); } return v; };
+          for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { if (dx * dx + dz * dz > R * R) continue; const gx = cx0 + dx, gz = cz0 + dz, e0 = E(gx, gz); if (e0 < 0) continue;
+            const x0 = gx * cs, x1 = x0 + cs, z0 = gz * cs, z1 = z0 + cs, y1 = TOP(e0), y0 = BOT(e0), lt = .9 + e0 * .035, lb = .62 + e0 * .03;
+            Q([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], [lt, lt, lt, lt]); Q([[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]], [lb, lb, lb, lb]);
+            for (const [nx, nz, c, s] of [[-1, 0, [[x0, z0], [x0, z1]], .8], [1, 0, [[x1, z1], [x1, z0]], .8], [0, -1, [[x1, z0], [x0, z0]], .86], [0, 1, [[x0, z1], [x1, z1]], .86]]) {
+              const en = E(gx + nx, gz + nz), nt = en < 0 ? y0 : TOP(en), nb = en < 0 ? y1 : BOT(en);
+              if (nt < y1) { const lo = Math.max(nt, y0); Q([[c[0][0], lo, c[0][1]], [c[1][0], lo, c[1][1]], [c[1][0], y1, c[1][1]], [c[0][0], y1, c[0][1]]], [s * .85, s * .85, s, s]); }
+              if (en >= 0 && nb > y0) Q([[c[0][0], y0, c[0][1]], [c[1][0], y0, c[1][1]], [c[1][0], nb, c[1][1]], [c[0][0], nb, c[0][1]]], [lb, lb, s * .85, s * .85]); } }
           dynMesh('cloud3d', A); }
-        gl.enable(gl.BLEND); drawMesh(dyn.cloud3d, 'white', { model: M4.trans(-tt, 0, 0), alphaTest: 0, alpha: .82, full: 0 }); gl.disable(gl.BLEND); } }
+        // depth first, then colour where the depth matches: only the nearest cloud surface shows (no faces seen through the cloud)
+        const CM = M4.trans(-tt, 0, 0); gl.colorMask(false, false, false, false); drawMesh(dyn.cloud3d, 'white', { model: CM, alphaTest: 0, full: 0 }); gl.colorMask(true, true, true, true);
+        gl.depthFunc(gl.LEQUAL); gl.depthMask(false); gl.enable(gl.BLEND); drawMesh(dyn.cloud3d, 'white', { model: CM, alphaTest: 0, alpha: .85, full: 0 }); gl.disable(gl.BLEND); gl.depthMask(true); gl.depthFunc(gl.LESS); } }
     else drawMesh(dynMesh('cloud', arr), 'clouds', { alphaTest: .3, alpha: .8, full: 0 }); gl.uniform1f(u.uFogN, fogN); gl.uniform1f(u.uFogF, fogF); gl.uniform1f(u.uDay, sk.day); }
   // rain / snow
   if (world.meta.rain && !sk.nether) renderRain(eye);
