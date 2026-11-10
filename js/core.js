@@ -90,25 +90,26 @@ const MAXSTACK = k => { const n = keyName(k) || ''; return /(_pickaxe|_axe|_shov
 
 // ---------- shader packs (ports of the look of popular Java shader packs): sun strength, shade strength, saturation, contrast, shade colour, sunlight colour ----------
 const SHADER_PACKS = [null,
-  { name: 'Complementary', sp: [.78, .45, 1.32, 1.0], shade: [.30, .36, .50], warm: [1.05, .98, .88] },
-  { name: 'Bliss', sp: [.85, .40, 1.45, 1.08], shade: [.24, .32, .58], warm: [1.10, .96, .80] },
-  { name: 'AstraLex', sp: [.80, .50, 1.22, 1.15], shade: [.22, .40, .46], warm: [1.12, .92, .74] }];
+  // sp2: vignette, fog tint, glow ; grade: colour multiplier ; fogT: fog colour it leans to
+  { name: 'Complementary', sp: [.78, .45, 1.30, 1.0], sp2: [.25, .15, .2, 0], shade: [.30, .36, .50], warm: [1.05, .98, .88], grade: [1, 1, 1], fogT: [.62, .74, .92] },
+  { name: 'Bliss', sp: [.95, .30, 1.75, 1.12], sp2: [.55, .45, .9, 0], shade: [.20, .26, .70], warm: [1.15, 1.0, .82], grade: [1.0, 1.02, 1.08], fogT: [.70, .62, .95] },
+  { name: 'AstraLex', sp: [.85, .55, 1.05, 1.35], sp2: [1.1, .55, .5, 0], shade: [.12, .42, .48], warm: [1.25, .90, .62], grade: [1.08, .98, .86], fogT: [.95, .72, .45] }];
 // ---------- WebGL ----------
 let gl, PROG, TEXS = {};
 const VS = `#version 300 es
 in vec3 aPos; in vec2 aUv; in vec3 aL;
 uniform mat4 uPV, uM; uniform float uFrames, uFrame, uShader, uTime; uniform vec3 uCam;
-out vec2 vUv; out vec3 vL; out vec3 vT; out float vDist;
+out vec2 vUv; out vec3 vL; out vec3 vT; out vec3 vRel;
 void main(){ vec4 w = uM*vec4(aPos,1.0); vec3 L = aL; if (L.x < 0.0) { L.x = -L.x; if (uShader > 0.5) { float ph = w.x*0.7 + w.z*0.9 + uTime*1.6; w.x += sin(ph)*0.06*L.y; w.z += cos(ph*0.8)*0.05*L.y; } }
   gl_Position = uPV*w; vUv = vec2(aUv.x,(aUv.y+uFrame)/uFrames); vL=L; vT=vec3(1.0);
   if (L.x >= 2.0) { float code = floor(L.x*0.5); vL.x = L.x - code*2.0; code -= 1.0; vT = vec3(floor(code/1024.0), mod(floor(code/32.0),32.0), mod(code,32.0))/31.0*2.0; }
-  vDist = length(w.xyz - uCam); }`;
+  vRel = w.xyz - uCam; }`;
 const FS = `#version 300 es
 precision mediump float;
-in vec2 vUv; in vec3 vL; in vec3 vT; in float vDist;
-uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint; uniform vec4 uSP; uniform vec3 uShade, uWarm;
+in vec2 vUv; in vec3 vL; in vec3 vT; in vec3 vRel;
+uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint; uniform vec4 uSP, uSP2; uniform vec3 uShade, uWarm, uFogT, uGrade; uniform vec2 uRes;
 out vec4 o;
-void main(){ vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
+void main(){ float vDist = length(vRel); vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float l = max(vL.y*uDay, vL.z); l = mix(max(l,uMinL), 1.0, uFull);
   vec3 col = min(c.rgb * vT, vec3(1.0)) * vL.x * l; col = mix(col, uTint.rgb, uTint.a);
   float f = clamp((vDist-uFogN)/(uFogF-uFogN),0.0,1.0);
@@ -119,8 +120,12 @@ void main(){ vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
     col = mix(col, uTint.rgb, uTint.a);
     col = col * (2.51*col + 0.03) / (col * (2.43*col + 0.59) + 0.14); // ACES filmic
     float g = dot(col, vec3(0.299,0.587,0.114)); col = clamp(mix(vec3(g), col, uSP.z), 0.0, 1.0); col = clamp((col - 0.5) * uSP.w + 0.5, 0.0, 1.0);
+    col *= uGrade; // the pack's colour grade
+    float lum = dot(col, vec3(0.299,0.587,0.114)); col += max(lum - 0.7, 0.0) * uSP2.z; // soft glow on bright things
+    vec2 sc = gl_FragCoord.xy / uRes - 0.5; col *= 1.0 - dot(sc, sc) * uSP2.x; // vignette
     f = f*f*(3.0-2.0*f); }
-  o = vec4(mix(col, uFog, f), min(1.0, c.a*uAlpha)); }`;
+  vec3 fc = uShaderF > 0.5 && uFull < 0.5 ? mix(uFog, uFogT, uSP2.y) : uFog;
+  o = vec4(mix(col, fc, f), min(1.0, c.a*uAlpha)); }`;
 function initGL(canvas) {
   const ca = { antialias: false, alpha: false, powerPreference: 'default', failIfMajorPerformanceCaveat: false };
   gl = canvas.getContext('webgl2', ca); GL1 = false;
@@ -130,7 +135,7 @@ function initGL(canvas) {
   gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aUv'); gl.bindAttribLocation(p, 2, 'aL'); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
   PROG = { p, u: {} };
-  for (const n of ['uSP', 'uShade', 'uWarm', 'uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
+  for (const n of ['uSP2', 'uFogT', 'uGrade', 'uRes', 'uSP', 'uShade', 'uWarm', 'uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
   gl.useProgram(p); gl.uniform1f(PROG.u.uMinL, .09);
   try { buildBiomeTiles(); } catch (e) { console.warn('biome tiles', e); }
   gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

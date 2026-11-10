@@ -959,7 +959,7 @@ function render(dt) {
   }
   gl.depthMask(true);
   gl.uniform1f(u.uFogN, fogN); gl.uniform1f(u.uFogF, fogF); gl.uniform1f(u.uDay, sk.day);
-  { const tt = world.meta.time % 24000, ss = Math.max(0, 1 - Math.min(Math.abs(tt - 12500), Math.abs(tt - 23500), Math.abs(tt + 500)) / 1300); const SP = SHADER_PACKS[+opts.shaders || 0]; gl.uniform1f(u.uShader, SP ? 1 : 0); gl.uniform1f(u.uShaderF, SP ? 1 : 0); if (SP) { gl.uniform4f(u.uSP, ...SP.sp); gl.uniform3f(u.uShade, ...SP.shade); gl.uniform3f(u.uWarm, ...SP.warm); } gl.uniform1f(u.uTime, performance.now() / 1000 % 1000); gl.uniform1f(u.uSunset, ss); }
+  { const tt = world.meta.time % 24000, ss = Math.max(0, 1 - Math.min(Math.abs(tt - 12500), Math.abs(tt - 23500), Math.abs(tt + 500)) / 1300); const SP = SHADER_PACKS[+opts.shaders || 0]; gl.uniform1f(u.uShader, SP ? 1 : 0); gl.uniform1f(u.uShaderF, SP ? 1 : 0); if (SP) { gl.uniform4f(u.uSP2, ...SP.sp2); gl.uniform3f(u.uFogT, ...SP.fogT); gl.uniform3f(u.uGrade, ...SP.grade); gl.uniform2f(u.uRes, glc.width, glc.height); gl.uniform4f(u.uSP, ...SP.sp); gl.uniform3f(u.uShade, ...SP.shade); gl.uniform3f(u.uWarm, ...SP.warm); } gl.uniform1f(u.uTime, performance.now() / 1000 % 1000); gl.uniform1f(u.uSunset, ss); }
   // chunks
   const f = fwd(), vis = [];
   for (const c of world.chunks.values()) {
@@ -983,6 +983,7 @@ function render(dt) {
   for (let i = vis.length - 1; i >= 0; i--) { const c = vis[i][1]; if (c.meshes[3]) { gl.disable(gl.BLEND); drawMesh(c.meshes[3], 'lava', { frames: IMG.lava.height / IMG.lava.width, frame: Math.floor(fr / 2) % (IMG.lava.height / IMG.lava.width), alphaTest: 0, full: 1 }); gl.enable(gl.BLEND); } }
   for (let i = vis.length - 1; i >= 0; i--) { const c = vis[i][1]; drawMesh(c.meshes[2], 'water', { frames: IMG.water.height / IMG.water.width, frame: fr % (IMG.water.height / IMG.water.width), alphaTest: 0, alpha: 1.15 }); }
   renderParticles(view, sk);
+  gl.useProgram(PROG.p); gl.uniformMatrix4fv(u.uPV, false, PV); gl.uniform3f(u.uCam, eye[0], eye[1], eye[2]); gl.uniformMatrix4fv(u.uM, false, ID); // particles change these
   if (opts.clouds && !sk.nether) { const cy = 192.5, sz = 640, t = performance.now() / 1000 * .6 + world.meta.time * 0; const sc = 1 / (12 * 256), ox = (eye[0] + t) * sc, oz = eye[2] * sc, h = sz * sc; const arr = []; pushQuad(arr, [[eye[0] - sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] - sz], [eye[0] + sz, cy, eye[2] + sz], [eye[0] - sz, cy, eye[2] + sz]], [[ox - h, oz - h], [ox + h, oz - h], [ox + h, oz + h], [ox - h, oz + h]], [1, 1, 1]); gl.uniform1f(u.uFogN, 100); gl.uniform1f(u.uFogF, 500); gl.uniform1f(u.uDay, Math.max(.25, sk.day)); if (opts.shaders) { // shader pack clouds: three stacked soft layers drifting at different speeds = puffy, volumetric-looking clouds
       gl.enable(gl.BLEND); gl.depthMask(false); for (let L = 0; L < 3; L++) { const a2 = [], yy = cy + L * 1.6, o2 = L * .37 + t * sc * L * .4; pushQuad(a2, [[eye[0] - sz, yy, eye[2] - sz], [eye[0] + sz, yy, eye[2] - sz], [eye[0] + sz, yy, eye[2] + sz], [eye[0] - sz, yy, eye[2] + sz]], [[ox - h + o2, oz - h], [ox + h + o2, oz - h], [ox + h + o2, oz + h], [ox - h + o2, oz + h]], [L == 0 ? .82 : 1, 1, 1]);
         drawMesh(dynMesh('cloud' + L, a2), 'clouds', { alphaTest: .05, alpha: L == 1 ? .55 : .35, full: 0 }); } gl.depthMask(true); gl.disable(gl.BLEND); }
