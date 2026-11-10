@@ -200,6 +200,38 @@ MOBDEF.witch.parts = [{box: [8, 10, 8], uv: [0, 0], pos: [0.0, 29.0, 0.0], head:
   MOBDEF.magma_cube = Object.assign({}, MOBDEF.slime, { tex: 'magmacube', drop: [['item:magma_cream', 0, 1]], burns: 0 });
 }
 MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, true), { box: [8, 12, 4], uv: [16, 32], pos: [0, 18, 0], inf: .25 }] };
+// ---- vex, ravager and ender dragon (geometry from the Java models, on the real textures) ----
+{ // MC model space (y down, origin 24 above the feet) -> our parts; xr = the part's X rotation
+  const MC = (o, sz, pv, uv, xr = 0, ex = {}) => { const c = [o[0] + sz[0] / 2, o[1] + sz[1] / 2, o[2] + sz[2] / 2], C = Math.cos(xr), S2 = Math.sin(xr), y = c[1] * C - c[2] * S2, z = c[1] * S2 + c[2] * C;
+    const p = { box: sz, uv, pos: [pv[0] + c[0], 24 - (pv[1] + y), pv[2] + z] }; if (xr) p.rot = [-xr, 0, 0]; return Object.assign(p, ex); };
+  const V = [0, 17.5, 0], VA = (x) => [x, 17.75, 0];
+  MOBDEF.vex = { tex: 'mob_vex', w: .4, h: .8, hp: 14, hostile: 1, fly: 1, flyH: 1, noclip: 1, speed: 2.6, dmg: [0, 5, 9, 13], drop: [], sound: 'mob/vex/idle', hurt: 'mob/vex/hurt', death: 'mob/vex/death', step: null, life: 60,
+    parts: [MC([-2.5, -5, -2.5], [5, 5, 5], V, [0, 0], 0, { head: 1, pivot: [0, 6.5, 0] }), MC([-1.5, 0, -1], [3, 4, 2], V, [0, 10]), MC([-1.5, 1, -1], [3, 5, 2], V, [0, 16], 0, { inf: -.2 }),
+      MC([-1.25, -.5, -1], [2, 4, 2], VA(-1.75), [23, 0], 0, { arm: 0, hand: 1, pivot: [-2, 6.25, 0], inf: -.1 }), MC([-.75, -.5, -1], [2, 4, 2], VA(1.75), [23, 6], 0, { arm: 1, pivot: [2, 6.25, 0], inf: -.1 }),
+      MC([0, 0, 0], [0, 5, 8], [-.5, 18.5, 1], [16, 14], 0, { vw: -1, pivot: [-.5, 5.5, 1] }), MC([0, 0, 0], [0, 5, 8], [.5, 18.5, 1], [16, 14], 0, { vw: 1, pivot: [.5, 5.5, 1] })] };
+  const RN = [0, -7, 5.5], RH = [0, 9, -11.5];
+  MOBDEF.ravager = { tex: 'mob_ravager', w: 1.95, h: 2.2, hp: 100, hostile: 1, speed: 1.3, dmg: [0, 7, 12, 18], drop: [['item:saddle', 1, 1]], sound: 'mob/ravager/idle', hurt: 'mob/ravager/hurt', death: 'mob/ravager/death', step: 'mob/ravager/step', heavy: 1,
+    parts: [MC([-7, -10, -7], [14, 16, 20], [0, 1, 2], [0, 55], Math.PI / 2), MC([-6, 6, -7], [12, 13, 18], [0, 1, 2], [0, 91], Math.PI / 2),
+      MC([-5, -1, -18], [10, 10, 18], RN, [68, 73], 0, { head: 1, pivot: [0, 31, 5.5] }), MC([-8, -20, -14], [16, 20, 16], RH, [0, 0], 0, { head: 1, pivot: [0, 31, 5.5] }), MC([-2, -6, -18], [4, 8, 4], RH, [0, 0], 0, { head: 1, pivot: [0, 31, 5.5] }),
+      MC([-8, 0, -16], [16, 3, 16], [0, 7, -9.5], [0, 36], 0, { head: 1, jaw: 1, pivot: [0, 31, 5.5] }),
+      MC([0, -14, -2], [2, 14, 4], [-10, -5, -19.5], [74, 55], 1.0995574, { head: 1, pivot: [0, 31, 5.5] }), MC([0, -14, -2], [2, 14, 4], [8, -5, -19.5], [74, 55], 1.0995574, { head: 1, pivot: [0, 31, 5.5] }),
+      ...[[-8, 18, 96, 0], [8, 18, 96, 1], [-8, -5, 64, 1], [8, -5, 64, 0]].map(([x, z, u, ph]) => MC([-4, 0, -4], [8, 37, 8], [x, -13, z], [u, 0], 0, { leg: ph, pivot: [x, 37, z] }))] };
+  // the dragon: body, a 5-part neck, head with jaw, a 12-part tail, two jointed wings and four legs
+  const DP = [], by = 30;
+  DP.push({ box: [24, 24, 64], uv: [0, 0], pos: [0, by, 24] }); for (const z of [-2, 18, 38]) DP.push({ box: [2, 6, 12], uv: [220, 53], pos: [0, by + 15, z] });
+  for (let i = 0; i < 5; i++) { const z = -13 - i * 10, y = by + 2 + i * 1.6; DP.push({ box: [10, 10, 10], uv: [192, 104], pos: [0, y, z], head: 1, pivot: [0, by, -8] }, { box: [2, 4, 6], uv: [48, 0], pos: [0, y + 7, z], head: 1, pivot: [0, by, -8] }); }
+  const hy = by + 11, hz = -66;
+  DP.push({ box: [16, 16, 16], uv: [112, 30], pos: [0, hy, hz], head: 1, pivot: [0, by, -8] }, { box: [12, 5, 16], uv: [176, 44], pos: [0, hy - 1.5, hz - 14], head: 1, pivot: [0, by, -8] },
+    { box: [12, 4, 16], uv: [176, 65], pos: [0, hy - 6, hz - 14], head: 1, jaw: 1, pivot: [0, by, -8] }, { box: [2, 4, 6], uv: [0, 0], pos: [-4, hy + 10, hz + 1], head: 1, pivot: [0, by, -8] }, { box: [2, 4, 6], uv: [0, 0], pos: [4, hy + 10, hz + 1], head: 1, pivot: [0, by, -8] },
+    { box: [2, 2, 4], uv: [112, 0], pos: [-4, hy + 2, hz - 22 + 8], head: 1, pivot: [0, by, -8] }, { box: [2, 2, 4], uv: [112, 0], pos: [4, hy + 2, hz - 22 + 8], head: 1, pivot: [0, by, -8] });
+  for (let i = 0; i < 12; i++) { const z = 61 + i * 10, y = by + 2 - i * .8; DP.push({ box: [10, 10, 10], uv: [192, 104], pos: [0, y, z], dtail: i }, { box: [2, 4, 6], uv: [48, 0], pos: [0, y + 7, z], dtail: i }); }
+  for (const sx of [-1, 1]) { const wy = by + 11;
+    DP.push({ box: [56, 8, 8], uv: [112, 88], pos: [sx * 40, wy, 2], dwing: sx, pivot: [sx * 12, wy, 2] }, { box: [56, 0, 56], uv: [-56, 88], pos: [sx * 40, wy, 32], dwing: sx, pivot: [sx * 12, wy, 2] },
+      { box: [56, 4, 4], uv: [112, 136], pos: [sx * 96, wy, 2], dwing: sx * 2, pivot: [sx * 12, wy, 2] }, { box: [56, 0, 56], uv: [-56, 144], pos: [sx * 96, wy, 32], dwing: sx * 2, pivot: [sx * 12, wy, 2] });
+    DP.push({ box: [8, 24, 8], uv: [112, 104], pos: [sx * 12, by - 18, 2], leg: sx > 0 ? 1 : 0, pivot: [sx * 12, by - 8, 2] }, { box: [6, 24, 6], uv: [226, 138], pos: [sx * 12, by - 40, 1], leg: sx > 0 ? 1 : 0, pivot: [sx * 12, by - 8, 2] }, { box: [8, 4, 16], uv: [144, 104], pos: [sx * 12, by - 54, -4], leg: sx > 0 ? 1 : 0, pivot: [sx * 12, by - 8, 2] },
+      { box: [16, 32, 16], uv: [0, 0], pos: [sx * 16, by - 18, 42], leg: sx > 0 ? 0 : 1, pivot: [sx * 16, by - 4, 42] }, { box: [12, 32, 12], uv: [196, 0], pos: [sx * 16, by - 48, 44], leg: sx > 0 ? 0 : 1, pivot: [sx * 16, by - 4, 42] }, { box: [18, 6, 24], uv: [112, 0], pos: [sx * 16, by - 67, 36], leg: sx > 0 ? 0 : 1, pivot: [sx * 16, by - 4, 42] }); }
+  MOBDEF.ender_dragon = { tex: 'mob_ender_dragon', w: 8, h: 6, hp: 200, hostile: 1, fly: 1, flyH: 14, noclip: 1, speed: 6, dmg: [0, 6, 10, 15], drop: [['dragon_egg', 1, 1]], sound: 'mob/enderdragon/growl', hurt: 'mob/enderdragon/hit', death: 'mob/enderdragon/end', step: null, boss: 1, parts: DP };
+}
 for (const [n, d] of Object.entries(MOBDEF)) for (const p of d.parts || []) {
   if (n == 'chicken' && p.box[0] == 1 && p.box[1] == 4 && p.box[2] == 6) { p.wing = p.pos[0] < 0 ? 1 : -1; p.pivot = [p.pos[0], p.pos[1] + 2, p.pos[2]]; }
   if (n == 'blaze' && p.tent !== undefined) { p.orbit = (p.tent >> 2) % 2 ? -1 : 1; p.pivot = [0, p.pos[1], 0]; delete p.tent; }
@@ -243,12 +275,12 @@ function updateMobs(dt) {
     if (D.wolf && m.tamed) { const dx = player.x - m.x, dz = player.z - m.z, dist = Math.hypot(dx, dz); if (dist > 3) { m.yawT = Math.atan2(-dx, -dz); m.mv = dist > 6 ? 1.8 : 1; m.wt = 1; } else if (m.mv > 1) m.mv = 0; if (dist > 20) { m.x = player.x + 1; m.y = player.y; m.z = player.z + 1; } }
     if (D.hostile || (D.neutral && m.provoked)) {
       const dx = player.x - m.x, dz = player.z - m.z, dy = player.y - m.y, dist = Math.hypot(dx, dy, dz);
-      const angry = player.mode == 'survival' && !player.dead && dist < (D.ghast ? 60 : 20) && (!D.nightOnly || skyState().day < .5 || m.provoked) && (!D.neutral || m.provoked) && !m.tamed;
+      const angry = player.mode == 'survival' && !player.dead && dist < (D.ghast || D.boss ? 60 : 20) && (!D.nightOnly || skyState().day < .5 || m.provoked) && (!D.neutral || m.provoked) && !m.tamed;
       if (angry) {
         m.target = player; m.yawT = Math.atan2(-dx, -dz); m.lookP = Math.atan2(dy + .5, Math.hypot(dx, dz)); m.wt = 1;
         m.mv = D.ranged ? (dist > 10 ? 1 : dist < 5 ? -0.6 : 0) : D.creeper && m.fuse > 0 ? 0 : 1; m.speedMul = D.speed / 1.1;
         m.atkCd = (m.atkCd || 0) - dt; if (m.atkT > 0) m.atkT -= dt * 3;
-        if (D.dmg && !D.ranged && dist < 1.6 && Math.abs(dy) < 1.5 && m.atkCd <= 0) { m.atkCd = 1; m.atkT = 1; hurtPlayer(D.dmg[world.meta.diff], 'was slain by ' + m.type[0].toUpperCase() + m.type.slice(1), false, [m.x, m.y, m.z]); }
+        if (D.dmg && !D.ranged && dist < (D.boss ? 6 : D.heavy ? 2.6 : 1.6) && Math.abs(dy) < (D.boss ? 5 : 1.5) && m.atkCd <= 0) { m.atkCd = 1; m.atkT = 1; hurtPlayer(D.dmg[world.meta.diff], 'was slain by ' + m.type[0].toUpperCase() + m.type.slice(1), false, [m.x, m.y, m.z]); }
         if (D.ranged && dist < 16 && m.atkCd <= 0) { m.atkCd = 2 + Math.random(); shootArrow(m, player); }
         if (D.ghast) { m.mv = dist > 20 ? .6 : 0; if (m.shootT > 0) { m.shootT -= dt; if (m.shootT <= 0) shootFireball(m, player); } else if (m.atkCd <= 0) { m.atkCd = 3 + Math.random() * 2; m.shootT = .5; SND.play('mob/ghast/charge', 1, 1, [m.x, m.y, m.z]); } }
         if (D.slime && m.ground && m.atkCd <= 0) { m.atkCd = 1 + Math.random(); m.vy = 7; m.kx = -Math.sin(m.yaw) * 2; m.kz = -Math.cos(m.yaw) * 2; SND.play(m.size > 1 ? 'mob/slime/big' : 'mob/slime/small', .5, 1, [m.x, m.y, m.z]); }
@@ -266,9 +298,10 @@ function updateMobs(dt) {
     if (m.yawT !== undefined) { let d = m.yawT - m.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); m.yaw += d * Math.min(1, dt * 6); }
     const sp = m.mv * 1.1 * (m.speedMul || 1); const inW = SHAPE[world.get(Math.floor(m.x), Math.floor(m.y + .3), Math.floor(m.z))] == 3;
     m.vx = -Math.sin(m.yaw) * sp; m.vz = -Math.cos(m.yaw) * sp; m.vx += m.kx || 0; m.vz += m.kz || 0; m.kx = (m.kx || 0) * .8; m.kz = (m.kz || 0) * .8;
-    if (D.fly) { const gy = (world.topY(Math.floor(m.x), Math.floor(m.z)) || 30) + 12; m.vy = clamp((gy - m.y) * .5, -2, 2); if (m.target) m.vy = clamp((player.y + 6 - m.y) * .5, -2, 2); }
+    if (D.fly) { const fh = D.flyH ?? 6, gy = (world.topY(Math.floor(m.x), Math.floor(m.z)) || 30) + (D.boss ? 20 : D.flyH ? 2 : 12); m.vy = clamp((gy - m.y) * .5, -3, 3); if (m.target || m.mt) { const tg = m.target || m.mt; m.vy = clamp((tg.y + (m.dive > 0 ? .5 : fh) - m.y) * .8, -6, 6); } }
     else m.vy = inW ? Math.min(m.vy + 12 * dt, 1.5) : m.vy - 28 * dt;
     if (D.slime && !m.target) { m.mv = 0; if (m.ground && Math.random() < dt * .4) { m.vy = 6; m.kx = -Math.sin(m.yaw) * 1.5; m.kz = -Math.cos(m.yaw) * 1.5; m.yawT = Math.random() * 6.28; } }
+    if (D.noclip) { m.x += m.vx * dt; m.y += m.vy * dt; m.z += m.vz * dt; m.ground = false; m.walk += Math.hypot(m.vx, m.vz) * dt * 3; continue; }
     const mox = m.x, moz = m.z; const r = moveBody(world, m, dt); if (r.ground) m.ground = true; else if (m.vy != 0) m.ground = false; if (r.hitH && m.ground && stepUp(m, dt, mox, moz)) r.hitH = false;
     if (r.hitH && m.ground && m.mv && !D.slime) { m.vy = 8.2; m.ground = false; }
     if (D.teleport && (inW || (m.hurtT > .45 && Math.random() < .3))) tpMob(m, m.x, m.z, 12); if (r.hitH && MOBDEF[m.type].climbs && m.mv) m.vy = 3;
@@ -284,6 +317,15 @@ function updateMobs(dt) {
 // ---- things mobs do on their own, like in Minecraft ----
 function mobLife(m, D, dt) {
   const bx = Math.floor(m.x), by = Math.floor(m.y), bz = Math.floor(m.z), below = BL[world.get(bx, by - 1, bz)]?.n;
+  if (D.life) { m.age = (m.age || 0) + dt; if (m.age > D.life + (m.nid || 0) % 30) { m.dead = true; return; } }
+  if (m.type == 'ender_dragon') { // circles high up, then swoops at you
+    m.home = m.home || [m.x, m.z]; m.dive = (m.dive || 0) - dt; m.diveCd = (m.diveCd ?? 8) - dt;
+    if (m.target == player && m.diveCd <= 0) { m.dive = 3; m.diveCd = 9 + Math.random() * 6; SND.play('mob/enderdragon/growl', 1, 1, [m.x, m.y, m.z]); }
+    if (!(m.dive > 0)) { const a = Math.atan2(m.z - m.home[1], m.x - m.home[0]) + .6; m.yawT = Math.atan2(-(m.home[0] + Math.cos(a) * 40 - m.x), -(m.home[1] + Math.sin(a) * 40 - m.z)); m.mv = 1; m.wt = 1; m.speedMul = 5; }
+    if (Math.random() < dt / 12) SND.play('mob/enderdragon/wings', .8, 1, [m.x, m.y, m.z]);
+  }
+  if (m.type == 'ravager' && m.target && Math.random() < dt / 8) SND.play('mob/ravager/roar', 1, 1, [m.x, m.y, m.z]);
+  if (m.type == 'evoker' && m.target == player && player.mode == 'survival') { m.vexT = (m.vexT ?? 6) - dt; if (m.vexT <= 0 && mobs.filter(o => o.type == 'vex').length < 8) { m.vexT = 18; SND.play('mob/evocation_illager/prepare_summon', 1, 1, [m.x, m.y, m.z]); for (let i = 0; i < 3; i++) spawnMob('vex', m.x + (Math.random() - .5) * 2, m.y + 1.5, m.z + (Math.random() - .5) * 2); } }
   if (D.slime) m.sq = m.ground ? Math.max(0, (m.sq || 0) - dt * 3) : clamp((m.vy || 0) / 14, -.3, .35);
   // sheep and cows graze; sheep eat the grass (it turns to dirt) and grow their wool back
   if (/^(sheep|cow|horse|donkey|mule|goat)$/.test(m.type)) {
@@ -919,6 +961,10 @@ function renderEntities(sk) {
       if (p.arm !== undefined && !p.fwd && !(m.atkT > 0)) rzv += (p.pos[0] < 0 ? -1 : 1) * (Math.cos(t * 1.8 + m.x) * .05 + .06); // idle arm sway
       if (p.wing) rzv += p.wing * (m.ground === false || m.vy < -1 ? .6 + Math.sin(t * 28) * .6 : 0); // chickens flap while falling
       if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
+      if (p.vw) ay += p.vw * (.5 + Math.sin(t * 18) * .35); // vex wings flutter
+      if (p.dwing) rzv += Math.sign(p.dwing) * (Math.sin(t * 2.2) * .55 + (Math.abs(p.dwing) > 1 ? Math.sin(t * 2.2 - .6) * .3 : 0)); // dragon wing beats
+      if (p.dtail !== undefined) ay += Math.sin(t * 1.5 - p.dtail * .35) * .04 * p.dtail;
+      if (p.jaw) ax += m.target ? Math.max(0, Math.sin(t * 4)) * .35 : .05;
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
       if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
       let pvv = pv, off = null;
