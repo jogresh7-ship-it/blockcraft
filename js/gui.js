@@ -165,6 +165,7 @@ function buildIcons() {
 function drawIcon(k, x, y, s = 16) {
   if (!k) return;
   if (k >= 9000) { drawPotionIcon(k, x, y, s); return; }
+  if (k >= ITEM_BASE && /^leather_(helmet|chestplate|leggings|boots|horse_armor)$/.test(ITEMS[k - ITEM_BASE])) { drawDyedIcon(k, x, y, s, '#A06540'); return; } // undyed leather is brown, the texture is grey
   if (k >= ITEM_BASE) { const i = k - ITEM_BASE, it = IMG.items.width / REG.icols; cx2.drawImage(IMG.items, (i % REG.icols) * it, Math.floor(i / REG.icols) * it, it, it, x, y, s, s); }
   else cx2.drawImage(ICONS, (k % 32) * 32, Math.floor(k / 32) * 32, 32, 32, x, y, s, s);
 }
@@ -246,3 +247,9 @@ function animTick(now) {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, (a.t % REG.cols) * TS, Math.floor(a.t / REG.cols) * TS, gl.RGBA, gl.UNSIGNED_BYTE, animCv);
   }
 }
+
+const dyeCache = {};
+function drawDyedIcon(k, x, y, s, col) { const key = k + col; let c = dyeCache[key]; const it = IMG.items.width / REG.icols, i = k - ITEM_BASE;
+  if (!c || c._img !== IMG.items) { c = document.createElement('canvas'); c.width = c.height = it; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(IMG.items, (i % REG.icols) * it, Math.floor(i / REG.icols) * it, it, it, 0, 0, it, it);
+    g.globalCompositeOperation = 'multiply'; g.fillStyle = col; g.fillRect(0, 0, it, it); g.globalCompositeOperation = 'destination-in'; g.drawImage(IMG.items, (i % REG.icols) * it, Math.floor(i / REG.icols) * it, it, it, 0, 0, it, it); c._img = IMG.items; dyeCache[key] = c; }
+  cx2.imageSmoothingEnabled = false; cx2.drawImage(c, x, y, s, s); }

@@ -34,7 +34,7 @@ function openWorld(meta, fresh) {
   falling = [];
   player = Object.assign(newPlayer(meta), data?.player || {});
   window.player = player;
-  if (!data?.player) { const sp = meta.map && window.MAPS && MAPS[meta.map] ? MAPS[meta.map].spawn.slice() : findSpawn(world); player.x = sp[0]; player.y = sp[1]; player.z = sp[2]; player.spawn = sp; player.needGround = !meta.map; if (meta.map) player.yaw = Math.PI; if (player.mode == 'creative') { } }
+  if (!data?.player) { const sp = meta.map && window.MAPS && MAPS[meta.map] ? MAPS[meta.map].spawn.slice() : findSpawn(world); player.x = sp[0]; player.y = sp[1]; player.z = sp[2]; player.spawn = sp; player.needGround = !meta.map; if (meta.map) player.yaw = Math.PI; if (meta.map) setTimeout(parkourKit, 0); if (player.mode == 'creative') { } }
   mobs = (data?.mobs || []).map(m => Object.assign(makeMob(m.type, m.x, m.y, m.z), m)); items = []; particles = []; tnts = [];
   meta.last = Date.now(); store.set('worlds', S.worlds);
   startLoad();
@@ -612,7 +612,7 @@ function updatePlayer(dt) {
     if (drink || fv && (P.food < 20 || /golden_apple|chorus/.test(keyName(h.k)) || P.mode == 'creative')) {
       eatT += dt; if ((P.eatS = (P.eatS || 0) - dt) <= 0) { P.eatS = .22; SND.play('eat', .5, .8 + Math.random() * .4); spawnEatParticles(h.k); }
       if (eatT >= 1.6) { eatT = 0; const en = keyName(h.k); P.food = Math.min(20, P.food + (fv || 0)); if (drink) afterDrink(en, h); else afterEat(en); P.sat = Math.min(P.food, P.sat + fv * 1.2); if (P.mode == 'survival') { h.c--; if (!h.c) P.inv[P.sel] = null; } P.stats.eaten++; SND.play('burp', .5); award('eat'); const n = keyName(h.k); if (/stew|soup/.test(n)) giveItem(itemKey('item:bowl'), 1); }
-    } else if (placeCd <= 0) { eatT = 0; placeCd = .25; if (!(h && !tm && useSpecial(h, hit))) { netBegin(); useItem(hit, tm, h); netEnd(hit); } }
+    } else if (placeCd <= 0) { eatT = 0; placeCd = .25; if (!(h && !tm && (parkourUse(h) || useSpecial(h, hit)))) { netBegin(); useItem(hit, tm, h); netEnd(hit); } }
   } else { eatT = 0; placeCd = Math.min(placeCd, 0); }
   if (mouse.mclick && hit) { const k = hit.b; if (creative) { const i = P.inv.findIndex((s, i) => i < 9 && s && s.k == k); if (i >= 0) P.sel = i; else P.inv[P.sel] = { k, c: 1 }; } else { const i = P.inv.findIndex((s, i) => i < 9 && s && s.k == k); if (i >= 0) P.sel = i; } }
 }
@@ -1054,6 +1054,12 @@ function drawArmor(m, p, M) {
   else if (p.leg !== undefined) { if (leg) L.push(['mob_armorl_' + leg, p.box, [0, 16], .5]); if (boo) L.push(['mob_armor_' + boo, p.box, [0, 16], 1]); }
   else if (p.box[0] == 8 && p.box[1] == 12) { if (che) L.push(['mob_armor_' + che, [8, 12, 4], [16, 16], 1]); if (leg) L.push(['mob_armorl_' + leg, [8, 12, 4], [16, 16], .5]); }
   for (const [tx, box, uv, inf] of L) if (TEXS[tx]) drawMesh(armorMesh(box, uv, inf), tx, { model: M, alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] });
+  // elytra wings on the back (Java ElytraModel: 10x20x2 wings pivoted at the shoulders, folded 15 deg, spread while gliding)
+  if (p.box[0] == 8 && p.box[1] == 12 && p.arm === undefined && !p.head && m.armorN[1] == 'elytra' && IMG.mob_elytra) {
+    if (!TEXS.mob_elytra || TEXS.mob_elytra._img !== IMG.mob_elytra) { TEXS.mob_elytra = mkTex(IMG.mob_elytra); TEXS.mob_elytra._img = IMG.mob_elytra; }
+    const D = Math.PI / 180, xr = m.glide ? 20 : m.sneak ? 40 : 15, zr = m.glide ? 80 : m.sneak ? 45 : 15, mesh = armorMesh([10, 20, 2], [22, 0], 1);
+    for (const s of [1, -1]) drawMesh(mesh, 'mob_elytra', { model: M4.chain(M, M4.trans(-5 * s, 6, 2), M4.rz(-zr * D * s), M4.rx(-xr * D), M4.trans(5 * s, -10, 1), M4.scale(s, 1, 1)), alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] });
+  }
 }
 function lightAt(x, y, z) { const c = world.chunk(Math.floor(x) >> 4, Math.floor(z) >> 4); if (!c || !c.L || y < 0 || y >= WH) return [1, 0]; const l = c.L[lidx(Math.floor(x) & 15, Math.floor(y), Math.floor(z) & 15)]; return [Math.pow(.82, 15 - (l >> 4)), Math.pow(.82, 15 - (l & 15))]; }
 function renderEntities(sk) {

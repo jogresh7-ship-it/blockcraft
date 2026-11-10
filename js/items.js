@@ -88,6 +88,7 @@ function launch(k, sp, o = {}) { const P = player, f = fwd(); arrows.push(Object
 function useSpecial(h, hit) {
   const P = player, n = keyName(h.k), one = () => { if (P.mode == 'survival') { h.c--; if (!h.c) P.inv[P.sel] = null; } };
   P.cool = P.cool || {};
+  if (parkourUse(h)) return true;
   if (P.cool[n] > 0) return true;
   if (n == 'snowball' || n == 'egg') { one(); SND.play('random/bow', .5, .5); launch('item:' + n, 22, { onHit: (m, x, y, z) => { for (let i = 0; i < 6; i++) spark('generic', x, y, z, { life: .4 }); if (m) hurtMob(m, m.type == 'blaze' && n == 'snowball' ? 3 : 0.01, 0, 0); if (n == 'egg' && Math.random() < .125) spawnMob('chicken', x, y, z); } }); P.cool[n] = .25; return true; }
   if (n == 'ender_pearl') { one(); SND.play('random/bow', .5, .5); P.cool[n] = 1; launch('item:ender_pearl', 22, { onHit: (m, x, y, z) => { P.x = x; P.y = y + .1; P.z = z; P.vx = P.vy = P.vz = 0; hurtPlayer(5, 'fell from a high place', true); P.fallStart = P.y; SND.play('mob/endermen/portal', .8); for (let i = 0; i < 20; i++) spark('spell', x + (Math.random() - .5), y + Math.random() * 2, z + (Math.random() - .5)); if (Math.random() < .05) spawnMob('endermite', x, y, z); } }); return true; }
@@ -163,11 +164,17 @@ function handPose() { const P = player, n0 = held() ? keyName(held().k) : '', n 
 // ---- HUD bits: effects, totem pop, spyglass, compass/clock read-outs ----
 function drawItemHud() {
   const P = player; if (!P) return;
-  drawScreenEffects(); drawTitles(1 / 60);
+  drawScreenEffects(); drawTitles(1 / 60); parkourHint();
   if (P.spy && IMG.misc_spyglass) drawScope(); else if (P.spy) { const r = Math.min(UW, UH) * .42, cx = UW / 2, cy = UH / 2; cx2.save(); cx2.fillStyle = '#000'; cx2.beginPath(); cx2.rect(0, 0, UW, UH); cx2.arc(cx, cy, r, 0, 6.283, true); cx2.fill(); cx2.strokeStyle = 'rgba(60,40,20,.9)'; cx2.lineWidth = 4; cx2.beginPath(); cx2.arc(cx, cy, r, 0, 6.283); cx2.stroke(); cx2.restore(); }
-  let y = 4; for (const n in P.eff || {}) { const e = P.eff[n]; const s = Math.ceil(e.t), lbl = (EFF_NAMES[n] || n) + (e.a ? ' ' + ['', 'II', 'III', 'IV', 'V', 'VI'][e.a] : '') + ' ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), w = textW(lbl) + 16;
-    cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(UW - w - 4, y, w, 12); cx2.fillStyle = EFF_COL[n] || '#fff'; cx2.fillRect(UW - w - 1, y + 3, 7, 7); text(lbl, UW - w + 10, y + 2, e.t < 10 && (performance.now() / 250 | 0) % 2 ? '#AAAAAA' : '#FFFFFF', false); y += 14; }
-  if (P.abs > 0) { const hx = UW / 2 - 91, hy = UH - 39 - 10; for (let i = 0; i < Math.ceil(P.abs / 2); i++) { cx2.fillStyle = '#E8C400'; cx2.fillRect(hx + i * 8 + 1, hy, 7, 6); } }
+  { // status effects: Java's top-right icon boxes (vanilla mob_effect textures), with time left under each
+    let x = UW - 26; for (const n in P.eff || {}) { const e = P.eff[n], s = Math.ceil(e.t), blink = e.t < 10 && (performance.now() / 250 | 0) % 2;
+      if (IMG.hud_effect_bg) spr('hud_effect_bg', x, 2, 24, 24); else { cx2.fillStyle = 'rgba(0,0,0,.5)'; cx2.fillRect(x, 2, 24, 24); }
+      if (!blink) { if (IMG['eff_' + n]) spr('eff_' + n, x + 3, 5, 18, 18); else { cx2.fillStyle = EFF_COL[n] || '#fff'; cx2.fillRect(x + 7, 9, 10, 10); } }
+      const tl = s >= 3600 ? '**:**' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); text(tl, x + 12 - textW(tl) / 2, 28, '#FFFFFF', true);
+      if (hover(x, 2, 24, 24)) S.tip = [(EFF_NAMES[n] || n) + (e.a ? ' ' + ['', 'II', 'III', 'IV', 'V', 'VI'][e.a] : ''), '§7' + tl]; x -= 26; } }
+  if (P.abs > 0 && P.mode == 'survival') { const hx = Math.round(UW / 2 - 91), hy = UH - 22 - 27; // golden (absorption) hearts: a row above the red ones, vanilla sprites
+    for (let i = 0; i < Math.ceil(P.abs / 2); i++) { const x = hx + (i % 10) * 8, y = hy - Math.floor(i / 10) * 10; spr('hud_heart_container', x, y, 9, 9); const full = P.abs - i * 2 >= 2;
+      if (IMG.hud_heart_abs_full) spr(full ? 'hud_heart_abs_full' : 'hud_heart_abs_half', x, y, 9, 9); else { cx2.fillStyle = '#E8C400'; cx2.fillRect(x + 1, y + 1, full ? 7 : 4, 6); } } }
   const h = held(), n = h ? keyName(h.k) : '';
   if (/^compass|^recovery_compass/.test(n) || n == 'compass') { const dirs = ['North', 'North-West', 'West', 'South-West', 'South', 'South-East', 'East', 'North-East'], d = dirs[Math.round(((P.yaw % 6.283) + 6.283) % 6.283 / (6.283 / 8)) % 8], sp = P.spawn || [0, 0, 0]; textC('§eFacing ' + d + ' §7- spawn ' + Math.round(Math.hypot(sp[0] - P.x, sp[2] - P.z)) + ' blocks away', UW / 2, UH - 70, '#FFFFFF'); }
   if (/^clock/.test(n)) { const t = (world.meta.time + 6000) % 24000, hh = Math.floor(t / 1000), mm = Math.floor(t % 1000 * .06); textC('§e' + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (t >= 6000 && t < 18000 ? ' §7(day)' : ' §7(night)'), UW / 2, UH - 70, '#FFFFFF'); }
@@ -292,3 +299,15 @@ function dispense(x, y, z, dropper) {
   }
   take(); dropItem(s.k, 1, ox, oy - .2, oz); SND.play('random/click', .5, 1, [x, y, z]);
 }
+
+// ---------- parkour tools (map worlds): hotbar items to jump back to your checkpoint, restart, and a feather for slow falling ----------
+const PK_TOOLS = [['light_weighted_pressure_plate', 'Back to Checkpoint'], ['barrier', 'Restart Parkour'], ['feather', 'Feather (Slow Falling)']];
+function parkourKit() { const P = player; if (!world.meta.map) return; PK_TOOLS.forEach(([n], i) => { const k = itemKey(n) || itemKey('item:' + n); if (k) P.inv[6 + i] = { k, c: 1, pk: 1 }; }); }
+function parkourUse(h) {
+  if (!world.meta.map || !h) return false; const P = player, n = keyName(h.k), MP = MAPS[world.meta.map]; P.cool = P.cool || {};
+  if (n == 'light_weighted_pressure_plate') { const sp = P.cp || MP.spawn; P.x = sp[0]; P.y = sp[1]; P.z = sp[2]; P.vx = P.vy = P.vz = 0; P.fallStart = P.y; SND.play('mob/endermen/portal', .5, 1.4); S.actionbar = { text: '§aBack to your checkpoint', t: 2 }; return true; }
+  if (n == 'barrier') { const sp = MP.spawn; P.cp = null; P.spawn = sp.slice(); P.x = sp[0]; P.y = sp[1]; P.z = sp[2]; P.vx = P.vy = P.vz = 0; P.fallStart = P.y; P.yaw = Math.PI; clearEff(); SND.play('random/orb', .6, .6); S.title = { text: '§eParkour restarted', sub: 'Good luck!', t: 2.5 }; return true; }
+  if (n == 'feather') { if (P.cool.feather > 0) { S.actionbar = { text: '§cFeather recharging: ' + Math.ceil(P.cool.feather) + 's', t: 1 }; return true; } P.cool.feather = 12; addEff('slow_falling', 6, 0); SND.play('mob/chicken/plop', .8, 1.5); for (let i = 0; i < 12; i++) spark('generic', P.x + (Math.random() - .5), P.y + Math.random() * 2, P.z + (Math.random() - .5), { life: .6 }); return true; }
+  return false;
+}
+function parkourHint() { const h = held(); if (!world.meta.map || !h || !h.pk) return; const t = PK_TOOLS.find(([n]) => keyName(h.k) == n); if (t) textC('§eRight-click: ' + t[1], UW / 2, UH - 82, '#FFFFFF'); }
