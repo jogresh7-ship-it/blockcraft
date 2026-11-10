@@ -1355,8 +1355,8 @@ async function boot() {
     initGL(glc); initGUI(uic); initWorldTables(); applySkin(); buildIcons(); setupRecipes(); loadMods(); buildCreativeTabs(); saveOpts();
   } catch (e) { ptxt.textContent = 'Failed to start: ' + (e.message || e); ptxt.style.color = '#f66'; console.error(e); return; }
   setupInput(); setupTouch(); snapshotOriginals();
-  document.getElementById('modfile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importMod(f); });
-  document.getElementById('texfile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importPackZip(f); });
+  document.getElementById('modfile').addEventListener('change', async e => { for (const f of [...e.target.files]) await importMod(f); });
+  document.getElementById('texfile').addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importPacks(fs); });
   S.bedrock = IS_MOBILE; TOUCH.on = IS_MOBILE; if (IS_MOBILE) noLock = true;
   setFont(); setLoad(.7, 'Loading resource pack...');
   try { await restorePack(p => setLoad(.7 + p * .3, 'Loading resource pack... ' + Math.round(p * 100) + '%')); } catch (e) { console.warn(e); }

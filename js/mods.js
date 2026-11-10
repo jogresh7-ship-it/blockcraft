@@ -43,6 +43,7 @@ function loadMods() {
 }
 async function importMod(file) {
   S.modmsg = '§eReading ' + file.name + '...';
+  if (/\.jar$/i.test(file.name)) { S.modmsg = '§c' + file.name + ' is a Java Edition mod (.jar) - those only run in real Minecraft. Blockcraft mods are .js or .zip files.'; return; }
   try {
     if (/\.js$/i.test(file.name)) { const code = await file.text(), id = 'u_' + file.name.replace(/\W/g, '_'); MODCFG.imported[id] = { name: file.name.replace(/\.js$/i, ''), desc: 'Imported mod', code }; if (!MODCFG.enabled.includes(id)) MODCFG.enabled.push(id); }
     else {
@@ -51,7 +52,7 @@ async function importMod(file) {
       if (mpName) { const mp = JSON.parse(await txt(mpName)); const ids = []; for (const f of mp.mods || []) { const code = await txt(base(mpName) + f); if (!code) continue; const id = 'u_' + (mp.name + '_' + f).replace(/\W/g, '_'); MODCFG.imported[id] = { name: f.replace(/\.js$/i, ''), desc: 'From ' + (mp.name || 'mod pack'), code }; ids.push(id); } MODCFG.imported['pack_' + mp.name] = { name: mp.name, desc: mp.description || '', pack: ids }; MODCFG.enabled = ids; MODCFG.pack = 'pack_' + mp.name; }
       else { const mj = files.find(f => /(^|\/)mod\.json$/i.test(f)), mjs = files.find(f => /(^|\/)mod\.js$/i.test(f)) || files.find(f => /\.js$/i.test(f)); if (!mjs) throw new Error('No mod.js found in the zip'); const meta = mj ? JSON.parse(await txt(mj)) : {}; const id = 'u_' + (meta.name || file.name).replace(/\W/g, '_'); MODCFG.imported[id] = { name: meta.name || file.name.replace(/\.zip$/i, ''), desc: meta.description || 'Imported mod', code: await txt(mjs) }; if (!MODCFG.enabled.includes(id)) MODCFG.enabled.push(id); }
     }
-    saveMods(); S.modmsg = '§aImported. Press Apply & Restart to load it.'; S.modDirty = true;
+    saveMods(); S.modmsg = '§aImported ' + file.name + '. Press Apply & Restart to load it.'; S.modDirty = true;
   } catch (e) { S.modmsg = '§c' + e.message; }
 }
 function scrMods() {

@@ -26,7 +26,19 @@ const PACK_INFO = {
 const PACKS = ['vanilla', 'faithful64', 'barebones'].filter(id => PACK_FILES[id]).map(id => Object.assign({ id, zip: 1, price: 0, icon: 'packs/' + id + '_icon', preview: 'packs/' + id + '_preview' }, PACK_INFO[id]));
 const loadScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src + ' - keep the "packs" folder next to Blockcraft.html')); document.head.appendChild(s); });
 async function ensurePackData(id) { if (window.EMBED_PACKS && EMBED_PACKS[id] && EMBED_PACKS[id].length == PACK_FILES[id].length) return; for (const f of PACK_FILES[id]) await loadScript(f); }
-const PS = { active: store.get('pack2', 'none'), custom: null, customName: '' };
+const PS = { active: store.get('pack2', 'none'), custom: null, customName: '', lib: store.get('packLib', []), stack: store.get('packStack', []), zips: {} };
+// ---- several resource packs at once: imported packs live in a library and any number can be switched on; the ones higher in the
+// list win, and anything they leave out falls through to the next pack and finally to Vanilla ----
+const savePackLib = () => { store.set('packLib', PS.lib); store.set('packStack', PS.stack); };
+PackStore.putLib = async function (id, file) { try { const db = await this.db(); db.transaction('packs', 'readwrite').objectStore('packs').put(file, 'lib_' + id); } catch (e) { } };
+PackStore.getLib = async function (id) { try { const db = await this.db(); return await new Promise(res => { const r = db.transaction('packs').objectStore('packs').get('lib_' + id); r.onsuccess = () => res(r.result); r.onerror = () => res(null); }); } catch (e) { return null; } };
+PackStore.delLib = async function (id) { try { const db = await this.db(); db.transaction('packs', 'readwrite').objectStore('packs').delete('lib_' + id); } catch (e) { } };
+function rootedZip(z) { // packs zipped inside a folder: find where assets/ starts
+  const k = [...z.idx.keys()].find(k => /(^|\/)assets\/minecraft\/textures\//.test(k)); const pre = k ? k.slice(0, k.indexOf('assets/minecraft/textures/')) : '';
+  if (!pre) return z; const idx = new Map(); for (const [n, v] of z.idx) if (n.startsWith(pre)) idx.set(n.slice(pre.length), v); return { idx, get: n => z.get(pre + n) }; }
+function stackZip(zs) { const idx = new Map(); for (let i = zs.length - 1; i >= 0; i--) for (const [n, v] of zs[i].idx) idx.set(n, v); return { idx, get: async n => { for (const z of zs) if (z.idx.has(n)) return z.get(n); return null; } }; }
+async function libZip(id) { if (PS.zips[id]) return PS.zips[id]; const f = await PackStore.getLib(id); if (!f) return null; return PS.zips[id] = rootedZip(await zipReader(f)); }
+async function vanillaZip() { if (!(window.EMBED_PACKS && PACK_FILES.vanilla)) return null; await ensurePackData('vanilla'); if (!EMBED_PACKS.vanilla) return null; const bin = atob(EMBED_PACKS.vanilla.join('')), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return zipReader(new Blob([u])); }
 // the offline version ships the Vanilla pack: use it by default (also for players who never picked a pack)
 if (window.PACK_FILES && PACK_FILES.vanilla && !store.get('vanillaDefault', 0)) { store.set('vanillaDefault', 1); if (PS.active == 'none') { PS.active = 'vanilla'; store.set('pack2', 'vanilla'); } }
 function snapshotOriginals() { for (const k in IMG) if (IMG[k]) ORIG[k] = IMG[k]; ORIG.font_pack = ORIG.font; }
@@ -94,20 +106,27 @@ async function applyPack(id, setP) {
   if (P && P.zip) await ensurePackData(id);
   for (const k in ORIG) IMG[k] = ORIG[k]; if (!ORIG.title_logo) delete IMG.title_logo; if (!ORIG.title_edition) delete IMG.title_edition;
   if (P && P.zip && window.EMBED_PACKS && EMBED_PACKS[id]) { const bin = atob(EMBED_PACKS[id].join('')), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); const z = await zipReader(new Blob([u])); const out = await buildFromZip(z, setP); Object.assign(IMG, out); }
+  else if (id == 'stack') { const zs = []; for (const k of PS.stack) { const z = await libZip(k); if (z) zs.push(z); } const v = await vanillaZip(); if (v) zs.push(v); if (zs.length) { const out = await buildFromZip(stackZip(zs), setP); Object.assign(IMG, out); } }
   else if (id == 'custom' && PS.custom) { const out = await buildFromZip(PS.custom, setP); Object.assign(IMG, out); }
   else if (P && P.id != 'faithful' && !P.zip) { const keys = Object.keys(ORIG).filter(k => !/^font_/.test(k)); let i = 0; for (const k of keys) { if (k == 'font') { IMG[k] = P.scale ? ORIG[k] : processImage(ORIG[k], P); continue; } IMG[k] = processImage(ORIG[k], k.startsWith('panorama') ? Object.assign({}, P, { scale: 0 }) : P); if (++i % 25 == 0) { setP && setP(i / keys.length); await new Promise(r => setTimeout(r)); } } }
   IMG.font = ORIG.font; // the custom font is always used
   const ov = IMG.animOv; delete IMG.animOv; setupAnims(ov || null);
   PS.active = id; store.set('pack2', id); uploadAll();
 }
-async function importPackZip(file) {
-  S.pmsg = '§eReading ' + file.name + '...';
-  try { const z = await zipReader(file); const has = [...z.idx.keys()].some(k => k.startsWith('assets/minecraft/textures/')); if (!has) throw new Error('No Minecraft textures in this zip'); PS.custom = z; PS.customName = file.name.replace(/\.zip$/i, ''); store.set('customPackName', PS.customName); await PackStore.saveTex(file); await applyPack('custom', p => S.pmsg = '§eApplying... ' + Math.round(p * 100) + '%'); S.pmsg = '§aApplied ' + PS.customName; }
-  catch (e) { S.pmsg = '§c' + e.message; }
+async function importPackZip(file) { return importPacks([file]); }
+async function importPacks(files) {
+  let n = 0;
+  for (const file of files) { S.pmsg = '§eReading ' + file.name + '...';
+    try { const z = rootedZip(await zipReader(file)); if (![...z.idx.keys()].some(k => k.startsWith('assets/minecraft/'))) throw new Error(file.name + ': no Minecraft textures inside');
+      const id = 'p' + Date.now().toString(36) + n; PS.lib.push({ id, name: file.name.replace(/\.zip$/i, '') }); PS.zips[id] = z; await PackStore.putLib(id, file); PS.stack.unshift(id); n++; }
+    catch (e) { S.pmsg = '§c' + e.message; } }
+  savePackLib(); if (n) { PS.active = 'stack'; store.set('pack2', 'stack'); await applyPack('stack', p => S.pmsg = '§eApplying... ' + Math.round(p * 100) + '%'); S.pmsg = '§aAdded ' + n + ' pack' + (n > 1 ? 's' : '') + '. Click a pack to switch it on/off, ^ to move it up.'; }
 }
 PackStore.saveTex = async function (file) { try { const db = await this.db(); db.transaction('packs', 'readwrite').objectStore('packs').put(file, 'tex'); } catch (e) { } };
 PackStore.loadTex = async function () { try { const db = await this.db(); return await new Promise(res => { const r = db.transaction('packs').objectStore('packs').get('tex'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); }); } catch (e) { return null; } };
 async function restorePack(onP) {
+  { const old = await PackStore.loadTex(); if (old && !PS.lib.length) { const id = 'p_old'; PS.lib.push({ id, name: store.get('customPackName', 'My Pack') }); await PackStore.putLib(id, old); if (PS.active == 'custom') { PS.stack = [id]; PS.active = 'stack'; } savePackLib(); store.set('pack2', PS.active); } }
+  if (PS.active == 'stack') { if (!PS.stack.length) PS.active = PACK_FILES.vanilla ? 'vanilla' : 'none'; else { try { await applyPack('stack', p => { onP && onP(p); }); } catch (e) { console.warn(e); PS.active = 'none'; } return; } }
   if (!PACKS.find(p => p.id == PS.active) && PS.active != 'custom') PS.active = 'none';
   if (PACK_FILES.vanilla && PS.active == 'none') PS.active = 'vanilla';
   if (PS.active == 'custom') { const f = await PackStore.loadTex(); if (f) { try { PS.custom = await zipReader(f); PS.customName = store.get('customPackName', 'My Pack'); } catch (e) { PS.active = 'none'; } } else PS.active = 'none'; }
@@ -131,17 +150,26 @@ function scrPacks() {
   const owned = PACKS;
   const hideBase = PS.custom && REG.baseName != 'Bare Bones'; // once your own pack (e.g. Bare Bones) is imported, it replaces the built-in textures
   const onlyVanilla = !!PACK_FILES.vanilla; // the Vanilla pack is the only built-in look
-  const all = [...(hideBase || onlyVanilla ? [] : [{ id: 'none', name: REG.baseName || 'Default', desc: 'Built-in textures', p: null, base: 1 }]), ...owned.map(p => ({ id: p.id, name: p.name, desc: p.author, p })), ...(PS.custom ? [{ id: 'custom', name: PS.customName, desc: 'Imported .zip', p: null }] : [])];
+  const libRows = [...PS.stack.map(id => PS.lib.find(q => q.id == id)).filter(Boolean), ...PS.lib.filter(q => !PS.stack.includes(q.id))].map(q => { const pos = PS.stack.indexOf(q.id); return { id: 'lib:' + q.id, lib: q.id, name: q.name, desc: pos >= 0 ? '§aOn §7(priority ' + (pos + 1) + ')' : '§7Off - click to turn on' }; });
+  const all0 = [...(hideBase || onlyVanilla ? [] : [{ id: 'none', name: REG.baseName || 'Default', desc: 'Built-in textures', p: null, base: 1 }]), ...owned.map(p => ({ id: p.id, name: p.name, desc: p.author, p })), ...(PS.custom ? [{ id: 'custom', name: PS.customName, desc: 'Imported .zip', p: null }] : [])];
   const top = 34, bottom = UH - 64, wide = UW > 470, x = wide ? UW / 2 - 225 : UW / 2 - 140;
+  const all = [...libRows, ...all0.filter(e => e.id != 'custom')];
   listFrame(top, bottom);
   if (mouse.wheel) S.scroll = clamp(S.scroll + mouse.wheel * 20, 0, Math.max(0, all.length * 38 - (bottom - top)));
   cx2.save(); cx2.beginPath(); cx2.rect(0, top, UW, bottom - top); cx2.clip();
   all.forEach((e, i) => {
-    const y = top + 4 + i * 38 - S.scroll, hv = hover(x, y, 280, 34) && mouse.y > top && mouse.y < bottom, act = PS.active == e.id;
+    const y = top + 4 + i * 38 - S.scroll, hv = hover(x, y, 280, 34) && mouse.y > top && mouse.y < bottom, act = e.lib ? PS.stack.includes(e.lib) : PS.active == e.id || (PS.active == 'stack' && e.id == 'vanilla');
     if (act) { cx2.fillStyle = '#808080'; cx2.fillRect(x - 2, y - 2, 284, 38); cx2.fillStyle = '#000'; cx2.fillRect(x - 1, y - 1, 282, 36); }
     if (e.p) cx2.drawImage(packThumb(e.p), x, y, 32, 32); else if (ORIG.pack) cx2.drawImage(ORIG.pack, x, y, 32, 32);
     text(e.name, x + 38, y + 4, '#FFFFFF'); text(act ? '§aActive' : e.desc, x + 38, y + 18, '#808080', false);
     if (hv) S.pvw = e;
+    if (e.lib) { const pos = PS.stack.indexOf(e.lib);
+      if (hover(x + 248, y + 2, 14, 14)) { S.tip = ['Move up']; if (mouse.click && !clickUsed && pos > 0) { clickUsed = true; PS.stack.splice(pos, 1); PS.stack.splice(pos - 1, 0, e.lib); savePackLib(); applyPack('stack'); return; } }
+      if (hover(x + 266, y + 2, 14, 14)) { S.tip = ['Delete pack']; if (mouse.click && !clickUsed) { clickUsed = true; PS.lib = PS.lib.filter(q => q.id != e.lib); PS.stack = PS.stack.filter(q => q != e.lib); delete PS.zips[e.lib]; PackStore.delLib(e.lib); savePackLib(); applyPack(PS.stack.length ? 'stack' : (PACK_FILES.vanilla ? 'vanilla' : 'none')); return; } }
+      if (pos > 0) text('^', x + 250, y + 4, '#FFFFFF'); text('x', x + 270, y + 4, '#FF5555');
+      if (hv && mouse.click && !clickUsed) { clickUsed = true; SND.play('ui_click', .5); if (pos >= 0) PS.stack.splice(pos, 1); else PS.stack.unshift(e.lib); savePackLib(); S.pmsg = '§eApplying...';
+        applyPack(PS.stack.length ? 'stack' : (PACK_FILES.vanilla ? 'vanilla' : 'none'), p => S.pmsg = '§eApplying... ' + Math.round(p * 100) + '%').then(() => S.pmsg = '§a' + PS.stack.length + ' pack(s) on top of Vanilla').catch(er => S.pmsg = '§c' + er.message); }
+      return; }
     if (hv && mouse.click && !clickUsed && !act) { clickUsed = true; SND.play('ui_click', .5); S.pmsg = '§eApplying ' + e.name + '...'; applyPack(e.id, p => S.pmsg = '§eApplying ' + e.name + '... ' + Math.round(p * 100) + '%').then(() => S.pmsg = '§aApplied ' + e.name).catch(err => S.pmsg = '§c' + err.message); }
   });
   cx2.restore();
