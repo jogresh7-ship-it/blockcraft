@@ -200,6 +200,11 @@ MOBDEF.witch.parts = [{box: [8, 10, 8], uv: [0, 0], pos: [0.0, 29.0, 0.0], head:
   MOBDEF.magma_cube = Object.assign({}, MOBDEF.slime, { tex: 'magmacube', drop: [['item:magma_cream', 0, 1]], burns: 0 });
 }
 MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, true), { box: [8, 12, 4], uv: [16, 32], pos: [0, 18, 0], inf: .25 }] };
+for (const [n, d] of Object.entries(MOBDEF)) for (const p of d.parts || []) {
+  if (n == 'chicken' && p.box[0] == 1 && p.box[1] == 4 && p.box[2] == 6) { p.wing = p.pos[0] < 0 ? 1 : -1; p.pivot = [p.pos[0], p.pos[1] + 2, p.pos[2]]; }
+  if (n == 'blaze' && p.tent !== undefined) { p.orbit = (p.tent >> 2) % 2 ? -1 : 1; p.pivot = [0, p.pos[1], 0]; delete p.tent; }
+}
+MOBDEF.horse.horse = 1; for (const n of ['donkey', 'mule', 'skeleton_horse', 'zombie_horse']) if (MOBDEF[n]) MOBDEF[n].horse = 1;
 const MODELS = {};
 function boxVerts(out, size, uv, tw, th, inf = 0) {
   const [w, h, d] = size, [u, v] = uv, x0 = -w / 2 - inf, x1 = w / 2 + inf, y0 = -h / 2 - inf, y1 = h / 2 + inf, z0 = -d / 2 - inf, z1 = d / 2 + inf;
@@ -253,6 +258,7 @@ function updateMobs(dt) {
       if (D.burns && skyState().day > .8 && !world.meta.rain && world.topY(Math.floor(m.x), Math.floor(m.z)) < m.y + 1 && !(SHAPE[world.get(Math.floor(m.x), Math.floor(m.y + .5), Math.floor(m.z))] == 3)) { m.burnT = (m.burnT || 0) - dt; if (m.burnT <= 0) { m.burnT = 1; m.hurtT = 0; hurtMob(m, 1, 0, 0, true); } }
     }
     if (!m.target) mobVsMob(m, D, dt);
+    mobLife(m, D, dt);
     if (m.mt) { m.wt = Math.max(m.wt, .5); }
     m.wt -= dt; if (m.wt <= 0) { m.wt = 2 + Math.random() * 5; m.mv = Math.random() < .6 ? 1 : 0; m.yawT = m.yaw + (Math.random() - .5) * 3; }
     if (m.panic > 0) { m.panic -= dt; m.mv = 1.8; if (Math.random() < dt * 2) m.yawT = Math.random() * 6.28; }
@@ -274,6 +280,30 @@ function updateMobs(dt) {
   }
   mobs = mobs.filter(m => !m.dead && Math.hypot(m.x - player.x, m.z - player.z) < (MOBDEF[m.type].hostile ? 100 : 160) && !(MOBDEF[m.type].hostile && world.meta.diff == 0));
   updateArrows(dt); hostileSpawn(dt);
+}
+// ---- things mobs do on their own, like in Minecraft ----
+function mobLife(m, D, dt) {
+  const bx = Math.floor(m.x), by = Math.floor(m.y), bz = Math.floor(m.z), below = BL[world.get(bx, by - 1, bz)]?.n;
+  if (D.slime) m.sq = m.ground ? Math.max(0, (m.sq || 0) - dt * 3) : clamp((m.vy || 0) / 14, -.3, .35);
+  // sheep and cows graze; sheep eat the grass (it turns to dirt) and grow their wool back
+  if (/^(sheep|cow|horse|donkey|mule|goat)$/.test(m.type)) {
+    if (m.eatT > 0) { m.eatT -= dt; m.mv = 0; if (m.eatT <= 0 && m.type == 'sheep' && below == 'grass_block') { world.set(bx, by - 1, bz, BYNAME.dirt); m.sheared = false; } }
+    else if (!m.panic && !m.target && Math.random() < dt / (m.type == 'sheep' && m.sheared ? 6 : 40) && /grass_block|short_grass/.test(below || '')) m.eatT = 2;
+  }
+  // chickens lay an egg every 5-10 minutes
+  if (m.type == 'chicken') { m.eggT = (m.eggT ?? 300 + Math.random() * 300) - dt; if (m.eggT <= 0) { m.eggT = 300 + Math.random() * 300; dropItem(itemKey('item:egg'), 1, m.x, m.y + .3, m.z); SND.play('mob/chicken/plop', .6, 1, [m.x, m.y, m.z]); } if (!m.ground && m.vy < -1.5) m.vy = -1.5; } // chickens flutter down slowly
+  // snow golems leave snow behind (not in hot places)
+  if (m.type == 'snow_golem' && Math.random() < dt * 2 && !world.get(bx, by, bz) && OPAQUE[world.get(bx, by - 1, bz)] && BYNAME.snow !== undefined) world.set(bx, by, bz, BYNAME.snow);
+  // ranged attacks that are not arrows
+  if (m.target == player && player.mode == 'survival') {
+    const d = Math.hypot(player.x - m.x, player.z - m.z); m.spT = (m.spT || 2) - dt;
+    if (m.type == 'blaze' && d < 16 && m.spT <= 0) { m.spT = 3; for (let i = 0; i < 3; i++) setTimeout(() => { if (!m.dead && world) shootFireball(m, player); }, i * 300); SND.play('mob/blaze/breathe', .8, 1, [m.x, m.y, m.z]); }
+    if (m.type == 'witch' && d < 10 && m.spT <= 0) { m.spT = 3; for (let i = 0; i < 12; i++) particles.push({ x: player.x + (Math.random() - .5), y: player.y + 1, z: player.z + (Math.random() - .5), vx: (Math.random() - .5) * 2, vy: Math.random() * 2, vz: (Math.random() - .5) * 2, life: .8, tile: TEX[(BYNAME.purple_concrete || 1) * 4] }); SND.play('random/glass', .8, 1, [player.x, player.y, player.z]); hurtPlayer(3 + world.meta.diff, 'was killed by magic', true); }
+    if (m.type == 'evoker' && d < 14 && m.spT <= 0) { m.spT = 5; m.mv = 0; // a line of evoker fangs snapping up toward you
+      const ux = (player.x - m.x) / (d || 1), uz = (player.z - m.z) / (d || 1);
+      for (let i = 1; i <= 16; i++) setTimeout(() => { if (!world) return; const fx = m.x + ux * i * 1.1, fz = m.z + uz * i * 1.1; for (let k = 0; k < 5; k++) particles.push({ x: fx + (Math.random() - .5) * .5, y: m.y + Math.random() * .8, z: fz + (Math.random() - .5) * .5, vx: 0, vy: 2 + Math.random() * 2, vz: 0, life: .5, g: .2, tile: TEX[(BYNAME.bone_block || 1) * 4] }); SND.play('mob/evocation_fangs/attack', .4, 1, [fx, m.y, fz]); if (Math.hypot(player.x - fx, player.z - fz) < 1 && Math.abs(player.y - m.y) < 2) hurtPlayer(6, 'was bitten by evoker fangs', true); }, i * 60);
+      SND.play('mob/evocation_illager/prepare_attack', 1, 1, [m.x, m.y, m.z]); }
+  }
 }
 // ---- mobs fighting each other, like in Minecraft ----
 const UNDEAD = /^(zombie|husk|drowned|zombie_villager|skeleton|stray|wither_skeleton|bogged|zombified_piglin|zoglin)$/;
@@ -852,7 +882,7 @@ function renderEntities(sk) {
   const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly } : null;
   for (const m of [...mobs, ...netAvatarsFor(), ...(pobj ? [pobj] : [])]) {
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
-    const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; const parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), M4.scale(sc, sc, sc));
+    const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; const parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
     const sw = Math.sin(m.walk) * .7 * Math.min(1, Math.hypot(m.vx, m.vz));
     const fl = m.fuse > 0 && Math.floor(m.fuse * 8) % 2;
     if (m.fuse > 0) { const s = 1 + (1.5 - m.fuse) * .12; M4.mul; }
@@ -865,7 +895,14 @@ function renderEntities(sk) {
       else if (p.sleg !== undefined) ay += (p.sleg ? sw : -sw) * .4;
       else if (p.tail) ax = .9 + Math.sin(t * 6) * .1;
       else if (p.tent !== undefined) ax = Math.sin(t * 2 + p.tent) * .25;
-      let M = M4.chain(base, M4.trans(...pv), M4.ry(ay), M4.rz(p.rz || 0), M4.rx(ax), M4.trans(p.pos[0] - pv[0], p.pos[1] - pv[1], p.pos[2] - pv[2]));
+      let rzv = p.rz || 0;
+      if (p.head && m.eatT > 0) ax = Math.min(1, Math.min(m.eatT, 2 - m.eatT) * 3) * 1.1 + (m.eatT > .4 && m.eatT < 1.6 ? Math.sin(t * 25) * .08 : 0); // grazing
+      if (p.arm !== undefined && !p.fwd && !(m.atkT > 0)) rzv += (p.arm ? -1 : 1) * (Math.cos(t * 1.8 + m.x) * .05 + .05); // idle arm sway
+      if (p.wing) rzv += p.wing * (m.ground === false || m.vy < -1 ? .6 + Math.sin(t * 28) * .6 : 0); // chickens flap while falling
+      if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
+      if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
+      if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
+      let M = M4.chain(base, M4.trans(...pv), M4.ry(ay), M4.rz(rzv), M4.rx(ax), M4.trans(p.pos[0] - pv[0], p.pos[1] - pv[1], p.pos[2] - pv[2]));
       if (p.rot) M = M4.mul(M, M4.rx(p.rot[0]));
       if (m.fuse > 0) { const s = 1 + (1.5 - m.fuse) * .1; M = M4.chain(M4.trans(m.x, m.y, m.z), M4.scale(s, s, s), M4.trans(-m.x, -m.y, -m.z), M); }
       const tx = p.tex == 'ghast' && m.shootT > 0 ? 'ghast_shooting' : p.tex == 'wolf' && m.tamed ? 'wolf_tame' : p.tex == 'wolf' && m.provoked ? 'wolf_angry' : p.tex;
