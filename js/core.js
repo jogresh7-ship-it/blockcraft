@@ -92,20 +92,29 @@ const MAXSTACK = k => { const n = keyName(k) || ''; return /(_pickaxe|_axe|_shov
 let gl, PROG, TEXS = {};
 const VS = `#version 300 es
 in vec3 aPos; in vec2 aUv; in vec3 aL;
-uniform mat4 uPV, uM; uniform float uFrames, uFrame; uniform vec3 uCam;
+uniform mat4 uPV, uM; uniform float uFrames, uFrame, uShader, uTime; uniform vec3 uCam;
 out vec2 vUv; out vec3 vL; out vec3 vT; out float vDist;
-void main(){ vec4 w = uM*vec4(aPos,1.0); gl_Position = uPV*w; vUv = vec2(aUv.x,(aUv.y+uFrame)/uFrames); vL=aL; vT=vec3(1.0);
-  if (aL.x >= 2.0) { float code = floor(aL.x*0.5); vL.x = aL.x - code*2.0; code -= 1.0; vT = vec3(floor(code/1024.0), mod(floor(code/32.0),32.0), mod(code,32.0))/31.0*2.0; }
+void main(){ vec4 w = uM*vec4(aPos,1.0); vec3 L = aL; if (L.x < 0.0) { L.x = -L.x; if (uShader > 0.5) { float ph = w.x*0.7 + w.z*0.9 + uTime*1.6; w.x += sin(ph)*0.06*L.y; w.z += cos(ph*0.8)*0.05*L.y; } }
+  gl_Position = uPV*w; vUv = vec2(aUv.x,(aUv.y+uFrame)/uFrames); vL=L; vT=vec3(1.0);
+  if (L.x >= 2.0) { float code = floor(L.x*0.5); vL.x = L.x - code*2.0; code -= 1.0; vT = vec3(floor(code/1024.0), mod(floor(code/32.0),32.0), mod(code,32.0))/31.0*2.0; }
   vDist = length(w.xyz - uCam); }`;
 const FS = `#version 300 es
 precision mediump float;
 in vec2 vUv; in vec3 vL; in vec3 vT; in float vDist;
-uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL; uniform vec3 uFog; uniform vec4 uTint;
+uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint;
 out vec4 o;
 void main(){ vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float l = max(vL.y*uDay, vL.z); l = mix(max(l,uMinL), 1.0, uFull);
   vec3 col = min(c.rgb * vT, vec3(1.0)) * vL.x * l; col = mix(col, uTint.rgb, uTint.a);
   float f = clamp((vDist-uFogN)/(uFogF-uFogN),0.0,1.0);
+  if (uShaderF > 0.5 && uFull < 0.5) { // Complementary-style lighting: warm sun, orange torchlight, cool blue shade, filmic curve, richer colour
+    vec3 base = min(c.rgb * vT, vec3(1.0)) * vL.x; float sky = vL.y*uDay, blk = vL.z;
+    vec3 sun = mix(vec3(1.05,0.98,0.88), vec3(1.25,0.75,0.45), uSunset) * sky, amb = vec3(0.30,0.36,0.50) * max(vL.y*max(uDay,0.25), uMinL*1.4), torch = vec3(1.25,0.78,0.45) * blk*blk;
+    col = base * (sun * 0.78 + amb * 0.45 + torch * 0.9);
+    col = mix(col, uTint.rgb, uTint.a);
+    col = col * (2.51*col + 0.03) / (col * (2.43*col + 0.59) + 0.14); // ACES filmic
+    float g = dot(col, vec3(0.299,0.587,0.114)); col = clamp(mix(vec3(g), col, 1.32), 0.0, 1.0);
+    f = f*f*(3.0-2.0*f); }
   o = vec4(mix(col, uFog, f), min(1.0, c.a*uAlpha)); }`;
 function initGL(canvas) {
   const ca = { antialias: false, alpha: false, powerPreference: 'default', failIfMajorPerformanceCaveat: false };
@@ -116,7 +125,7 @@ function initGL(canvas) {
   gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aUv'); gl.bindAttribLocation(p, 2, 'aL'); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
   PROG = { p, u: {} };
-  for (const n of ['uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
+  for (const n of ['uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
   gl.useProgram(p); gl.uniform1f(PROG.u.uMinL, .09);
   try { buildBiomeTiles(); } catch (e) { console.warn('biome tiles', e); }
   gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

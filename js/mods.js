@@ -32,6 +32,7 @@ api.on('hud', (c, W, H) => {
 });` ] };
 const MODPACKS = {};
 const MODCFG = Object.assign({ enabled: [], imported: {}, pack: 'vanilla' }, store.get('mods', {}));
+if (!MODCFG.hpDefault) { MODCFG.hpDefault = 1; if (!MODCFG.enabled.includes('mobhealth')) MODCFG.enabled.push('mobhealth'); }
 const saveMods = () => store.set('mods', MODCFG);
 MODCFG.enabled = MODCFG.enabled.filter(id => MODCFG.imported[id] || BUILTIN_MODS[id]); if (!MODCFG.imported[MODCFG.pack]) MODCFG.pack = 'none';
 function loadMods() {

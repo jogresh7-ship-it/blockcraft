@@ -195,6 +195,7 @@ function scrVideo() {
   if (button('View Bobbing: ' + (opts.bob ? 'ON' : 'OFF'), x + 160, y, 150)) opts.bob = !opts.bob;
   if (button('Clouds: ' + (opts.clouds ? 'Fancy' : 'OFF'), x, y + 24, 150)) opts.clouds = !opts.clouds;
   if (button('Smooth Lighting: ' + (opts.smooth ? 'ON' : 'OFF'), x + 160, y + 24, 150)) { opts.smooth = !opts.smooth; }
+  if (button('Shaders: ' + (opts.shaders ? 'Complementary' : 'OFF'), x, y + 72, 150)) { opts.shaders = !opts.shaders; if (opts.shaders) opts.clouds = true; }
   if (button('Show FPS: ' + (opts.fps ? 'ON' : 'OFF'), x, y + 48, 150)) opts.fps = !opts.fps;
   opts.rd = Math.round(2 + slider('rd2', 'Render Distance: ' + opts.rd + ' chunks', x + 160, y + 48, 150, (opts.rd - 2) / 30) * 30);
   if (button('Auto Performance: ' + (opts.autoPerf ? 'ON' : 'OFF'), x, y + 96, 150)) opts.autoPerf = !opts.autoPerf;
