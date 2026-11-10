@@ -105,6 +105,7 @@ PackStore.saveTex = async function (file) { try { const db = await this.db(); db
 PackStore.loadTex = async function () { try { const db = await this.db(); return await new Promise(res => { const r = db.transaction('packs').objectStore('packs').get('tex'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); }); } catch (e) { return null; } };
 async function restorePack(onP) {
   if (!PACKS.find(p => p.id == PS.active) && PS.active != 'custom') PS.active = 'none';
+  if (PACK_FILES.vanilla && PS.active == 'none') PS.active = 'vanilla';
   if (PS.active == 'custom') { const f = await PackStore.loadTex(); if (f) { try { PS.custom = await zipReader(f); PS.customName = store.get('customPackName', 'My Pack'); } catch (e) { PS.active = 'none'; } } else PS.active = 'none'; }
   if (PS.active != 'none') { try { await applyPack(PS.active, p => { onP && onP(p); }); S.pmsg = ''; } catch (e) { S.pmsg = '§c' + e.message; chat('§c' + e.message); console.warn(e); } }
 }
@@ -125,7 +126,8 @@ function scrPacks() {
   screenBg(); header('Resource Packs');
   const owned = PACKS;
   const hideBase = PS.custom && REG.baseName != 'Bare Bones'; // once your own pack (e.g. Bare Bones) is imported, it replaces the built-in textures
-  const all = [...(hideBase ? [] : [{ id: 'none', name: REG.baseName || 'Default', desc: 'Built-in textures', p: null, base: 1 }]), ...owned.map(p => ({ id: p.id, name: p.name, desc: p.author, p })), ...(PS.custom ? [{ id: 'custom', name: PS.customName, desc: 'Imported .zip', p: null }] : [])];
+  const onlyVanilla = !!PACK_FILES.vanilla; // the Vanilla pack is the only built-in look
+  const all = [...(hideBase || onlyVanilla ? [] : [{ id: 'none', name: REG.baseName || 'Default', desc: 'Built-in textures', p: null, base: 1 }]), ...owned.map(p => ({ id: p.id, name: p.name, desc: p.author, p })), ...(PS.custom ? [{ id: 'custom', name: PS.customName, desc: 'Imported .zip', p: null }] : [])];
   const top = 34, bottom = UH - 64, wide = UW > 470, x = wide ? UW / 2 - 225 : UW / 2 - 140;
   listFrame(top, bottom);
   if (mouse.wheel) S.scroll = clamp(S.scroll + mouse.wheel * 20, 0, Math.max(0, all.length * 38 - (bottom - top)));
