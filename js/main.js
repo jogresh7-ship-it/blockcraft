@@ -233,6 +233,7 @@ MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, 
       { box: [16, 32, 16], uv: [0, 0], pos: [sx * 16, by - 18, 42], dleg: 1, pivot: [sx * 16, by - 4, 42] }, { box: [12, 32, 12], uv: [196, 0], pos: [sx * 16, by - 48, 44], dleg: 1, pivot: [sx * 16, by - 4, 42] }, { box: [18, 6, 24], uv: [112, 0], pos: [sx * 16, by - 67, 36], dleg: 1, pivot: [sx * 16, by - 4, 42] }); }
   MOBDEF.ender_dragon = { tex: 'mob_ender_dragon', w: 8, h: 6, hp: 200, hostile: 1, fly: 1, flyH: 14, noclip: 1, speed: 6, dmg: [0, 6, 10, 15], drop: [['dragon_egg', 1, 1]], sound: 'mob/enderdragon/growl', hurt: 'mob/enderdragon/hit', death: 'mob/enderdragon/end', step: null, boss: 1, parts: DP };
 }
+for (const d of Object.values(MOBDEF)) { const arms = (d.parts || []).filter(p => p.arm !== undefined); if (arms.length == 2 && arms.some(p => p.hand && p.pos[0] < 0)) for (const p of arms) { if (p.pos[0] > 0) p.hand = 1; else { delete p.hand; p.offhand = 1; } } }
 for (const [n, d] of Object.entries(MOBDEF)) for (const p of d.parts || []) {
   if (n == 'chicken' && p.box[0] == 1 && p.box[1] == 4 && p.box[2] == 6) { p.wing = p.pos[0] < 0 ? 1 : -1; p.pivot = [p.pos[0], p.pos[1] + 2, p.pos[2]]; }
   if (n == 'blaze' && p.tent !== undefined) { p.orbit = (p.tent >> 2) % 2 ? -1 : 1; p.pivot = [0, p.pos[1], 0]; delete p.tent; }
@@ -937,10 +938,22 @@ function itemMesh(k) { // returns [mesh, tex] centered at origin, unit size
   }
   return itemMeshCache[k] = [mkMesh(new Float32Array(arr)), tex];
 }
+// ---- worn armour: the real armour textures on slightly bigger boxes around head, body, arms and legs ----
+const ARMOR_MESH = {};
+function armorMat(n) { if (!n) return null; if (n == 'turtle_helmet') return 'turtle_scute'; const m = n.match(/^(leather|chainmail|iron|golden|diamond|netherite|copper)_/); return m ? (m[1] == 'golden' ? 'gold' : m[1]) : null; }
+function armorMesh(box, uv, inf) { const k = box + '|' + uv + '|' + inf; if (!ARMOR_MESH[k]) { const a = []; boxVerts(a, box, uv, 64, 32, inf); ARMOR_MESH[k] = mkMesh(new Float32Array(a)); } return ARMOR_MESH[k]; }
+function drawArmor(m, p, M) {
+  const [hel, che, leg, boo] = m.armorN.map(armorMat), L = [];
+  if (p.head && p.box[0] == 8) { if (hel) L.push(['mob_armor_' + hel, [8, 8, 8], [0, 0], 1]); }
+  else if (p.arm !== undefined) { if (che) L.push(['mob_armor_' + che, p.box, [40, 16], 1]); }
+  else if (p.leg !== undefined) { if (leg) L.push(['mob_armorl_' + leg, p.box, [0, 16], .5]); if (boo) L.push(['mob_armor_' + boo, p.box, [0, 16], 1]); }
+  else if (p.box[0] == 8 && p.box[1] == 12) { if (che) L.push(['mob_armor_' + che, [8, 12, 4], [16, 16], 1]); if (leg) L.push(['mob_armorl_' + leg, [8, 12, 4], [16, 16], .5]); }
+  for (const [tx, box, uv, inf] of L) if (TEXS[tx]) drawMesh(armorMesh(box, uv, inf), tx, { model: M, alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] });
+}
 function lightAt(x, y, z) { const c = world.chunk(Math.floor(x) >> 4, Math.floor(z) >> 4); if (!c || !c.L || y < 0 || y >= WH) return [1, 0]; const l = c.L[lidx(Math.floor(x) & 15, Math.floor(y), Math.floor(z) & 15)]; return [Math.pow(.82, 15 - (l >> 4)), Math.pow(.82, 15 - (l & 15))]; }
 function renderEntities(sk) {
   const u = PROG.u, t = performance.now() / 1000;
-  const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly, swingT: typeof swing != 'undefined' ? swing : 0, sprinting: P.sprint, sitting: !!P.sit, swim: P.swimPose, glide: P.glide, crawl: P.crawlPose } : null;
+  const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly, swingT: typeof swing != 'undefined' ? swing : 0, armorN: P.armor.map(s => s && keyName(s.k)), offK: P.offhand && P.offhand.k, sprinting: P.sprint, sitting: !!P.sit, swim: P.swimPose, glide: P.glide, crawl: P.crawlPose } : null;
   for (const m of [...mobs, ...netAvatarsFor(), ...(pobj ? [pobj] : [])]) {
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
     const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; let parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
@@ -1004,7 +1017,9 @@ function renderEntities(sk) {
       const txs = m.skinTex && (p.tex || 'steve') == MOBDEF.player.tex ? m.skinTex : null;
       if (p.trans) { gl.enable(gl.BLEND); drawMesh(p.mesh, tx, { model: M, alpha: .75, alphaTest: .05 }); gl.disable(gl.BLEND); continue; }
       if (p.hand && (m.holdK || D0.hold)) { const [im, it] = itemMesh(m.holdK || itemKey(D0.hold)); const HM = M4.chain(M, M4.trans(0, -p.box[1] / 2 - 1, -1), M4.rx(-Math.PI / 2), M4.ry(Math.PI / 2), M4.rz((m.holdK ? keyName(m.holdK) == 'bow' : D0.hold == 'item:bow') ? -Math.PI / 4 : Math.PI / 4 * 3), M4.scale(10, 10, 10)); drawMesh(im, it, { model: HM, alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] }); }
+      if (p.offhand && m.offK) { const [im, it] = itemMesh(m.offK); const HM = M4.chain(M, M4.trans(0, -p.box[1] / 2 - 1, -1), M4.rx(-Math.PI / 2), M4.ry(Math.PI / 2), M4.rz(Math.PI / 4 * 3), M4.scale(10, 10, 10)); drawMesh(im, it, { model: HM, alphaTest: .1 }); }
       drawMesh(p.mesh, txs || tx, { model: M, tint: m.hurtT > 0 ? [1, 0, 0, .4] : fl ? [1, 1, 1, .6] : [0, 0, 0, 0], alphaTest: .1, full: p.glow ? 1 : 0 });
+      if (m.armorN && !p.inf) drawArmor(m, p, M); // armour you wear shows on the model
     }
   }
   for (const it of items) {

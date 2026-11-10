@@ -496,6 +496,8 @@ class World {
           const st = this.state[wx + ',' + y + ',' + wz] || {}; let f = st.f;
           if (!f && /piston_head/.test(BL[b].n)) for (const d of [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) { const ps = this.state[(wx - d[0]) + ',' + (y - d[1]) + ',' + (wz - d[2])]; if (ps && ps.f && ps.f[0] == d[0] && ps.f[1] == d[1] && ps.f[2] == d[2]) { f = d; break; } }
           const cull = (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)];
+          const sc = BL[b].stv ? stairShape(this, b, st, wx, y, wz, getB, x, z) : null;
+          if (sc) emitMM(out[0], sc[2] == 1 ? BL[b].mmi : BL[b].mmu, wx, y, wz, [0, 1, 0], ll, [sc[0], sc[1]], cull); else
           emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : st.open && BL[b].mmo ? BL[b].mmo : st.hang && BL[b].mmh ? BL[b].mmh : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, /piston/.test(BL[b].n) ? null : st.fr || BL[b].mr || null, cull);
           if (!WLOG[b]) continue; b = WATER_ID; sh = 3;
         }
@@ -670,3 +672,15 @@ function mpMatch(w, c) {
   return true;
 }
 function emitMP(out, b, c, wx, y, wz, ll, cull) { for (const p of BL[b].mp) if (mpMatch(p.w, c)) emitMM(out, p.m, wx, y, wz, null, ll, [p.rx || 0, p.ry || 0], cull); }
+
+// stairs next to each other bend into inner and outer corners, like in Minecraft
+const ST_D = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] }, ST_CW = { north: 'east', east: 'south', south: 'west', west: 'north' }, ST_CCW = { north: 'west', west: 'south', south: 'east', east: 'north' }, ST_OPP = { north: 'south', south: 'north', east: 'west', west: 'east' };
+function stairShape(w, b, st, wx, y, wz, getB, lx, lz) {
+  const f = st.fd || 'north', half = st.top ? 'top' : 'bottom', axis = d => d == 'north' || d == 'south';
+  const look = (d) => { const [dx, dz] = ST_D[d], nb = getB(lx + dx, y, lz + dz); if (!BL[nb] || !BL[nb].stv) return null; const s2 = w.state[(wx + dx) + ',' + y + ',' + (wz + dz)] || {}; if ((s2.top ? 'top' : 'bottom') != half) return null; return s2.fd || 'north'; };
+  let shape = null; const fr = look(f);
+  if (fr && axis(fr) != axis(f)) shape = fr == ST_CCW[f] ? 'outer_left' : 'outer_right';
+  else { const bk = look(ST_OPP[f]); if (bk && axis(bk) != axis(f)) shape = bk == ST_CCW[f] ? 'inner_left' : 'inner_right'; }
+  if (!shape) return null;
+  return BL[b].stv[f + '|' + half + '|' + shape] || null;
+}
