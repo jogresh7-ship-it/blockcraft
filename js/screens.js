@@ -195,13 +195,13 @@ function scrVideo() {
   if (button('View Bobbing: ' + (opts.bob ? 'ON' : 'OFF'), x + 160, y, 150)) opts.bob = !opts.bob;
   if (button('Clouds: ' + (opts.clouds ? 'Fancy' : 'OFF'), x, y + 24, 150)) opts.clouds = !opts.clouds;
   if (button('Smooth Lighting: ' + (opts.smooth ? 'ON' : 'OFF'), x + 160, y + 24, 150)) { opts.smooth = !opts.smooth; }
-  if (button('Shaders: ' + (opts.shaders ? 'Complementary' : 'OFF'), x, y + 72, 150)) { opts.shaders = !opts.shaders; if (opts.shaders) opts.clouds = true; }
+  { const k = +opts.shaders || 0; if (button('Shaders: ' + (k ? SHADER_PACKS[k].name : 'OFF'), x, y + 72, 150)) { opts.shaders = (k + 1) % SHADER_PACKS.length; if (opts.shaders) opts.clouds = true; } }
   if (button('Show FPS: ' + (opts.fps ? 'ON' : 'OFF'), x, y + 48, 150)) opts.fps = !opts.fps;
   opts.rd = Math.round(2 + slider('rd2', 'Render Distance: ' + opts.rd + ' chunks', x + 160, y + 48, 150, (opts.rd - 2) / 30) * 30);
   if (button('Auto Performance: ' + (opts.autoPerf ? 'ON' : 'OFF'), x, y + 96, 150)) opts.autoPerf = !opts.autoPerf;
   if (button('3D Quality: ' + ((opts.mres || 1.5) >= 1.5 ? 'High' : opts.mres >= 1 ? 'Normal' : 'Low'), x + 160, y + 96, 150)) { opts.mres = (opts.mres || 1.5) >= 1.5 ? 1 : opts.mres >= 1 ? .7 : 1.5; S.forceScale = 1; S.perfScale = 1; resize(); }
   textC('§7' + (GL1 ? 'Compatibility graphics (WebGL 1)' : 'WebGL 2') + (LOW_END ? ' - low-power device' : ''), UW / 2, y + 122, '#FFFFFF');
-  const nC = Math.round(Math.PI * (opts.rd + 1.5) ** 2); textC('About ' + nC + ' chunks loaded' + (opts.rd > 16 ? ' - needs a powerful computer' : ''), UW / 2, y + 76, opts.rd > 16 ? '#FFAA00' : '#A0A0A0');
+  const nC = Math.round(Math.PI * (opts.rd + 1.5) ** 2); textC('About ' + nC + ' chunks loaded' + (opts.rd > 16 ? ' - needs a powerful computer' : ''), UW / 2, y + 134, opts.rd > 16 ? '#FFAA00' : '#A0A0A0');
   if (button('Done', UW / 2 - 100, UH / 6 + 168)) { saveOpts(); go('options'); }
 }
 function scrSound() {

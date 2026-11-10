@@ -88,6 +88,11 @@ const keyName = k => k >= ITEM_BASE ? ITEMS[k - ITEM_BASE] : BL[k]?.n;
 const prettyName = k => (keyName(k) || '?').split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
 const MAXSTACK = k => { const n = keyName(k) || ''; return /(_pickaxe|_axe|_shovel|_sword|_hoe|_helmet|_chestplate|_leggings|_boots|bucket$|^bow$|shears|flint_and_steel|fishing_rod|trident|elytra|totem|_boat|minecart|saddle|potion|music_disc|_horse_armor|stew|soup|_spear|mace)/.test(n) && n != 'bucket' ? 1 : /(ender_pearl|snowball|egg$|^bucket$|_sign)/.test(n) ? 16 : 64; };
 
+// ---------- shader packs (ports of the look of popular Java shader packs): sun strength, shade strength, saturation, contrast, shade colour, sunlight colour ----------
+const SHADER_PACKS = [null,
+  { name: 'Complementary', sp: [.78, .45, 1.32, 1.0], shade: [.30, .36, .50], warm: [1.05, .98, .88] },
+  { name: 'Bliss', sp: [.85, .40, 1.45, 1.08], shade: [.24, .32, .58], warm: [1.10, .96, .80] },
+  { name: 'AstraLex', sp: [.80, .50, 1.22, 1.15], shade: [.22, .40, .46], warm: [1.12, .92, .74] }];
 // ---------- WebGL ----------
 let gl, PROG, TEXS = {};
 const VS = `#version 300 es
@@ -101,7 +106,7 @@ void main(){ vec4 w = uM*vec4(aPos,1.0); vec3 L = aL; if (L.x < 0.0) { L.x = -L.
 const FS = `#version 300 es
 precision mediump float;
 in vec2 vUv; in vec3 vL; in vec3 vT; in float vDist;
-uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint;
+uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint; uniform vec4 uSP; uniform vec3 uShade, uWarm;
 out vec4 o;
 void main(){ vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float l = max(vL.y*uDay, vL.z); l = mix(max(l,uMinL), 1.0, uFull);
@@ -109,11 +114,11 @@ void main(){ vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float f = clamp((vDist-uFogN)/(uFogF-uFogN),0.0,1.0);
   if (uShaderF > 0.5 && uFull < 0.5) { // Complementary-style lighting: warm sun, orange torchlight, cool blue shade, filmic curve, richer colour
     vec3 base = min(c.rgb * vT, vec3(1.0)) * vL.x; float sky = vL.y*uDay, blk = vL.z;
-    vec3 sun = mix(vec3(1.05,0.98,0.88), vec3(1.25,0.75,0.45), uSunset) * sky, amb = vec3(0.30,0.36,0.50) * max(vL.y*max(uDay,0.25), uMinL*1.4), torch = vec3(1.25,0.78,0.45) * blk*blk;
-    col = base * (sun * 0.78 + amb * 0.45 + torch * 0.9);
+    vec3 sun = mix(uWarm, vec3(1.25,0.75,0.45), uSunset) * sky, amb = uShade * max(vL.y*max(uDay,0.25), uMinL*1.4), torch = vec3(1.25,0.78,0.45) * blk*blk;
+    col = base * (sun * uSP.x + amb * uSP.y + torch * 0.9);
     col = mix(col, uTint.rgb, uTint.a);
     col = col * (2.51*col + 0.03) / (col * (2.43*col + 0.59) + 0.14); // ACES filmic
-    float g = dot(col, vec3(0.299,0.587,0.114)); col = clamp(mix(vec3(g), col, 1.32), 0.0, 1.0);
+    float g = dot(col, vec3(0.299,0.587,0.114)); col = clamp(mix(vec3(g), col, uSP.z), 0.0, 1.0); col = clamp((col - 0.5) * uSP.w + 0.5, 0.0, 1.0);
     f = f*f*(3.0-2.0*f); }
   o = vec4(mix(col, uFog, f), min(1.0, c.a*uAlpha)); }`;
 function initGL(canvas) {
@@ -125,7 +130,7 @@ function initGL(canvas) {
   gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aUv'); gl.bindAttribLocation(p, 2, 'aL'); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
   PROG = { p, u: {} };
-  for (const n of ['uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
+  for (const n of ['uSP', 'uShade', 'uWarm', 'uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
   gl.useProgram(p); gl.uniform1f(PROG.u.uMinL, .09);
   try { buildBiomeTiles(); } catch (e) { console.warn('biome tiles', e); }
   gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

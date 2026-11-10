@@ -5,7 +5,13 @@
 const NET = { peer: null, role: null, code: '', conns: new Map(), host: null, myId: 'host', avatars: new Map(), cap: null, joinData: null, status: '', sendT: 0, mobT: 0, timeT: 0, nextId: 1 };
 const PEER_JS = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
 function netName() { return (typeof PROFILE != 'undefined' && PROFILE.name) || store.get('mpName', '') || ('Player' + (100 + Math.floor(Math.random() * 900))); }
-function netLoadLib() { return window.Peer ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement('script'); s.src = PEER_JS; s.onload = res; s.onerror = () => rej(new Error('Could not load the multiplayer library (are you online?)')); document.head.appendChild(s); }); }
+// some places block the browser's peer-to-peer connections (WebRTC) - e.g. the Claude preview frame. Multiplayer then has to run
+// in its own tab: the offline Blockcraft.html or the GitHub Pages site both work
+const MP_SITE = 'https://jogresh7-ship-it.github.io/blockcraft/';
+const NO_RTC_MSG = 'Multiplayer is blocked in this window (no WebRTC). Use Open in New Tab, or the offline Blockcraft.html.';
+function netCheckRTC() { if (typeof RTCPeerConnection == 'undefined' && typeof webkitRTCPeerConnection == 'undefined') { S.mp = S.mp || {}; S.mp.noRTC = 1; throw new Error(NO_RTC_MSG); } }
+function netErr(e) { if (e && (e.type == 'browser-incompatible' || /browser/i.test(e.message || ''))) { S.mp = S.mp || {}; S.mp.noRTC = 1; return NO_RTC_MSG; } return 'Connection error: ' + (e.type || e.message); }
+function netLoadLib() { try { netCheckRTC(); } catch (e) { return Promise.reject(e); } return window.Peer ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement('script'); s.src = PEER_JS; s.onload = res; s.onerror = () => rej(new Error('Could not load the multiplayer library (are you online?)')); document.head.appendChild(s); }); }
 const netCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 6; i++) s += A[Math.floor(Math.random() * A.length)]; return s; };
 const peerId = code => 'blockcraft-mp-' + code.toUpperCase();
 function netSend(c, msg) { try { if (c && c.open) c.send(msg); } catch (e) { } }
@@ -24,7 +30,7 @@ async function netHost(fixed) {
   return new Promise((res, rej) => {
     const peer = new Peer(peerId(code)); NET.peer = peer;
     peer.on('open', () => { NET.status = 'Open'; if (!NET.bot) chat(fixed ? '§aYou are now hosting the server §e' + NET.server : '§aYour world is open to friends. Code: §e' + code); res(code); });
-    peer.on('error', e => { NET.status = 'Error: ' + (e.type || e.message); chat('§cMultiplayer: ' + (e.type || e.message)); if (e.type == 'unavailable-id' && !fixed) { netStop(); netHost().then(res, rej); } else rej(e); });
+    peer.on('error', e => { NET.status = 'Error: ' + (e.type || e.message); chat('§c' + netErr(e)); if (e.type == 'unavailable-id' && !fixed) { netStop(); netHost().then(res, rej); } else rej(e); });
     peer.on('connection', c => {
       const id = 'p' + NET.nextId++;
       c.on('data', d => netHostData(id, c, d));
@@ -54,7 +60,7 @@ async function netJoin(code) {
     const peer = new Peer(); NET.peer = peer; let done = false;
     const fail = msg => { if (done) return; done = true; NET.status = msg; netStop(); rej(new Error(msg)); };
     setTimeout(() => fail('No world found with code ' + code), 15000);
-    peer.on('error', e => fail(e.type == 'peer-unavailable' ? 'No world found with code ' + code : 'Connection error: ' + (e.type || e.message)));
+    peer.on('error', e => fail(e.type == 'peer-unavailable' ? 'No world found with code ' + code : netErr(e)));
     peer.on('open', () => {
       const c = peer.connect(peerId(code), { reliable: true }); NET.host = c;
       c.on('open', () => netSend(c, { t: 'hello', v: 1, name: netName() }));
@@ -201,6 +207,9 @@ function scrMultiplayer() {
   });
   cx2.restore();
   if (S.mp.tip) { const tw = textW(S.mp.tip) + 8; nine('tooltip_background', mouse.x + 8, mouse.y - 14, tw, 14, 3, 3, 3, 3); text(S.mp.tip, mouse.x + 12, mouse.y - 11, '#FFFFFF', false); S.mp.tip = null; }
+  if (S.mp.noRTC === undefined) { try { netCheckRTC(); S.mp.noRTC = 0; } catch (e) { } }
+  if (S.mp.noRTC && !S.mp.msg) S.mp.msg = '§e' + NO_RTC_MSG;
+  if (S.mp.noRTC && button('Open in New Tab', UW - 108, 6, 100)) { try { window.open(MP_SITE + (S.mp.sel != null && L[S.mp.sel] ? '?server=' + encodeURIComponent(L[S.mp.sel].addr) : ''), '_blank', 'noopener'); } catch (e) { } }
   if (S.mp.msg) textC(S.mp.msg, UW / 2, bottom + 2, '#FFFFFF');
   const sel = L[S.mp.sel], bx = UW / 2 - 154, by = UH - 50;
   if (button(S.mp.busy ? 'Connecting...' : 'Join Server', bx, by, 100, 20, !!sel && !S.mp.busy)) mpJoin(sel);
