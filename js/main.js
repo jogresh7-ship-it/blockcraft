@@ -69,7 +69,7 @@ function captureIcon() {
   try { const c = document.createElement('canvas'); c.width = c.height = 64; const s = Math.min(glc.width, glc.height); c.getContext('2d').drawImage(glc, (glc.width - s) / 2, (glc.height - s) / 2, s, s, 0, 0, 64, 64); world.meta.icon = c.toDataURL('image/jpeg', .8); } catch (e) { }
 }
 function quitWorld() {
-  netStop();
+  netStop(); NET.server = null; NET.bot = false;
   if (S.screen != 'death') { render(0); captureIcon(); }
   saveWorld(); SND.setRain(false); SND.stopMusic();
   for (const c of world.chunks.values()) if (c.meshes) c.meshes.forEach(freeMesh);
@@ -86,7 +86,7 @@ const MOBDEF = {
       ...[[-3, -5, 0], [3, -5, 1], [-3, 7, 1], [3, 7, 0]].map(([x, z, ph]) => ({ box: [4, 6, 4], uv: [0, 16], pos: [x, 3, z], pivot: [x, 6, z], leg: ph }))] },
   cow: { tex: 'cow', w: .9, h: 1.4, hp: 10, drop: [['item:beef', 1, 3], ['item:leather', 0, 2]], sound: 'mob/cow/say', step: 'mob/cow/step', hurt: 'mob/cow/hurt', death: 'mob/cow/hurt',
     parts: [{ box: [12, 18, 10], uv: [18, 4], pos: [0, 17, 1], rot: [Math.PI / 2, 0, 0] }, { box: [8, 8, 6], uv: [0, 0], pos: [0, 20, -10], head: 1 },
-      { box: [1, 3, 1], uv: [22, 0], pos: [-4.5, 24.5, -11], head: 1, hp: [0, 20, -10] }, { box: [1, 3, 1], uv: [22, 0], pos: [4.5, 24.5, -11], head: 1, hp: [0, 20, -10] },
+      { box: [1, 3, 1], uv: [22, 0], pos: [-4.5, 24.5, -11], head: 1, hp: [0, 20, -10] }, { box: [1, 3, 1], uv: [22, 0], pos: [4.5, 24.5, -11], head: 1, hp: [0, 20, -10] }, { box: [6, 3, 1], uv: [1, 33], pos: [0, 17.5, -13.5], head: 1, hp: [0, 20, -10] },
       ...[[-4, -6, 0], [4, -6, 1], [-4, 7, 1], [4, 7, 0]].map(([x, z, ph]) => ({ box: [4, 12, 4], uv: [0, 16], pos: [x, 6, z], pivot: [x, 12, z], leg: ph }))] },
   sheep: { tex: 'sheep', w: .9, h: 1.3, hp: 8, drop: [['item:mutton', 1, 2], ['white_wool', 1, 1, 'wool']], sound: 'mob/sheep/say', step: 'mob/sheep/step', hurt: 'mob/sheep/say', death: 'mob/sheep/say',
     parts: [{ box: [8, 16, 6], uv: [28, 8], pos: [0, 16, 0], rot: [Math.PI / 2, 0, 0] }, { box: [6, 6, 8], uv: [0, 0], pos: [0, 20, -10], head: 1 },
@@ -117,11 +117,11 @@ Object.assign(MOBDEF, {
   slime: { tex: 'slime', w: .52, h: .52, hp: 4, hostile: 1, speed: 1.8, dmg: [0, 2, 3, 4], slime: 1, drop: [['item:slime_ball', 0, 2]], sound: null, step: 'mob/slime/small', hurt: 'mob/slime/small', death: 'mob/slime/small',
     parts: [{ box: [6, 6, 6], uv: [0, 16], pos: [0, 4, 0] }, { box: [2, 2, 2], uv: [32, 0], pos: [-1.5, 5.5, -3] }, { box: [2, 2, 2], uv: [32, 4], pos: [1.5, 5.5, -3] }, { box: [1, 1, 1], uv: [32, 8], pos: [0, 3, -3] }, { box: [8, 8, 8], uv: [0, 0], pos: [0, 4, 0], trans: 1 }] },
   wolf: { tex: 'wolf', w: .6, h: .85, hp: 8, neutral: 1, hostile: 0, speed: 2, dmg: [2, 3, 4, 5], drop: [], sound: 'mob/wolf/bark', step: 'mob/wolf/step', hurt: 'mob/wolf/hurt', death: 'mob/wolf/death', wolf: 1,
-    parts: [{ box: [6, 6, 4], uv: [0, 0], pos: [0, 10.5, -7], pivot: [0, 10.5, -5], head: 1 }, { box: [3, 3, 4], uv: [0, 10], pos: [0, 9, -11], pivot: [0, 10.5, -5], head: 1 },
+    parts: [{ box: [6, 6, 4], uv: [0, 0], pos: [0, 10.5, -7], pivot: [0, 10.5, -5], head: 1 }, { box: [3, 3, 4], uv: [0, 10], pos: [0, 9, -10], pivot: [0, 10.5, -5], head: 1 },
       { box: [2, 2, 1], uv: [16, 14], pos: [-2, 14.5, -6.5], pivot: [0, 10.5, -5], head: 1 }, { box: [2, 2, 1], uv: [16, 14], pos: [2, 14.5, -6.5], pivot: [0, 10.5, -5], head: 1 },
-      { box: [6, 9, 6], uv: [18, 14], pos: [0, 10, 1.5], rot: [Math.PI / 2, 0, 0] }, { box: [8, 6, 7], uv: [21, 0], pos: [0, 10.5, -2.5], rot: [Math.PI / 2, 0, 0] },
-      { box: [2, 8, 2], uv: [9, 18], pos: [0, 9, 9], pivot: [0, 12, 6], tail: 1 },
-      ...[[-1.5, -2, 0], [1.5, -2, 1], [-1.5, 5, 1], [1.5, 5, 0]].map(([x, z, ph]) => ({ box: [2, 8, 2], uv: [0, 18], pos: [x, 4, z], pivot: [x, 8, z], leg: ph }))] },
+      { box: [6, 9, 6], uv: [18, 14], pos: [0, 10, 4.5], rot: [Math.PI / 2, 0, 0] }, { box: [8, 6, 7], uv: [21, 0], pos: [0, 10.5, -3], rot: [Math.PI / 2, 0, 0] },
+      { box: [2, 8, 2], uv: [9, 18], pos: [0, 8, 9], pivot: [0, 12, 8], tail: 1 },
+      ...[[-1.5, 7, 0], [1.5, 7, 1], [-1.5, -4, 1], [1.5, -4, 0]].map(([x, z, ph]) => ({ box: [2, 8, 2], uv: [0, 18], pos: [x, 4, z], pivot: [x, 8, z], leg: ph }))] },
   zombified_piglin: { tex: 'zombified_piglin', w: .6, h: 1.95, hp: 20, hostile: 1, neutral: 1, speed: 2, dmg: [0, 5, 8, 12], drop: [['item:rotten_flesh', 0, 1], ['item:gold_nugget', 0, 1]], sound: 'mob/zombiepig/zpig', step: 'mob/zombie/step', hurt: 'mob/zombiepig/zpighurt', death: 'mob/zombiepig/zpigdeath',
     parts: (() => { const p = HUM(4, false, true); p[0] = { box: [10, 8, 8], uv: [0, 0], pos: [0, 28, 0], pivot: [0, 24, 0], head: 1 }; p.pop(); return p; })(), hold: 'item:golden_sword' },
   ghast: { tex: 'ghast', w: 4, h: 4, hp: 10, hostile: 1, fly: 1, scale: 4.5 / 1.6, speed: 1, ghast: 1, drop: [['item:ghast_tear', 0, 1], ['item:gunpowder', 0, 2]], sound: 'mob/ghast/moan', step: null, hurt: 'mob/ghast/scream', death: 'mob/ghast/death',
@@ -200,11 +200,18 @@ function boxVerts(out, size, uv, tw, th, inf = 0) {
   q([[x1, y1, z0], [x0, y1, z0], [x0, y1, z1], [x1, y1, z1]].map(p => p), R(u + d, v, w, d).map((x, i) => x), 1); // top
   q([[x1, y0, z1], [x0, y0, z1], [x0, y0, z0], [x1, y0, z0]], R(u + d + w, v, w, d), .5);      // bottom
 }
+// some packs ship old 64x32-style skins inside a square image (the bottom half is empty): use the mirrored right arm/leg
+const LEGACY = new Map();
+function legacySkin(im) {
+  if (LEGACY.has(im)) return LEGACY.get(im); let r = false;
+  try { if (im.height == im.width) { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0); const d = x.getImageData(0, im.height / 2, im.width, im.height / 2).data; r = true; for (let i = 3; i < d.length; i += 4) if (d[i] > 10) { r = false; break; } } } catch (e) { }
+  LEGACY.set(im, r); return r;
+}
 function getModel(type) {
   if (MODELS[type]) return MODELS[type];
   const def = MOBDEF[type]; const parts = def.parts.map(p => {
     if (!IMG[p.tex || def.tex]) return null;
-    const im = IMG[p.tex || def.tex], ref = ORIG[p.tex || def.tex] || im; const tw = ref.width / 2, th = tw * im.height / im.width; if (th <= 32 && p.uv[1] >= 32) { const alt = { '32,48': [40, 16], '16,48': [0, 16] }[p.uv.join(',')]; if (!alt) return null; p = Object.assign({}, p, { uv: alt }); } const arr = []; boxVerts(arr, p.box, p.uv, tw, th, p.inf || 0);
+    const im = IMG[p.tex || def.tex], ref = ORIG[p.tex || def.tex] || im; const tw = ref.width / 2, th = tw * im.height / im.width; if ((th <= 32 || legacySkin(im)) && p.uv[1] >= 32) { const alt = { '32,48': [40, 16], '16,48': [0, 16] }[p.uv.join(',')]; if (!alt) return null; p = Object.assign({}, p, { uv: alt }); } const arr = []; boxVerts(arr, p.box, p.uv, tw, th, p.inf || 0);
     return Object.assign({}, p, { mesh: mkMesh(new Float32Array(arr)), tex: p.tex || def.tex });
   });
   return MODELS[type] = parts.filter(Boolean);
@@ -356,6 +363,16 @@ function updatePlayer(dt) {
     if (headWater) { P.air -= dt * 20; if (P.air <= -20) { P.air = 0; hurtPlayer(2, 'drowned', true); } } else P.air = Math.min(300, P.air + dt * 100);
     if (inLava) { P.lavaT = (P.lavaT || 0) - dt; if (P.lavaT <= 0) { P.lavaT = .5; hurtPlayer(4, 'tried to swim in lava'); } }
     if (world.get(fx, Math.floor(P.y + .5), fz) == B('cactus') || [[.35, 0], [-.35, 0], [0, .35], [0, -.35]].some(([a, b]) => world.get(Math.floor(P.x + a), Math.floor(P.y + .5), Math.floor(P.z + b)) == B('cactus'))) { P.cacT = (P.cacT || 0) - dt; if (P.cacT <= 0) { P.cacT = .5; hurtPlayer(1, 'was pricked to death'); } }
+    { // plants and blocks that hurt: sweet berry bush, wither rose, magma, campfires, pointed dripstone, powder snow
+      const nb = (dy) => BL[world.get(fx, Math.floor(P.y + dy), fz)]?.n || '', feet = nb(.1), body = nb(.9), under = nb(-.1);
+      const moving = Math.hypot(P.vx || 0, P.vz || 0) > .3, tick = (k, t, d, why) => { P[k] = (P[k] || 0) - dt; if (P[k] <= 0) { P[k] = t; hurtPlayer(d, why); } };
+      if (feet == 'sweet_berry_bush' || body == 'sweet_berry_bush') { P.vx *= .5; P.vz *= .5; if (moving) tick('berT', .5, 1, 'was poked to death by a sweet berry bush'); }
+      if (feet == 'wither_rose' || body == 'wither_rose') { P.wither = 2.5; }
+      if (P.wither > 0) { P.wither -= dt; tick('witT', 2, 1, 'withered away'); }
+      if (under == 'magma_block' && !keys.ShiftLeft) tick('magT', .5, 1, 'discovered the floor was lava');
+      if (/campfire$/.test(feet) && BL[world.get(fx, Math.floor(P.y + .1), fz)]) tick('fireT', .5, /soul/.test(feet) ? 2 : 1, 'went up in flames');
+      if (under == 'pointed_dripstone' && (P.fallStart || 0) - P.y > 1) { hurtPlayer(Math.ceil(((P.fallStart || 0) - P.y) * 2), 'was impaled on a stalagmite'); P.fallStart = P.y; }
+    }
     if (world.meta.diff == 0) { P.exh = 0; P.food = 20; P.regenT += dt; if (P.regenT > 1 && P.hp < 20) { P.hp = Math.min(20, P.hp + 1); P.regenT = 0; } }
     if (P.exh >= 4) { P.exh -= 4; if (P.sat > 0) P.sat = Math.max(0, P.sat - 1); else P.food = Math.max(0, P.food - 1); }
     if (P.food >= 18 && P.hp < 20) { P.regenT += dt; const t = P.food == 20 && P.sat > 0 ? .5 : 4; if (P.regenT >= t) { P.regenT = 0; P.hp = Math.min(20, P.hp + 1); P.exh += 6; } }
@@ -927,6 +944,7 @@ function drawHUD(dt) {
     right.forEach((s, i) => { if (!s) return; s = s.replace('§n', ''); const w = textW(s); cx2.fillStyle = 'rgba(80,80,80,.56)'; cx2.fillRect(UW - w - 3, 1 + i * 9, w + 2, 9); text(s, UW - w - 2, 2 + i * 9, '#E0E0E0', false); });
   } else if (opts.fps) text(fps + ' fps', 2, 2, '#FFFFFF');
   if (NET.PV && S.screen == 'game') netDrawNames(NET.PV);
+  drawBotOverlay();
   if (!debug) modEmit('hud', cx2, UW, UH, dt); // mods can draw on the HUD
   if (S.screen == 'game' && !locked && !noLock && !PAD.on) { cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(0, 0, UW, UH); textC('Click to continue playing', UW / 2, UH / 2 - 4, '#FFFFFF'); }
 }
@@ -1063,7 +1081,7 @@ async function boot() {
   setFont(); setLoad(.7, 'Loading resource pack...');
   try { await restorePack(p => setLoad(.7 + p * .3, 'Loading resource pack... ' + Math.round(p * 100) + '%')); } catch (e) { console.warn(e); }
   if (!ANIMS.length) setupAnims(null);
-  setLoad(1, 'Loading complete'); resize(); go('title');
+  setLoad(1, 'Loading complete'); resize(); go('title'); netAutoStart();
   const shown = performance.now() - BOOT_T0; await new Promise(r => setTimeout(r, Math.max(400, MIN_T + 300 - shown)));
   window.BOOTED = 1; pre.classList.add('done'); setTimeout(() => pre.remove(), 1100);
   if (window.SOUND_FILES && SOUND_FILES.length) (async () => { let n = 0; for (const f of SOUND_FILES) { SND.loadingSounds = Math.round(n / SOUND_FILES.length * 100) + '%'; try { await new Promise(r => setTimeout(r, 50)); await loadScript(f); while (window.EMBED_SOUND_PARTS && EMBED_SOUND_PARTS.length) SND.addEmbedded(EMBED_SOUND_PARTS.shift()); } catch (e) { console.warn(e); S.pmsg = '§cSounds missing - keep the "sounds" folder next to Blockcraft.html'; break; } n++; if (n == 1 && !world) SND.playMusic('menu'); } SND.loadingSounds = null; })();

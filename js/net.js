@@ -13,14 +13,14 @@ function netBroadcast(msg, except) { for (const [id, c] of NET.conns) if (id !==
 function netOut(msg) { if (NET.role == 'host') netBroadcast(msg); else if (NET.role == 'client') netSend(NET.host, msg); }
 function netMyState() { const P = player; return { t: 'p', id: NET.myId, name: player.name, skin: (typeof PROFILE != 'undefined' && PROFILE.skin) || 'steve', x: +P.x.toFixed(2), y: +P.y.toFixed(2), z: +P.z.toFixed(2), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), dim: world.dim, sneak: !!P.sneak, held: held() ? held().k : 0 }; }
 // ---- hosting ----
-async function netHost() {
+async function netHost(fixed) {
   if (NET.role) return NET.code;
   NET.status = 'Starting...'; await netLoadLib();
-  const code = netCode(); NET.role = 'host'; NET.code = code; NET.myId = 'host';
+  const code = fixed || netCode(); NET.role = 'host'; NET.code = code; NET.myId = 'host';
   return new Promise((res, rej) => {
     const peer = new Peer(peerId(code)); NET.peer = peer;
-    peer.on('open', () => { NET.status = 'Open'; chat('§aYour world is open to friends. Code: §e' + code); res(code); });
-    peer.on('error', e => { NET.status = 'Error: ' + (e.type || e.message); chat('§cMultiplayer: ' + (e.type || e.message)); if (e.type == 'unavailable-id') { netStop(); netHost().then(res, rej); } else rej(e); });
+    peer.on('open', () => { NET.status = 'Open'; if (!NET.bot) chat(fixed ? '§aYou are now hosting the server §e' + NET.server : '§aYour world is open to friends. Code: §e' + code); res(code); });
+    peer.on('error', e => { NET.status = 'Error: ' + (e.type || e.message); chat('§cMultiplayer: ' + (e.type || e.message)); if (e.type == 'unavailable-id' && !fixed) { netStop(); netHost().then(res, rej); } else rej(e); });
     peer.on('connection', c => {
       const id = 'p' + NET.nextId++;
       c.on('data', d => netHostData(id, c, d));
@@ -33,7 +33,7 @@ function netHostData(id, c, d) {
   if (d.t == 'hello') {
     if (d.v !== 1) { netSend(c, { t: 'kick', why: 'Different game version - update the page' }); return; }
     NET.conns.set(id, c); const m = world.meta;
-    netSend(c, { t: 'welcome', id, meta: { name: m.name, seed: m.seed, gen: m.gen, flat: m.flat, created: m.created, diff: m.diff, cheats: m.cheats, mode: m.mode }, edits: m.dimEdits ? m.dimEdits.overworld : world.edits, state: world.state, time: m.time, rain: m.rain, players: [...NET.avatars.values()].map(a => a.last).concat([netMyState()]) });
+    netSend(c, { t: 'welcome', id, meta: { name: m.name, seed: m.seed, gen: m.gen, flat: m.flat, created: m.created, diff: m.diff, cheats: m.cheats, mode: m.mode }, edits: m.dimEdits ? m.dimEdits.overworld : world.edits, state: world.state, time: m.time, rain: m.rain, players: [...NET.avatars.values()].map(a => a.last).concat(NET.bot ? [] : [netMyState()]) });
     chat('§e' + (d.name || 'A player') + ' joined the game'); SND.play('random/pop', .5);
     return;
   }
@@ -54,7 +54,7 @@ async function netJoin(code) {
       const c = peer.connect(peerId(code), { reliable: true }); NET.host = c;
       c.on('open', () => netSend(c, { t: 'hello', v: 1, name: netName() }));
       c.on('data', d => { if (d && d.t == 'welcome' && !done) { done = true; res(d); } netClientData(d); });
-      c.on('close', () => { if (NET.role == 'client') { NET.role = null; if (world && world.meta.remote) { chat('§cDisconnected from the host'); S.netLost = 1; } } });
+      c.on('close', () => { if (NET.role == 'client') { NET.role = null; if (world && world.meta.remote) { chat('§cDisconnected from the host'); S.netLost = 1; if (NET.server) { const n = NET.server; chat('§7Reconnecting to ' + n + '...'); setTimeout(() => { if (world && world.meta.remote) { quitWorld && quitWorld(); } netServer(n); }, 2500); } } } });
     });
   });
 }
@@ -122,7 +122,7 @@ function netMobs(list) {
 function netTick(dt) {
   if (!NET.role || !world || !player) return;
   if (!NET.named) { NET.named = 1; const nm = store.get('mpName', ''); if (nm) player.name = nm; }
-  NET.sendT -= dt; if (NET.sendT <= 0) { NET.sendT = .08; netOut(netMyState()); }
+  NET.sendT -= dt; if (NET.sendT <= 0) { NET.sendT = .08; if (!NET.bot) netOut(netMyState()); }
   const k = Math.min(1, dt * 12);
   for (const a of NET.avatars.values()) {
     if (a.tx === undefined) continue; const dx = a.tx - a.x, dz = a.tz - a.z;
@@ -149,17 +149,61 @@ function netDrawNames(PV, W, H) {
 }
 // ---- screens ----
 function scrMultiplayer() {
-  screenBg(); header('Multiplayer'); S.mp = S.mp || { code: '' };
-  const x = UW / 2 - 100, y = Math.max(40, UH / 2 - 60);
-  textC('Join a friend\'s world', UW / 2, y, '#FFFFFF');
-  textC('§7Ask your friend for the code shown when they pick', UW / 2, y + 14, '#FFFFFF'); textC('§7"Open to Friends" in their pause menu.', UW / 2, y + 24, '#FFFFFF');
+  screenBg(); header('Multiplayer'); S.mp = S.mp || {}; for (const k of ['code', 'name', 'srv']) if (typeof S.mp[k] != 'string') S.mp[k] = '';
+  const two = UW >= 430, x = two ? UW / 2 - 210 : UW / 2 - 100, y = two ? Math.max(32, UH / 2 - 70) : Math.max(32, Math.min(UH / 2 - 60, UH - 260)), cxm = x + 100;
+  textC('Join a friend\'s world', cxm, y, '#FFFFFF');
+  textC('§7Ask your friend for the code from', cxm, y + 14, '#FFFFFF'); textC('§7"Open to Friends" in their pause menu.', cxm, y + 24, '#FFFFFF');
   textField('mpcode', S.mp, 'code', x, y + 40, 200, 20, 'Friend code (e.g. K7QX2M)'); S.mp.code = S.mp.code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
   textField('mpname', S.mp, 'name', x, y + 66, 200, 20, 'Your name: ' + netName()); if (S.mp.name !== undefined && S.mp.name) store.set('mpName', S.mp.name);
   if (button(S.mp.busy ? 'Connecting...' : 'Join', x, y + 92, 200, 20, S.mp.code.length == 6 && !S.mp.busy)) {
     S.mp.busy = 1; S.mp.msg = '';
     netJoin(S.mp.code).then(w => { S.mp.busy = 0; netEnter(w); }).catch(e => { S.mp.busy = 0; S.mp.msg = '§c' + e.message; });
   }
-  if (S.mp.msg) textC(S.mp.msg, UW / 2, y + 118, '#FFFFFF');
-  textC('§8Works over the internet; both players need to be online.', UW / 2, UH - 40, '#FFFFFF');
+  if (S.mp.msg) textC(S.mp.msg, UW / 2, y + 118 + (two ? 0 : 108), '#FFFFFF');
+  // public servers: always the same name, so anyone can find them
+  const sx = two ? UW / 2 + 10 : x, sy = two ? y : y + 132; textC('§eServers', sx + 100, sy, '#FFFFFF');
+  const SV = ['Survival', 'Creative', 'Parkour'], bw = 64;
+  SV.forEach((n, i) => { if (button(n, sx + i * 68, sy + 12, bw, 20, !S.mp.busy)) netServer(n); });
+  textField('mpsrv', S.mp, 'srv', sx, sy + 36, 132, 20, 'Server name'); S.mp.srv = (S.mp.srv || '').replace(/[^A-Za-z0-9 ]/g, '').slice(0, 16);
+  if (button('Join', sx + 136, sy + 36, 64, 20, S.mp.srv.length >= 3 && !S.mp.busy)) netServer(S.mp.srv);
+  if (button('Run a hidden server bot', sx, sy + 60, 200, 20, (S.mp.srv || '').length >= 3 && !S.mp.busy)) netServer(S.mp.srv, true);
+  if (two) textC('§8A server stays online while someone (or a hidden bot tab) is hosting it.', UW / 2, UH - 42, '#FFFFFF');
   if (button('Back', UW / 2 - 100, UH - 28)) go('title');
+}
+
+// ---- servers: a fixed name instead of a random code. Whoever is hosting keeps it alive; a hidden "bot" tab can host it 24/7 ----
+const srvSlug = n => n.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+async function netServer(name, bot) {
+  const slug = srvSlug(name); if (slug.length < 3) return; const code = 'SRV' + slug;
+  S.mp = S.mp || {}; S.mp.busy = 1; S.mp.msg = '§7Looking for ' + name + '...'; NET.server = name;
+  try { if (bot) throw new Error('bot'); const w = await netJoin(code); NET.server = name; S.mp.busy = 0; S.mp.msg = ''; netEnter(w); return; }
+  catch (e) { if (!bot && !/No world found/.test(e.message)) { S.mp.busy = 0; S.mp.msg = '§c' + e.message; return; } }
+  // nobody is hosting it: this browser becomes the server (its world is saved here)
+  S.mp.msg = '§7Starting ' + name + '...'; NET.server = name; NET.bot = !!bot;
+  const id = 'srv_' + slug.toLowerCase(); let meta = S.worlds.find(w => w.id == id);
+  const creative = /CREATIVE/.test(slug);
+  if (!meta) { let h = 7; for (const c of slug) h = Math.imul(h ^ c.charCodeAt(0), 16777619); meta = { id, name: name + ' Server', seed: h >>> 0, mode: creative ? 'creative' : 'survival', diff: 2, cheats: creative, flat: /PARKOUR|FLAT/.test(slug), created: Date.now(), last: Date.now(), gen: 2, server: 1 }; S.worlds.push(meta); store.set('worlds', S.worlds); }
+  openWorld(meta, !store.get('world_' + id, null));
+  for (let i = 0; i < 240 && S.screen != 'game' && S.screen != null; i++) await new Promise(r => setTimeout(r, 250));
+  try { await netHost(code); NET.server = name; S.mp.busy = 0; S.mp.msg = ''; if (bot) botMode(name); }
+  catch (e) { // someone else started it at the same moment: join them instead
+    netStop(); NET.bot = false; if (e && e.type == 'unavailable-id') { quitWorld(); setTimeout(() => netServer(name), 500); } else { S.mp.busy = 0; chat('§cCould not start the server: ' + (e.type || e.message)); }
+  }
+}
+// the bot: hosts the world but has no body, no sound and does not move; keep this tab open on any computer
+function botMode(name) {
+  player.mode = 'spectator'; player.fly = true; player.name = '[server]';
+  SND.play = () => { }; try { SND.stopMusic(); } catch (e) { } S.botName = name; hideHud = true;
+  try { document.title = 'Blockcraft server: ' + name; } catch (e) { }
+  chat('§aServer bot is running "' + name + '". Players join by typing ' + name + ' in Multiplayer. Keep this tab open.');
+}
+function drawBotOverlay() {
+  if (!NET.bot || S.screen != 'game') return;
+  cx2.fillStyle = 'rgba(0,0,0,.65)'; cx2.fillRect(0, 0, UW, 34);
+  textC('§aServer bot: ' + S.botName + ' §7- ' + NET.conns.size + ' player' + (NET.conns.size == 1 ? '' : 's') + ' online - keep this tab open', UW / 2, 6, '#FFFFFF');
+  textC('§8Link: ' + location.origin + location.pathname + '?server=' + encodeURIComponent(S.botName), UW / 2, 18, '#FFFFFF');
+}
+// links like ...?server=Survival join (or start) that server automatically; &bot=1 runs the hidden bot
+function netAutoStart() {
+  try { const q = new URLSearchParams(location.search), n = q.get('server'); if (n) setTimeout(() => netServer(n, q.get('bot') == '1'), 300); } catch (e) { }
 }
