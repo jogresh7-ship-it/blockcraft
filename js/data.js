@@ -87,7 +87,7 @@ const FOOD = { apple: 4, bread: 5, porkchop: 3, cooked_porkchop: 8, beef: 3, coo
 const foodVal = k => k >= ITEM_BASE ? FOOD[keyName(k)] : 0;
 const ARMOR_PTS = { leather: [1, 3, 2, 1, 55], golden: [2, 5, 3, 1, 77], chainmail: [2, 5, 4, 1, 166], iron: [2, 6, 5, 2, 165], diamond: [3, 8, 6, 3, 363], netherite: [3, 8, 6, 3, 407], copper: [2, 4, 3, 1, 121], turtle: [2, 0, 0, 0, 275] };
 function ARMOR(k) {
-  const n = keyName(k) || ''; const m = n.match(/^(leather|golden|chainmail|iron|diamond|netherite|copper|turtle)_(helmet|chestplate|leggings|boots)$/); if (!m) return null;
+  const n = keyName(k) || ''; if (n == 'elytra') return { slot: 1, pts: 0, dur: 432 }; const m = n.match(/^(leather|golden|chainmail|iron|diamond|netherite|copper|turtle)_(helmet|chestplate|leggings|boots)$/); if (!m) return null;
   const slot = ['helmet', 'chestplate', 'leggings', 'boots'].indexOf(m[2]); return { slot, pts: ARMOR_PTS[m[1]][slot], dur: ARMOR_PTS[m[1]][4] * (slot == 1 ? 1.2 : 1) | 0 };
 }
 function attackDamage(k) {

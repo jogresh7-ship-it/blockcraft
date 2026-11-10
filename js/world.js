@@ -11,6 +11,7 @@ class World {
     this.meta = meta; this.seed = meta.seed; this.N = makeNoise(meta.seed);
     this.chunks = new Map(); this.dim = meta.dim || 'overworld'; meta.dimEdits = meta.dimEdits || {}; meta.dimEdits.overworld = (meta.edits && Object.keys(meta.edits).length ? meta.edits : null) || meta.dimEdits.overworld || {}; delete meta.edits; /* an empty `edits` used to wipe the saved changes on load */ this.edits = meta.dimEdits[this.dim] || (meta.dimEdits[this.dim] = {}); this.containers = meta.containers || {}; this.state = meta.state || (meta.state = {});
     if (!meta.gen) meta.gen = meta.created && meta.created < 1794091000000 ? 1 : 2; // worlds created before the realistic-terrain update use the old generator
+    this.g3 = (meta.gen || 1) >= 3;
     if (meta.gen == 1) { this.height = this.heightV1; this.biome = this.biomeV1; this.generate = this.generateV1; this.tree = this.treeV1; }
     this.ids = {}; for (const n of ['stone', 'dirt', 'grass_block', 'snowy_grass_block', 'sand', 'sandstone', 'gravel', 'water', 'lava', 'bedrock', 'deepslate', 'oak_log', 'oak_leaves',
       'birch_log', 'birch_leaves', 'spruce_log', 'spruce_leaves', 'cherry_log', 'cherry_leaves', 'cactus', 'dead_bush', 'short_grass', 'tall_grass', 'fern', 'coal_ore', 'iron_ore', 'copper_ore',
@@ -200,6 +201,7 @@ class World {
     else if (temp > .34) bio = wet > .12 ? 'jungle' : wet < -.22 ? 'badlands' : wet < .02 ? 'desert' : 'savanna';
     else if (temp < -.38) bio = wet > .05 ? 'snowy_taiga' : 'snowy_plains';
     else if (temp < -.16) bio = wet > .2 ? 'old_growth_taiga' : 'taiga';
+    else if (this.g3 && temp < -.07 && wet > 0 && wild > -.1) bio = 'dappled_forest'; // 26.3: poplars in autumn colours, next to the cold biomes
     else if (wet > .3) bio = wild > .2 ? 'dark_forest' : 'forest';
     else if (wet > .12) bio = wild > .35 ? 'cherry' : wild < -.3 ? 'birch' : 'forest';
     else if (wet > -.05) bio = wild > .25 ? 'flower_forest' : 'plains';
@@ -282,7 +284,7 @@ class World {
     }
     const put = (x, y, z, v, rep) => { if (x < 0 || z < 0 || x > 15 || z > 15 || y < 1 || y >= WH) return; const i = lidx(x, y, z); if (rep || d[i] == 0 || (LEAF[d[i]] && !LEAF[v]) || SHAPE[d[i]] == 2) d[i] = v; };
     // ---- trees: origins over the padded area so canopies cross chunk borders ----
-    const density = { forest: .035, flower_forest: .025, birch: .035, dark_forest: .09, taiga: .045, old_growth_taiga: .06, snowy_taiga: .03, jungle: .1, cherry: .03, plains: .0025, meadow: .002, savanna: .008, swamp: .02, mountains: .006, snowy_plains: .0015 };
+    const density = { forest: .035, flower_forest: .025, birch: .035, dark_forest: .09, taiga: .045, old_growth_taiga: .06, snowy_taiga: .03, jungle: .1, cherry: .03, dappled_forest: .04, plains: .0025, meadow: .002, savanna: .008, swamp: .02, mountains: .006, snowy_plains: .0015 };
     for (let a = -P + 1; a < CS + P - 1; a++) for (let b = -P + 1; b < CS + P - 1; b++) {
       const wx = x0 + a, wz = z0 + b, bio = BP(a, b), h = HP(a, b);
       let dn = density[bio] || 0; if (!dn || h < SEA || h > 100) continue;
@@ -312,6 +314,7 @@ class World {
         if (/taiga/.test(bio)) { if (r2 < .12 && patch > -.2) put(lx, h + 1, lz, I.fern); else if (r2 < .16 && X('large_fern')) { put(lx, h + 1, lz, X('large_fern')); put(lx, h + 2, lz, X('large_fern_top')); } else if (r2 < .2) put(lx, h + 1, lz, I.short_grass); else if (r2 < .208) put(lx, h + 1, lz, I.sweet_berry_bush); else if (r2 < .212) put(lx, h + 1, lz, r2 < .21 ? I.brown_mushroom : I.red_mushroom); continue; }
         // biome-specific ground cover: leaf litter under forests, petals in cherry groves, wildflowers in meadows, dry grass in savanna
         if (/forest|birch/.test(bio) && bio != 'flower_forest' && patch < -.3 && r2 < .45 + (-.3 - patch)) { put(lx, h + 1, lz, X('leaf_litter')); continue; }
+        if (bio == 'dappled_forest' && r2 < .05) { put(lx, h + 1, lz, X('red_shrub')); continue; }
         if (bio == 'cherry' && fpatch > -.1 && r2 < .4) { put(lx, h + 1, lz, X('pink_petals')); continue; }
         if ((bio == 'meadow' || bio == 'birch' || bio == 'flower_forest' || bio == 'plains') && fpatch < -.35 && r2 < (bio == 'plains' ? .12 : .35)) { put(lx, h + 1, lz, X('wildflowers')); continue; }
         if (bio == 'savanna' && r2 < .1 && patch > 0) { put(lx, h + 1, lz, X(r2 < .03 ? 'tall_dry_grass' : 'short_dry_grass')); continue; }
@@ -376,6 +379,13 @@ class World {
       for (let k = 0; k < h; k++) for (let a = 0; a < w; a++) for (let b = 0; b < w; b++) put(x + a, y + k, z + b, I.jungle_log, 1);
       blob(x, y + h, z, giant ? 5 : 3, 2, L, .3);
       if (giant) for (let k = Math.floor(h * .5); k < h - 3; k += 4) { const ang = this.N.hash(x, k, z) * 6.28, bx = x + Math.round(Math.cos(ang) * 3), bz = z + Math.round(Math.sin(ang) * 3); put(bx, y + k, bz, I.jungle_log, 1); blob(bx, y + k + 1, bz, 2, 1, L, .3); }
+      return;
+    }
+    if (bio == 'dappled_forest' && X('poplar_log')) { // tall straight poplars, narrow crowns of red, orange or yellow leaves; some have fallen over
+      const W = X('poplar_log'), L = X(['red_poplar_leaves', 'orange_poplar_leaves', 'yellow_poplar_leaves'][Math.floor(r2 * 3) % 3]);
+      if (r < .12) { const dx = r2 < .5 ? 1 : 0, dz = 1 - dx, len = 4 + Math.floor(r2 * 3); for (let k = 0; k < len; k++) put(x + dx * k, y, z + dz * k, W, 1); return; }
+      const h = 8 + Math.floor(r * 5); for (let k = 0; k < h; k++) put(x, y + k, z, W, 1);
+      for (let k = 3; k <= h + 1; k++) { const rad = k > h - 1 ? 0 : k < 5 || k > h - 3 ? 1 : 2; for (let a = -rad; a <= rad; a++) for (let b = -rad; b <= rad; b++) { if (Math.abs(a) + Math.abs(b) > rad + (rad > 1 ? 0 : 1) || (a == 0 && b == 0 && k < h)) continue; if (this.N.hash(x * 3 + a, y + k, z + b) < .12 && (Math.abs(a) == rad || Math.abs(b) == rad)) continue; put(x + a, y + k, z + b, L); } }
       return;
     }
     const kind = bio == 'birch' || ((bio == 'forest' || bio == 'flower_forest') && r < .3) ? 'birch' : bio == 'cherry' ? 'cherry' : 'oak';

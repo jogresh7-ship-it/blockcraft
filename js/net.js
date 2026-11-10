@@ -182,7 +182,7 @@ async function netServer(name, bot) {
   S.mp.msg = '§7Starting ' + name + '...'; NET.server = name; NET.bot = !!bot;
   const id = 'srv_' + slug.toLowerCase(); let meta = S.worlds.find(w => w.id == id);
   const creative = /CREATIVE/.test(slug);
-  if (!meta) { let h = 7; for (const c of slug) h = Math.imul(h ^ c.charCodeAt(0), 16777619); meta = { id, name: name + ' Server', seed: h >>> 0, mode: creative ? 'creative' : 'survival', diff: 2, cheats: creative, flat: /PARKOUR|FLAT/.test(slug), created: Date.now(), last: Date.now(), gen: 2, server: 1 }; S.worlds.push(meta); store.set('worlds', S.worlds); }
+  if (!meta) { let h = 7; for (const c of slug) h = Math.imul(h ^ c.charCodeAt(0), 16777619); meta = { id, name: name + ' Server', seed: h >>> 0, mode: creative ? 'creative' : 'survival', diff: 2, cheats: creative, flat: /PARKOUR|FLAT/.test(slug), created: Date.now(), last: Date.now(), gen: 3, server: 1 }; S.worlds.push(meta); store.set('worlds', S.worlds); }
   openWorld(meta, !store.get('world_' + id, null));
   for (let i = 0; i < 240 && S.screen != 'game' && S.screen != null; i++) await new Promise(r => setTimeout(r, 250));
   try { await netHost(code); NET.server = name; S.mp.busy = 0; S.mp.msg = ''; if (bot) botMode(name); }

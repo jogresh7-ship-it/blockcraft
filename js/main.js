@@ -407,12 +407,20 @@ function updatePlayer(dt) {
   if (active && (keys.ControlLeft || sprintTap) && f > 0 && (P.food > 6 || P.mode != 'survival') && !sneak) P.sprint = true; if (f <= 0 || P.hitH) { P.sprint = false; sprintTap = false; }
   let sp = P.fly ? (P.sprint ? 21.6 : 10.9) : P.sprint ? 5.6 : sneak ? 1.3 : 4.317; if (inWater && !P.fly) sp *= .5; if (eatT > 0) sp *= .3;
   const under = BL[world.get(fx, Math.floor(P.y - .05), fz)]?.n || '', inWeb = world.get(fx, Math.floor(P.y + .2), fz) == B('cobweb') || world.get(fx, Math.floor(P.y + 1.2), fz) == B('cobweb');
+  if (P.sit) { if (active && (keys.Space || keys.ShiftLeft) || P.fly) P.sit = null; else { P.x = P.sit[0]; P.y = P.sit[1]; P.z = P.sit[2]; P.vx = P.vy = P.vz = 0; P.fallStart = null; } }
   const icy = P.ground && /ice$/.test(under); if (P.ground && /^(soul_sand|honey_block)$/.test(under) && !P.fly) sp *= .45; if (inWeb && !P.fly) { sp *= .15; P.vy *= .3; P.fallStart = null; }
   const mx = -Math.sin(P.yaw) * f + Math.cos(P.yaw) * s, mz = -Math.cos(P.yaw) * f - Math.sin(P.yaw) * s, ml = Math.hypot(mx, mz) || 1;
   const tvx = mx / ml * sp * (f || s ? 1 : 0), tvz = mz / ml * sp * (f || s ? 1 : 0);
-  const acc = icy ? 1.2 : P.ground || P.fly || inWater ? 12 : 2.5; P.vx += (tvx - P.vx) * Math.min(1, acc * dt); P.vz += (tvz - P.vz) * Math.min(1, acc * dt);
+  { // elytra gliding (jump while falling with an elytra on) and the swimming pose (sprint underwater)
+    const ely = P.armor[1] && keyName(P.armor[1].k) == 'elytra';
+    if (P.glide && (P.ground || inWater || !ely || P.fly)) P.glide = false;
+    if (ely && !P.glide && !P.ground && !P.fly && !inWater && P.vy < -2 && active && keys.Space && !P.spaceWas) { P.glide = true; SND.play('item/elytra/elytra_loop', .4, 1); }
+    P.spaceWas = active && keys.Space; P.swimPose = inWater && headWater && P.sprint && Math.hypot(P.vx, P.vz) > 1;
+  }
+  const acc = P.glide ? 0 : icy ? 1.2 : P.ground || P.fly || inWater ? 12 : 2.5; P.vx += (tvx - P.vx) * Math.min(1, acc * dt); P.vz += (tvz - P.vz) * Math.min(1, acc * dt);
   if (P.fly) { const up = active && keys.Space ? 1 : 0, dn = active && (keys.ShiftLeft || keys.ShiftRight) ? 1 : 0; P.vy += ((up - dn) * 8 - P.vy) * Math.min(1, 10 * dt); }
   else if (inWater || inLava) { P.vy -= 8 * dt; P.vy *= Math.pow(.2, dt); if (active && keys.Space) P.vy = Math.min(P.vy + 25 * dt, 2.5); if (P.vy < -3) P.vy = -3; }
+  else if (P.glide) { const f = fwd(), sp = Math.hypot(P.vx, P.vy, P.vz); P.vx += f[0] * (6 + Math.max(0, -f[1]) * 20) * dt; P.vz += f[2] * (6 + Math.max(0, -f[1]) * 20) * dt; P.vy += (f[1] * sp * .6 - 2 - P.vy) * Math.min(1, dt * 2); const s2 = Math.hypot(P.vx, P.vz); if (s2 > 33) { P.vx *= 33 / s2; P.vz *= 33 / s2; } P.vx *= Math.pow(.99, dt * 20); P.vz *= Math.pow(.99, dt * 20); P.fallStart = P.y; }
   else { P.vy -= 32 * dt; P.vy *= Math.pow(.98, dt * 20); if (P.vy < -78) P.vy = -78; if (active && keys.Space && P.ground) { P.vy = 9 * Math.sqrt(api.settings.jumpBoost); P.ground = false; P.stats.jumps++; P.exh += P.sprint ? .2 : .05; if (P.sprint) { const fw = fwd(); P.vx -= Math.sin(P.yaw) * 2; P.vz -= Math.cos(P.yaw) * 2; } } }
   const ox = P.x, oy = P.y, oz = P.z;
   if (spect) { P.x += P.vx * dt; P.y += P.vy * dt; P.z += P.vz * dt; P.ground = false; }
@@ -430,6 +438,8 @@ function updatePlayer(dt) {
     // fall damage
     if (!P.ground && !inWater && !P.fly) { if (P.fallStart == null || P.y > P.fallStart) P.fallStart = Math.max(P.fallStart ?? P.y, P.y); }
     if (inWater || P.fly) P.fallStart = null;
+    if (P.ground && P.fallStart != null && /^(slime_block|shelf_mushroom)$/.test(under) && !keys.ShiftLeft && P.fallStart - P.y > .6) { // bouncy blocks (26.3: large shelf mushrooms are bouncy platforms)
+      P.vy = Math.sqrt(2 * 32 * (P.fallStart - P.y)) * (under == 'slime_block' ? .9 : .7); P.ground = false; P.fallStart = P.y; SND.play(under == 'slime_block' ? 'mob/slime/small' : 'step/grass', .6, 1); }
     if (P.ground && P.fallStart != null) { const d = P.fallStart - P.y - 3; if (d > 0 && P.mode == 'survival' && !api.settings.noFallDamage) { hurtPlayer(Math.floor(d), 'hit the ground too hard'); SND.play(d > 4 ? 'fallbig' : 'fallsmall'); } P.fallStart = null; }
   }
   const moved = Math.hypot(P.x - ox, P.z - oz); if (P.fly) P.stats.fly += moved; else P.stats.walk += moved;
@@ -560,6 +570,14 @@ function useItem(hit, tm, h) {
   if (!sneak && player.mode != 'spectator') {
     if (/command_block$/.test(tb)) { if (!(player.mode == 'creative' || world.meta.cheats)) { chat('§cCommand blocks need Creative mode or cheats'); return; } const st = world.state[key] = world.state[key] || {}; S.cmdKey = key; S.cmdEdit = { cmd: st.cmd || '' }; S.contName = prettyName(hit.b); go('cmdblock'); return; }
     if (/^(dispenser|dropper|hopper|crafter)$/.test(tb)) { const n = tb == 'hopper' ? 5 : 9; S.cont = world.containers[key] || (world.containers[key] = { type: 'chest', slots: Array(n).fill(null) }); S.contName = prettyName(hit.b); S.cpos = null; SND.play('ui_click', .4); go('chest'); return; }
+    if (BL[hit.b].bed || tb == 'straw_bed') { // sleep through the night; a normal bed sets your spawn point, a straw bed (26.3) does not and falls apart
+      const t = world.meta.time % 24000; if (world.dim != 'overworld') { explode(hit.x + .5, hit.y + .5, hit.z + .5, 5, 1); return; }
+      if (t < 12500 && !world.meta.rain) { chat('§7You can only sleep at night or during thunderstorms'); return; }
+      if (mobs.some(m => MOBDEF[m.type].hostile && Math.hypot(m.x - player.x, m.y - player.y, m.z - player.z) < 8)) { chat('§7You may not rest now; there are monsters nearby'); return; }
+      if (tb != 'straw_bed') { player.spawn = [hit.x + .5, hit.y + 1, hit.z + .5]; chat('§7Respawn point set'); }
+      S.sleepT = 2.5; world.meta.time += 24000 - t + 1000; world.meta.rain = false; if (tb == 'straw_bed') { world.set(hit.x, hit.y, hit.z, 0); SND.play('dig/grass', 1, 1, pos); }
+      return; }
+    if ((/_cushion$/.test(n) && hit.n[1] == 1) || (/_wool_slab$|_wool_stairs$/.test(tb) && !h)) { player.sit = [hit.x + .5, hit.y + (/slab|stairs/.test(tb) ? .5 : 1), hit.z + .5]; chat('§7Sitting - jump or sneak to stand up'); return; }
     if (tb == 'crafting_table') { S.grid3 = Array(9).fill(null); go('crafting'); return; }
     if (/^(furnace|furnace_lit|smoker|blast_furnace)$/.test(tb)) { S.cont = world.containers[key] || (world.containers[key] = { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 1, cook: 0 }); S.contName = prettyName(hit.b); go('furnace'); return; }
     if (/^(chest|barrel)$/.test(tb) || /shulker_box$|_chest$/.test(tb)) { const ck = tb == 'ender_chest' ? 'ender' : key; S.cont = world.containers[ck] || (world.containers[ck] = { type: 'chest', slots: Array(27).fill(null) }); S.contName = prettyName(hit.b); S.cpos = [hit.x, hit.y, hit.z]; SND.play('chestopen', .5); go('chest'); return; }
@@ -879,11 +897,12 @@ function itemMesh(k) { // returns [mesh, tex] centered at origin, unit size
 function lightAt(x, y, z) { const c = world.chunk(Math.floor(x) >> 4, Math.floor(z) >> 4); if (!c || !c.L || y < 0 || y >= WH) return [1, 0]; const l = c.L[lidx(Math.floor(x) & 15, Math.floor(y), Math.floor(z) & 15)]; return [Math.pow(.82, 15 - (l >> 4)), Math.pow(.82, 15 - (l & 15))]; }
 function renderEntities(sk) {
   const u = PROG.u, t = performance.now() / 1000;
-  const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly, swingT: typeof swing != 'undefined' ? swing : 0, sprinting: P.sprint } : null;
+  const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly, swingT: typeof swing != 'undefined' ? swing : 0, sprinting: P.sprint, sitting: !!P.sit, swim: P.swimPose, glide: P.glide, crawl: P.crawlPose } : null;
   for (const m of [...mobs, ...netAvatarsFor(), ...(pobj ? [pobj] : [])]) {
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
-    const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; const parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
+    const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; let parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
     const sw = Math.sin(m.walk) * .7 * Math.min(1, Math.hypot(m.vx, m.vz));
+    if (m.swim || m.glide) base = M4.chain(base, M4.trans(0, 12, 0), M4.rx(-Math.PI / 2 + (m.glide ? clamp(-(m.lookP || 0), -.6, .9) * .6 : 0)), M4.trans(0, -12, 0));
     const fl = m.fuse > 0 && Math.floor(m.fuse * 8) % 2;
     if (m.fuse > 0) { const s = 1 + (1.5 - m.fuse) * .12; M4.mul; }
     for (const p of parts) {
@@ -897,7 +916,7 @@ function renderEntities(sk) {
       else if (p.tent !== undefined) ax = Math.sin(t * 2 + p.tent) * .25;
       let rzv = p.rz || 0;
       if (p.head && m.eatT > 0) ax = Math.min(1, Math.min(m.eatT, 2 - m.eatT) * 3) * 1.1 + (m.eatT > .4 && m.eatT < 1.6 ? Math.sin(t * 25) * .08 : 0); // grazing
-      if (p.arm !== undefined && !p.fwd && !(m.atkT > 0)) rzv += (p.arm ? -1 : 1) * (Math.cos(t * 1.8 + m.x) * .05 + .05); // idle arm sway
+      if (p.arm !== undefined && !p.fwd && !(m.atkT > 0)) rzv += (p.pos[0] < 0 ? -1 : 1) * (Math.cos(t * 1.8 + m.x) * .05 + .06); // idle arm sway
       if (p.wing) rzv += p.wing * (m.ground === false || m.vy < -1 ? .6 + Math.sin(t * 28) * .6 : 0); // chickens flap while falling
       if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
@@ -906,8 +925,11 @@ function renderEntities(sk) {
       if (m.type == 'player' || D0.humanPose) { // the player's pose: sneaking leans the body forward, arms forward, legs back
         if (m.sneak) {
           if (p.leg !== undefined) off = [0, -.2, 4];
-          else { off = [0, -3.2, 0]; if (p.arm !== undefined) ax += .4; else if (!p.head) { pvv = [0, 24, 0]; ax -= .5; } }
+          else { off = [0, -3.2, 0]; if (p.arm !== undefined) { pvv = [p.pos[0], 24, 0]; ax -= .5; } else if (!p.head) { pvv = [0, 24, 0]; ax -= .5; } }
         }
+        if (m.sitting && p.leg !== undefined) ax = 1.45;
+        if (m.swim) { if (p.arm !== undefined) { ax = Math.PI - Math.abs(Math.sin(t * 2.5)) * 1.7; rzv += (p.pos[0] < 0 ? -1 : 1) * Math.abs(Math.sin(t * 2.5)) * .6; } if (p.leg !== undefined) ax = Math.sin(t * 8 + (p.leg ? Math.PI : 0)) * .4; if (p.head) ax = 1.1; }
+        if (m.glide) { if (p.arm !== undefined) { ax = .1; rzv += p.pos[0] < 0 ? -.45 : .45; } if (p.leg !== undefined) { ax = 0; rzv += p.pos[0] < 0 ? -.12 : .12; } if (p.head) ax = 1.1; }
         if (p.arm !== undefined && m.swingT > 0 && p.hand) ax += Math.sin(m.swingT * Math.PI) * 1.4; // punching / using an item
         if (p.arm !== undefined && m.sprinting) ax *= 1.25;
       }
@@ -1040,6 +1062,7 @@ function drawHUD(dt) {
   } else if (opts.fps) text(fps + ' fps', 2, 2, '#FFFFFF');
   if (NET.PV && S.screen == 'game') netDrawNames(NET.PV);
   drawBotOverlay();
+  if (S.sleepT > 0) { S.sleepT -= 1 / 60; const a = Math.min(1, Math.min(S.sleepT, 2.5 - S.sleepT) * 1.5); cx2.fillStyle = 'rgba(8,8,20,' + a + ')'; cx2.fillRect(0, 0, UW, UH); if (a > .6) textC('Good morning!', UW / 2, UH / 2 - 4, '#FFFFFF'); }
   if (!debug) modEmit('hud', cx2, UW, UH, dt); // mods can draw on the HUD
   if (S.screen == 'game' && !locked && !noLock && !PAD.on) { cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(0, 0, UW, UH); textC('Click to continue playing', UW / 2, UH / 2 - 4, '#FFFFFF'); }
 }

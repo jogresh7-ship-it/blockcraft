@@ -166,7 +166,7 @@ function scrCreate() {
 function seedOf(s) { if (!s) return (Math.random() * 2 ** 31) | 0; if (/^-?\d+$/.test(s)) return parseInt(s) | 0; let h = 0; for (const ch of s) h = (Math.imul(31, h) + ch.charCodeAt(0)) | 0; return h; }
 function createWorld(c) {
   const id = Date.now().toString(36);
-  const meta = { id, name: c.name || 'New World', seed: seedOf(c.seed), mode: c.mode, diff: c.mode == 'hardcore' ? 3 : c.diff, cheats: c.cheats || c.mode == 'creative', flat: c.flat, created: Date.now(), last: Date.now(), gen: 2 };
+  const meta = { id, name: c.name || 'New World', seed: seedOf(c.seed), mode: c.mode, diff: c.mode == 'hardcore' ? 3 : c.diff, cheats: c.cheats || c.mode == 'creative', flat: c.flat, created: Date.now(), last: Date.now(), gen: 3 };
   if (c.kit) meta.kit = c.kit; if (c.nether) meta.startNether = 1;
   S.worlds.push(meta); store.set('worlds', S.worlds); openWorld(meta, true);
 }
