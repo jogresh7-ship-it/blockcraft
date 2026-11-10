@@ -5,6 +5,14 @@ const store = {
   set(k, v) { try { localStorage.setItem('blockcraft_' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   del(k) { try { localStorage.removeItem('blockcraft_' + k); } catch (e) { } },
 };
+// ---- full reset (Nov 2026): every saved world, setting, imported pack and mod is wiped once for every player ----
+const DATA_VERSION = 2;
+try { if (+localStorage.getItem('blockcraft_dataVersion') !== DATA_VERSION) {
+  for (const k of Object.keys(localStorage)) if (k.startsWith('blockcraft_')) localStorage.removeItem(k);
+  localStorage.setItem('blockcraft_dataVersion', String(DATA_VERSION)); window.DATA_RESET = 1;
+  try { indexedDB.deleteDatabase('blockcraft'); } catch (e) { }
+  if (indexedDB.databases) indexedDB.databases().then(l => l.forEach(d => d.name && indexedDB.deleteDatabase(d.name))).catch(() => { });
+} } catch (e) { }
 const opts = Object.assign({ fov: 70, rd: LOW_END ? 4 : 6, mres: LOW_END && !IS_MOBILE ? 1 : 1.5, autoPerf: true, sens: .5, gui: 0, bob: false, clouds: true, fps: false, master: 1, music: .5, blocks: 1, mobs: 1, ambient: .7, ui: 1, smooth: true, font: 'improved' }, store.get('options2', {}));
 function saveOpts() { store.set('options2', opts); Object.assign(SND.vol, { master: opts.master, music: opts.music, blocks: opts.blocks, mobs: opts.mobs, ambient: opts.ambient, ui: opts.ui }); SND.setMusicVol(); }
 const SPLASHES = ['Faithful to the original!', 'Now with sound packs!', 'Made in a browser!', '32x textures!', 'Punch a tree!', 'Infinite terrain!', 'Also try the real thing!', 'Voxel-tastic!', 'WebGL2!', 'Pixel perfect!', 'Bitmap font included!', 'Cubes all the way down!', 'Don\'t dig straight down!', 'Mind the lava!', '545 blocks!', '677 items!', 'Sheep included!', 'Moo!', 'Oink!', 'Ambient occlusion!'];

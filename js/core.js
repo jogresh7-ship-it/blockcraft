@@ -90,10 +90,15 @@ const MAXSTACK = k => { const n = keyName(k) || ''; return /(_pickaxe|_axe|_shov
 
 // ---------- shader packs (ports of the look of popular Java shader packs): sun strength, shade strength, saturation, contrast, shade colour, sunlight colour ----------
 const SHADER_PACKS = [null,
-  // sp2: vignette, fog tint, glow ; grade: colour multiplier ; fogT: fog colour it leans to
-  { name: 'Complementary', sp: [.78, .45, 1.30, 1.0], sp2: [.25, .15, .2, 0], shade: [.30, .36, .50], warm: [1.05, .98, .88], grade: [1, 1, 1], fogT: [.62, .74, .92] },
-  { name: 'Bliss', sp: [.95, .30, 1.75, 1.12], sp2: [.55, .45, .9, 0], shade: [.20, .26, .70], warm: [1.15, 1.0, .82], grade: [1.0, 1.02, 1.08], fogT: [.70, .62, .95] },
-  { name: 'AstraLex', sp: [.85, .55, 1.05, 1.35], sp2: [1.1, .55, .5, 0], shade: [.12, .42, .48], warm: [1.25, .90, .62], grade: [1.08, .98, .86], fogT: [.95, .72, .45] }];
+  // values read from each pack's own code. sp: [exposure, -, saturation, Lottes contrast a] sp2: [vignette, fog tint, bloom, Lottes shoulder d]
+  // Complementary r5.9.3 lib/colors/lightAndAmbientColors.glsl: noon light (0.65,0.55,0.375)*2.05, sunset pow(0.64,0.45,0.3)^1.5*5, night 0.9*(0.15,0.14,0.20); tonemap: Lottes (composite5 DoCompTonemap)
+  { name: 'Complementary', tm: 0, sp: [.72, 0, 1.25, 1.1], sp2: [.2, .15, .15, 1.0], warm: [1.33, 1.13, .77], set: [2.56, 1.51, .82], night: [.135, .126, .18], shade: [.42, .53, .72], torch: [1.0, .55, .25], fogT: [.62, .74, .92] },
+  // Photon v1.4: SUN 1.00 (white, atmosphere-coloured), MOON (0.75,0.83,1.00), BLOCKLIGHT (1.00,0.75,0.63), SKYLIGHT_I 1.00; tonemap_lottes a=1.5 d=0.91
+  { name: 'Photon', tm: 0, sp: [.85, 0, 1.15, 1.5], sp2: [.1, .1, .2, .91], warm: [1.25, 1.18, 1.05], set: [2.2, 1.2, .55], night: [.09, .1, .14], shade: [.32, .45, .72], torch: [1.0, .75, .63], fogT: [.65, .78, 1.0] },
+  // Bliss v2.1.2: Sun_temp 6300K, Moon_temp 15000K, TORCH (1.0,0.75,0.65), AmbientLight 1.0, TONEMAP ToneMap_AgX_minimal
+  { name: 'Bliss', tm: 1, sp: [1.1, 0, 1.2, 1.0], sp2: [.25, .35, .35, 1.0], warm: [1.0, .94, .88], set: [1.0, .62, .38], night: [.07, .09, .14], shade: [.36, .48, .78], torch: [1.0, .75, .65], fogT: [.72, .66, .95] },
+  // AstraLex V93: LIGHT_D (180,172,164)*1.40, LIGHT_E (236,188,132)*1.05, LIGHT_N (156,192,240)*1.20 (night x0.15), AMBIENT_D (156,188,228)*0.40, BLOCKLIGHT (224,172,136), BLOOM 0.5, Lottes
+  { name: 'AstraLex', tm: 0, sp: [.9, 0, 1.1, 1.35], sp2: [.9, .45, .5, .95], warm: [.99, .94, .9], set: [.97, .77, .54], night: [.09, .11, .14], shade: [.24, .29, .35], torch: [.88, .67, .53], fogT: [.95, .74, .5] }];
 // ---------- WebGL ----------
 let gl, PROG, TEXS = {};
 const VS = `#version 300 es
@@ -107,21 +112,32 @@ void main(){ vec4 w = uM*vec4(aPos,1.0); vec3 L = aL; if (L.x < 0.0) { L.x = -L.
 const FS = `#version 300 es
 precision mediump float;
 in vec2 vUv; in vec3 vL; in vec3 vT; in vec3 vRel;
-uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint; uniform vec4 uSP, uSP2; uniform vec3 uShade, uWarm, uFogT, uGrade; uniform vec2 uRes;
+uniform sampler2D uTex; uniform float uDay, uAlphaTest, uFogN, uFogF, uAlpha, uFull, uMinL, uShaderF, uSunset; uniform vec3 uFog; uniform vec4 uTint; uniform vec4 uSP, uSP2; uniform vec3 uShade, uWarm, uFogT, uGrade, uSetC, uNightC, uTorch; uniform vec2 uRes; uniform float uTM;
 out vec4 o;
 void main(){ float vDist = length(vRel); vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float l = max(vL.y*uDay, vL.z); l = mix(max(l,uMinL), 1.0, uFull);
   vec3 col = min(c.rgb * vT, vec3(1.0)) * vL.x * l; col = mix(col, uTint.rgb, uTint.a);
   float f = clamp((vDist-uFogN)/(uFogF-uFogN),0.0,1.0);
   if (uShaderF > 0.5 && uFull < 0.5) { // Complementary-style lighting: warm sun, orange torchlight, cool blue shade, filmic curve, richer colour
-    vec3 base = min(c.rgb * vT, vec3(1.0)) * vL.x; float sky = vL.y*uDay, blk = vL.z;
-    vec3 sun = mix(uWarm, vec3(1.25,0.75,0.45), uSunset) * sky, amb = uShade * max(vL.y*max(uDay,0.25), uMinL*1.4), torch = vec3(1.25,0.78,0.45) * blk*blk;
-    col = base * (sun * uSP.x + amb * uSP.y + torch * 0.9);
-    col = mix(col, uTint.rgb, uTint.a);
-    col = col * (2.51*col + 0.03) / (col * (2.43*col + 0.59) + 0.14); // ACES filmic
-    float g = dot(col, vec3(0.299,0.587,0.114)); col = clamp(mix(vec3(g), col, uSP.z), 0.0, 1.0); col = clamp((col - 0.5) * uSP.w + 0.5, 0.0, 1.0);
-    col *= uGrade; // the pack's colour grade
-    float lum = dot(col, vec3(0.299,0.587,0.114)); col += max(lum - 0.7, 0.0) * uSP2.z; // soft glow on bright things
+    // the pack's own pipeline: linear colour x (its sun/sunset/night light + its ambient + its block light), its exposure, its tone map
+    vec3 base = pow(min(c.rgb * vT, vec3(1.0)), vec3(2.2)) * vL.x; float sky = vL.y, blk = vL.z;
+    vec3 light = mix(mix(uNightC, uWarm, uDay), uSetC, uSunset * uDay);
+    vec3 amb = uShade * mix(0.35, 1.0, uDay);
+    vec3 hdr = base * (light * sky * sky + amb * max(sky, uMinL * 2.0) + uTorch * pow(blk, 3.0) * 1.6) * uSP.x;
+    hdr = mix(hdr, uTint.rgb, uTint.a);
+    if (uTM < 0.5) { // Lottes 2016 (Complementary's DoCompTonemap / Photon's tonemap_lottes)
+      vec3 ta = vec3(uSP.w), td = vec3(uSP2.w), hm = vec3(8.0), mi = vec3(0.26), mo = vec3(0.32);
+      vec3 tb = (-pow(mi, ta) + pow(hm, ta) * mo) / ((pow(hm, ta * td) - pow(mi, ta * td)) * mo);
+      vec3 tc = (pow(hm, ta * td) * pow(mi, ta) - pow(hm, ta) * pow(mi, ta * td) * mo) / ((pow(hm, ta * td) - pow(mi, ta * td)) * mo);
+      col = pow(hdr, ta) / (pow(hdr, ta * td) * tb + tc); col = pow(max(col, vec3(0.0)), vec3(1.0 / 2.2));
+    } else { // AgX minimal (Bliss)
+      mat3 ins = mat3(0.842479062253094, 0.0423282422610123, 0.0423756549057051, 0.0784335999999992, 0.878468636469772, 0.0784336, 0.0792237451477643, 0.0791661274605434, 0.879142973793104);
+      mat3 outs = mat3(1.19687900512017, -0.0528968517574562, -0.0529716355144438, -0.0980208811401368, 1.15190312990417, -0.0980434501171241, -0.0990297440797205, -0.0989611768448433, 1.15107367264116);
+      vec3 x = ins * max(hdr, vec3(1e-6)); x = (clamp(log2(x), -12.47393, 4.026069) + 12.47393) / 16.5;
+      vec3 x2 = x * x, x4 = x2 * x2; x = 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
+      float lu = dot(x, vec3(0.2126, 0.7152, 0.0722)); x = lu + 1.25 * (x - lu); col = outs * x; }
+    float g = dot(col, vec3(0.299,0.587,0.114)); col = clamp(mix(vec3(g), col, uSP.z), 0.0, 1.0);
+    float lum = dot(col, vec3(0.299,0.587,0.114)); col += max(lum - 0.75, 0.0) * uSP2.z; // bloom
     vec2 sc = gl_FragCoord.xy / uRes - 0.5; col *= 1.0 - dot(sc, sc) * uSP2.x; // vignette
     f = f*f*(3.0-2.0*f); }
   vec3 fc = uShaderF > 0.5 && uFull < 0.5 ? mix(uFog, uFogT, uSP2.y) : uFog;
@@ -135,7 +151,7 @@ function initGL(canvas) {
   gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aUv'); gl.bindAttribLocation(p, 2, 'aL'); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
   PROG = { p, u: {} };
-  for (const n of ['uSP2', 'uFogT', 'uGrade', 'uRes', 'uSP', 'uShade', 'uWarm', 'uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
+  for (const n of ['uSetC', 'uNightC', 'uTorch', 'uTM', 'uSP2', 'uFogT', 'uGrade', 'uRes', 'uSP', 'uShade', 'uWarm', 'uShaderF', 'uShader', 'uTime', 'uSunset', 'uPV', 'uM', 'uFrames', 'uFrame', 'uTex', 'uDay', 'uAlphaTest', 'uFogN', 'uFogF', 'uAlpha', 'uFull', 'uFog', 'uTint', 'uCam', 'uMinL']) PROG.u[n] = gl.getUniformLocation(p, n);
   gl.useProgram(p); gl.uniform1f(PROG.u.uMinL, .09);
   try { buildBiomeTiles(); } catch (e) { console.warn('biome tiles', e); }
   gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

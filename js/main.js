@@ -959,7 +959,7 @@ function render(dt) {
   }
   gl.depthMask(true);
   gl.uniform1f(u.uFogN, fogN); gl.uniform1f(u.uFogF, fogF); gl.uniform1f(u.uDay, sk.day);
-  { const tt = world.meta.time % 24000, ss = Math.max(0, 1 - Math.min(Math.abs(tt - 12500), Math.abs(tt - 23500), Math.abs(tt + 500)) / 1300); const SP = SHADER_PACKS[+opts.shaders || 0]; gl.uniform1f(u.uShader, SP ? 1 : 0); gl.uniform1f(u.uShaderF, SP ? 1 : 0); if (SP) { gl.uniform4f(u.uSP2, ...SP.sp2); gl.uniform3f(u.uFogT, ...SP.fogT); gl.uniform3f(u.uGrade, ...SP.grade); gl.uniform2f(u.uRes, glc.width, glc.height); gl.uniform4f(u.uSP, ...SP.sp); gl.uniform3f(u.uShade, ...SP.shade); gl.uniform3f(u.uWarm, ...SP.warm); } gl.uniform1f(u.uTime, performance.now() / 1000 % 1000); gl.uniform1f(u.uSunset, ss); }
+  { const tt = world.meta.time % 24000, ss = Math.max(0, 1 - Math.min(Math.abs(tt - 12500), Math.abs(tt - 23500), Math.abs(tt + 500)) / 1300); const SP = SHADER_PACKS[+opts.shaders || 0]; gl.uniform1f(u.uShader, SP ? 1 : 0); gl.uniform1f(u.uShaderF, SP ? 1 : 0); if (SP) { gl.uniform4f(u.uSP2, ...SP.sp2); gl.uniform3f(u.uFogT, ...SP.fogT); gl.uniform3f(u.uSetC, ...SP.set); gl.uniform3f(u.uNightC, ...SP.night); gl.uniform3f(u.uTorch, ...SP.torch); gl.uniform1f(u.uTM, SP.tm); gl.uniform2f(u.uRes, glc.width, glc.height); gl.uniform4f(u.uSP, ...SP.sp); gl.uniform3f(u.uShade, ...SP.shade); gl.uniform3f(u.uWarm, ...SP.warm); } gl.uniform1f(u.uTime, performance.now() / 1000 % 1000); gl.uniform1f(u.uSunset, ss); }
   // chunks
   const f = fwd(), vis = [];
   for (const c of world.chunks.values()) {
