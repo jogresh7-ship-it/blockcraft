@@ -163,7 +163,7 @@ function handPose() { const P = player, n0 = held() ? keyName(held().k) : '', n 
 // ---- HUD bits: effects, totem pop, spyglass, compass/clock read-outs ----
 function drawItemHud() {
   const P = player; if (!P) return;
-  drawScreenEffects();
+  drawScreenEffects(); drawTitles(1 / 60);
   if (P.spy && IMG.misc_spyglass) drawScope(); else if (P.spy) { const r = Math.min(UW, UH) * .42, cx = UW / 2, cy = UH / 2; cx2.save(); cx2.fillStyle = '#000'; cx2.beginPath(); cx2.rect(0, 0, UW, UH); cx2.arc(cx, cy, r, 0, 6.283, true); cx2.fill(); cx2.strokeStyle = 'rgba(60,40,20,.9)'; cx2.lineWidth = 4; cx2.beginPath(); cx2.arc(cx, cy, r, 0, 6.283); cx2.stroke(); cx2.restore(); }
   let y = 4; for (const n in P.eff || {}) { const e = P.eff[n]; const s = Math.ceil(e.t), lbl = (EFF_NAMES[n] || n) + (e.a ? ' ' + ['', 'II', 'III', 'IV', 'V', 'VI'][e.a] : '') + ' ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), w = textW(lbl) + 16;
     cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(UW - w - 4, y, w, 12); cx2.fillStyle = EFF_COL[n] || '#fff'; cx2.fillRect(UW - w - 1, y + 3, 7, 7); text(lbl, UW - w + 10, y + 2, e.t < 10 && (performance.now() / 250 | 0) % 2 ? '#AAAAAA' : '#FFFFFF', false); y += 14; }
@@ -258,4 +258,37 @@ function renderShadows() {
   const A = []; for (const m of mobs) { if (m.dead) continue; const d = MOBDEF[m.type]; if (!d || d.fly) continue; const gy = Math.floor(m.y), r = Math.min(3, m.r * 1.6 || .5); if (!SOLID[world.get(Math.floor(m.x), gy - 1, Math.floor(m.z))] && !SOLID[world.get(Math.floor(m.x), gy, Math.floor(m.z))]) continue; const y = (SOLID[world.get(Math.floor(m.x), gy, Math.floor(m.z))] ? gy + 1 : gy) + .015, a = Math.max(0, 1 - (m.y - y) / 3) * .55;
     pushQuad(A, [[m.x - r, y, m.z - r], [m.x + r, y, m.z - r], [m.x + r, y, m.z + r], [m.x - r, y, m.z + r]], [[0, 0], [1, 0], [1, 1], [0, 1]], [a, 0, 0]); }
   if (!A.length) return; gl.enable(gl.BLEND); gl.depthMask(false); gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA); drawMesh(dynMesh('shadows', A), 'misc_shadow', { alphaTest: 0, full: 1 }); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true); gl.disable(gl.BLEND);
+}
+// ---------- /title and /title actionbar on screen (fade in, hold, fade out like Java) ----------
+function drawTitles(dt) {
+  const T = S.title; if (T) { T.t -= dt; const a = Math.min(1, (3.5 - T.t) * 4, T.t); if (T.t <= 0) S.title = null; else { cx2.save(); cx2.globalAlpha = Math.max(0, a); cx2.translate(UW / 2, UH / 2 - 30); cx2.scale(4, 4); textC(T.text, 0, -4, '#FFFFFF'); cx2.restore(); if (T.sub) { cx2.save(); cx2.globalAlpha = Math.max(0, a); cx2.translate(UW / 2, UH / 2 + 4); cx2.scale(2, 2); textC(T.sub, 0, -4, '#FFFFFF'); cx2.restore(); } } }
+  const B = S.actionbar; if (B) { B.t -= dt; if (B.t <= 0) S.actionbar = null; else { cx2.globalAlpha = Math.min(1, B.t); textC(B.text, UW / 2, UH - 68, '#FFFFFF'); cx2.globalAlpha = 1; } }
+}
+// ---------- map triggers: command blocks that fire when you walk up to them (imported maps), once per visit ----------
+function mapTriggers(dt) {
+  if (!world.meta.map) return; const P = player; mapTriggers.near = mapTriggers.near || new Set();
+  for (const k in world.state) { const st = world.state[k]; if (!st.trig || !st.cmd) continue; const [x, y, z] = k.split(',').map(Number);
+    const inside = Math.abs(P.x - x - .5) < 2.5 && Math.abs(P.z - z - .5) < 2.5 && P.y - y > -1 && P.y - y < 4;
+    if (inside && !mapTriggers.near.has(k)) { mapTriggers.near.add(k); runCommandBlock(st.cmd, x, y, z); } else if (!inside) mapTriggers.near.delete(k); }
+}
+// ---------- dispensers: when powered, shoot the first thing inside (arrows, snowballs, eggs, potions, fire charges, fireworks, tridents) or drop it ----------
+function dispense(x, y, z, dropper) {
+  const c = world.containers[x + ',' + y + ',' + z]; if (!c) { SND.play('random/click', .5, 1.2, [x, y, z]); return; }
+  const idx = c.slots.map((s, i) => s ? i : -1).filter(i => i >= 0); if (!idx.length) { SND.play('random/click', .5, 1.2, [x, y, z]); return; }
+  const i = idx[Math.random() * idx.length | 0], s = c.slots[i], n = keyName(s.k), st = world.state[x + ',' + y + ',' + z] || {};
+  const D = { north: [0, 0, -1], south: [0, 0, 1], east: [1, 0, 0], west: [-1, 0, 0], up: [0, 1, 0], down: [0, -1, 0] }[st.fd] || [0, 0, -1];
+  const ox = x + .5 + D[0] * .7, oy = y + .5 + D[1] * .7, oz = z + .5 + D[2] * .7, take = () => { s.c--; if (!s.c) c.slots[i] = null; };
+  const shoot = (k, sp, o = {}) => { take(); arrows.push(Object.assign({ x: ox, y: oy, z: oz, vx: D[0] * sp + (Math.random() - .5), vy: D[1] * sp + 1.5, vz: D[2] * sp + (Math.random() - .5), life: 20, k: s.k, grav: 14, fromDispenser: 1 }, o)); SND.play('random/bow', .8, 1.2, [x, y, z]); };
+  if (!dropper) {
+    if (/^(arrow|tipped_arrow|spectral_arrow)$/.test(n)) return shoot(s.k, 22, { grav: 20, dmg: 4, onHit: POTK[s.k] ? (m, X, Y, Z) => { if (m) { hurtMob(m, 4, 0, 0); mobPotion(m, POTK[s.k], .125); } } : null });
+    if (n == 'snowball' || n == 'egg') return shoot(s.k, 20, { onHit: (m, X, Y, Z) => { if (m) hurtMob(m, .01, 0, 0); if (n == 'egg' && Math.random() < .125) spawnMob('chicken', X, Y, Z); } });
+    if (n == 'splash_potion' || n == 'lingering_potion') { const PT = POTK[s.k]; if (PT) return shoot(s.k, 10, { onHit: (m, X, Y, Z) => potionSplash(PT, X, Y, Z, n == 'lingering_potion') }); }
+    if (n == 'fire_charge') { take(); arrows.push({ x: ox, y: oy, z: oz, vx: D[0] * 14, vy: D[1] * 14, vz: D[2] * 14, life: 6, fire: 1, fromDispenser: 1 }); SND.play('mob/ghast/fireball4', .8, 1, [x, y, z]); return; }
+    if (n == 'firework_rocket') { take(); rockets.push({ x: ox, y: oy, z: oz, t: 1.4 }); SND.play('fireworks/launch1', 1, 1, [x, y, z]); return; }
+    if (n == 'trident') return shoot(s.k, 22, { grav: 10, onHit: (m, X, Y, Z) => { if (m) hurtMob(m, 8, 0, 0); dropItem(s.k, 1, X, Y + .2, Z); } });
+    if (n == 'wind_charge') return shoot(s.k, 24, { grav: 0, onHit: (m, X, Y, Z) => windBurst(X, Y, Z) });
+    if (n == 'tnt') { take(); tnts.push({ x: ox, y: oy - .5, z: oz, vx: D[0] * 2, vy: 2, vz: D[2] * 2, r: .49, h: .98, fuse: 4 }); SND.play('fuse', 1, 1, [x, y, z]); return; }
+    if (n == 'water_bucket' || n == 'lava_bucket') { const tx = Math.floor(ox + D[0] * .4), ty = Math.floor(oy + D[1] * .4), tz = Math.floor(oz + D[2] * .4); if (!world.get(tx, ty, tz)) { world.set(tx, ty, tz, BYNAME[n == 'water_bucket' ? 'water' : 'lava']); s.k = itemKey('item:bucket'); SND.play('random/splash', .5, 1, [x, y, z]); } return; }
+  }
+  take(); dropItem(s.k, 1, ox, oy - .2, oz); SND.play('random/click', .5, 1, [x, y, z]);
 }

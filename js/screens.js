@@ -549,10 +549,15 @@ function scrChat() {
     if (parts.length > 1 && CMD_ARGS[parts[0]] && !last && opts.length) text('§7What do you want? ' + opts.join(', '), 4, UH - 26 - opts.length * 12 - 12, '#FFFF55');
     if (opts.length) { if (keysPressed.includes('Tab')) S.chat.s = '/' + [...parts.slice(0, -1), opts[0]].join(' ') + ' '; cx2.fillStyle = 'rgba(0,0,0,.8)'; cx2.fillRect(4, UH - 16 - opts.length * 12, 120, opts.length * 12); opts.forEach((o, i) => { text((parts.length == 1 ? '/' : '') + o, 6, UH - 26 - i * 12, i ? '#AAAAAA' : '#FFFF55'); if (mouse.click && hover(4, UH - 28 - i * 12, 120, 12)) S.chat.s = '/' + [...parts.slice(0, -1), o].join(' ') + ' '; }); } }
 }
-const CMDS = ['nether', 'gamemode', 'time', 'weather', 'tp', 'give', 'kill', 'summon', 'seed', 'clear', 'effect', 'difficulty', 'spawnpoint', 'help', 'say', 'xp', 'fill', 'setblock'];
+const CMDS = ['title', 'tellraw', 'particle', 'playsound', 'execute', 'msg', 'gamerule', 'heal', 'nether', 'gamemode', 'time', 'weather', 'tp', 'give', 'kill', 'summon', 'seed', 'clear', 'effect', 'difficulty', 'spawnpoint', 'help', 'say', 'xp', 'fill', 'setblock'];
 const CMD_ARGS = { weather: [['clear', 'rain', 'thunder']], time: [['set', 'add'], ['day', 'noon', 'night', 'midnight', '0', '6000', '12000', '18000']], gamemode: [['survival', 'creative', 'spectator', 'adventure']], difficulty: [['peaceful', 'easy', 'normal', 'hard']],
   summon: [() => Object.keys(MOBDEF)], give: [() => ['@s'], () => Object.keys(typeof BYNAME == 'object' ? BYNAME : {})], effect: [['give', 'clear'], ['@s'], () => Object.keys(EFF_NAMES)], kill: [['@s', '@e']], clear: [['@s']], tp: [['~', '@s']] };
+// "text", {"text":"..","color":".."} or [..] -> plain text with colour codes (for /title and /tellraw)
+function jsonText(t) { t = (t || '').trim(); const COL = { black: '0', dark_blue: '1', dark_green: '2', dark_aqua: '3', dark_red: '4', dark_purple: '5', gold: '6', gray: '7', dark_gray: '8', blue: '9', green: 'a', aqua: 'b', red: 'c', light_purple: 'd', yellow: 'e', white: 'f' };
+  const flat = j => typeof j == 'string' ? j : Array.isArray(j) ? j.map(flat).join('') : j && typeof j == 'object' ? (j.color && COL[j.color] ? '§' + COL[j.color] : '') + (j.text ?? j.translate ?? (j.selector ? player.name : '') ?? '') + (j.extra ? flat(j.extra) : '') : String(j);
+  if (/^[\[{"]/.test(t)) { try { return flat(JSON.parse(t)); } catch (e) { } } return t; }
 function runCommand(s) {
+  s = String(s).trim().replace(/^\//, ''); { const m = s.match(/^execute\b.*?\brun\s+(.*)$/); if (m) s = m[1]; } // /execute ... run <command>
   const a = s.split(/\s+/), c = a[0]; const ok = world.meta.cheats || world.meta.mode == 'creative';
   if (MODS.cmds[c]) { try { MODS.cmds[c].fn(a.slice(1)); } catch (e) { chat('§c' + e.message); } return; }
   if (!ok && !['help', 'seed', 'say'].includes(c)) return chat('§cCommands are not allowed in this world');
@@ -565,18 +570,31 @@ function runCommand(s) {
     case 'weather': world.meta.rain = a[1] == 'rain' || a[1] == 'thunder'; world.meta.thunder = a[1] == 'thunder'; world.meta.weatherT = 300 + Math.random() * 600; chat('Changing the weather to ' + (a[1] || 'clear')); SND.setRain(world.meta.rain); break;
     case 'tp': { const x = num(a[1], player.x), y = num(a[2], player.y), z = num(a[3], player.z); if ([x, y, z].some(isNaN)) return chat('§cUsage: /tp x y z'); player.x = x; player.y = y; player.z = z; player.vy = 0; chat(`Teleported ${player.name} to ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`); break; }
     case 'give': { const n = (a[1] || '').replace('minecraft:', ''), k = itemKey(n) || itemKey('item:' + n); if (!k) return chat('§cUnknown item: ' + n); const cnt = parseInt(a[2]) || 1; const l = giveItem(k, cnt); if (l) dropItem(k, l); chat(`Gave ${cnt} [${prettyName(k)}] to ${player.name}`); break; }
-    case 'kill': hurtPlayer(1000, 'fell out of the world'.replace('fell out of the world', 'was killed')); break;
+    case 'kill': { const sel = a[1] || '@s', tm = sel.match(/type=(?:minecraft:)?([a-z_]+)/); if (/^@e/.test(sel)) { let n = 0; for (const m of mobs) if (!tm || m.type == tm[1]) { m.hp = 0; m.dead = 1; n++; } chat('Killed ' + n + ' entities'); } else hurtPlayer(1000, 'was killed', true); break; }
     case 'summon': { const t = (a[1] || '').replace('minecraft:', ''); if (!MOBDEF[t]) return chat('§cCan\'t summon ' + t + ': ' + Object.keys(MOBDEF).join(', ')); spawnMob(t, player.x + 1, player.y, player.z + 1); chat('Summoned new ' + prettyName(BYNAME[t] || 0).replace('?', t)); break; }
     case 'seed': chat('Seed: [§a' + world.seed + '§f]'); break;
     case 'clear': player.inv.fill(null); chat('Removed all items from ' + player.name); break;
     case 'difficulty': { const d = DIFFS.map(x => x.toLowerCase()).indexOf(a[1]); if (d >= 0) { world.meta.diff = d; chat('The difficulty has been set to ' + DIFFS[d]); } else chat('The difficulty is ' + DIFFS[world.meta.diff]); break; }
-    case 'spawnpoint': player.spawn = [player.x, player.y, player.z]; chat('Set spawn point'); break;
+    case 'spawnpoint': { const o = /^@|^[A-Za-z]/.test(a[1] || '') ? 2 : 1, sp = [num(a[o], player.x), num(a[o + 1], player.y), num(a[o + 2], player.z)]; if (sp.some(isNaN)) return chat('§cBad position'); player.spawn = sp; player.cp = sp; chat('Set spawn point to ' + sp.map(Math.round).join(', ')); break; }
     case 'say': chat(`[${player.name}] ${a.slice(1).join(' ')}`); break;
     case 'xp': addXp(parseInt(a[1]) || 0); break;
     case 'effect': { if (a[1] == 'clear') { clearEff(); chat('Removed every effect'); break; } const n = (a[1] == 'give' ? a[3] : a[1] || '').replace('minecraft:', ''), sec = +(a[1] == 'give' ? a[4] : a[2]) || 30, amp = +(a[1] == 'give' ? a[5] : a[3]) || 0;
       if (!EFF_NAMES[n]) return chat('§cUnknown effect: ' + n + '. Try: ' + Object.keys(EFF_NAMES).join(', ')); addEff(n, sec, amp); chat('Applied effect ' + EFF_NAMES[n] + ' for ' + sec + 's'); break; }
     case 'setblock': { const x = num(a[1], Math.floor(player.x)), y = num(a[2], Math.floor(player.y)), z = num(a[3], Math.floor(player.z)), b = BYNAME[(a[4] || '').replace('minecraft:', '')]; if (b === undefined) return chat('§cUnknown block'); world.set(Math.floor(x), Math.floor(y), Math.floor(z), b); chat('Changed the block'); break; }
     case 'fill': { const p = a.slice(1, 7).map((v, i) => Math.floor(num(v, [player.x, player.y, player.z][i % 3]))), b = BYNAME[(a[7] || '').replace('minecraft:', '')]; if (b === undefined || p.some(isNaN)) return chat('§cUsage: /fill x1 y1 z1 x2 y2 z2 block'); let n = 0; for (let x = Math.min(p[0], p[3]); x <= Math.max(p[0], p[3]); x++) for (let y = Math.min(p[1], p[4]); y <= Math.max(p[1], p[4]); y++) for (let z = Math.min(p[2], p[5]); z <= Math.max(p[2], p[5]); z++) if (n++ < 32768) world.set(x, y, z, b); chat(`Successfully filled ${Math.min(n, 32768)} blocks`); break; }
+    case 'title': { const o = /^@/.test(a[1] || '') ? 2 : 1, kind = a[o], txt = jsonText(a.slice(o + 1).join(' '));
+      if (kind == 'clear' || kind == 'reset') S.title = null; else if (kind == 'times') { } else if (kind == 'actionbar') S.actionbar = { text: txt, t: 3 };
+      else if (kind == 'subtitle') { S.subtitle = txt; if (S.title) S.title.sub = txt; } else if (kind == 'title') { S.title = { text: txt, sub: S.subtitle || '', t: 3.5 }; S.subtitle = ''; } break; }
+    case 'tellraw': case 'msg': case 'tell': case 'w': { const o = /^@|^[A-Za-z]/.test(a[1] || '') ? 2 : 1; chat((c == 'tellraw' ? '' : '§7§o' + player.name + ' whispers: ') + jsonText(a.slice(o).join(' '))); break; }
+    case 'particle': { const n = (a[1] || '').replace('minecraft:', ''), x = num(a[2], player.x), y = num(a[3], player.y + 1), z = num(a[4], player.z), d = [a[5], a[6], a[7]].map(v => parseFloat(v) || 0), sp = parseFloat(a[8]) || .1, cnt = Math.min(500, parseInt(a[9]) || 1);
+      const pt = window.PTEX && PTEX.map[n] ? n : ({ happy_villager: 'happy_villager', heart: 'heart', flame: 'flame', smoke: 'smoke', explosion: 'explosion', end_rod: 'glitter', totem_of_undying: 'glitter', firework: 'spark', portal: 'spell', witch: 'spell', dust: 'generic', cloud: 'generic', note: 'note' }[n] || 'generic');
+      for (let i = 0; i < cnt; i++) spark(pt, x + (Math.random() - .5) * 2 * d[0], y + (Math.random() - .5) * 2 * d[1], z + (Math.random() - .5) * 2 * d[2], { vx: (Math.random() - .5) * sp * 10, vy: (Math.random() - .3) * sp * 10, vz: (Math.random() - .5) * sp * 10, life: 1 }); break; }
+    case 'playsound': { const n = (a[1] || '').replace('minecraft:', ''), map = { 'entity.player.levelup': 'random/levelup', 'entity.experience_orb.pickup': 'random/orb', 'block.note_block.pling': 'note/pling', 'ui.toast.challenge_complete': 'random/levelup', 'entity.firework_rocket.launch': 'fireworks/launch1', 'entity.firework_rocket.blast': 'fireworks/blast1', 'block.anvil.land': 'random/anvil_land', 'entity.ender_dragon.growl': 'mob/enderdragon/growl1' };
+      SND.play(map[n] || n.replace(/\./g, '/'), parseFloat(a[7]) || 1, parseFloat(a[8]) || 1); break; }
+    case 'clear': break;
+    case 'gamerule': chat('Gamerule ' + (a[1] || '') + ' is now set to: ' + (a[2] || '')); if (a[1] == 'doDaylightCycle') world.meta.noCycle = a[2] == 'false'; if (a[1] == 'keepInventory') api.settings.keepInventory = a[2] == 'true'; break;
+    case 'difficulty': { const d = { peaceful: 0, easy: 1, normal: 2, hard: 3 }[a[1]]; if (d !== undefined) { world.meta.diff = d; chat('The difficulty has been set to ' + a[1]); } break; }
+    case 'heal': player.hp = 20; player.food = 20; break;
     default: chat('§cUnknown command. Type /help for help');
   }
 }
