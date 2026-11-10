@@ -191,6 +191,7 @@ MOBDEF.witch.parts = [{box: [8, 10, 8], uv: [0, 0], pos: [0.0, 29.0, 0.0], head:
   const noArms = V.filter(p => !(p.uv[0] == 44 && p.uv[1] == 22) && !(p.uv[0] == 40 && p.uv[1] == 38));
   const free = [{ box: [4, 12, 4], uv: [40, 46], pos: [-6, 18, 0], pivot: [-6, 22, 0], arm: 0, hand: 1 }, { box: [4, 12, 4], uv: [40, 46], pos: [6, 18, 0], pivot: [6, 22, 0], arm: 1 }];
   MOBDEF.evoker.parts = [...V, hatL];
+  if (MOBDEF.wandering_trader) MOBDEF.wandering_trader.parts = [...V, hatL]; // same body and crossed arms as villagers
   MOBDEF.pillager.parts = [...noArms, hatL, ...free]; MOBDEF.vindicator.parts = [...noArms, hatL, ...free];
   MOBDEF.zombie_villager.parts = [...noArms, hatL, { box: [4, 12, 4], uv: [44, 22], pos: [-6, 18, 0], pivot: [-6, 22, 0], arm: 0, fwd: true, hand: 1 }, { box: [4, 12, 4], uv: [44, 22], pos: [6, 18, 0], pivot: [6, 22, 0], arm: 1, fwd: true }];
 }
@@ -219,17 +220,17 @@ MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, 
   // the dragon: body, a 5-part neck, head with jaw, a 12-part tail, two jointed wings and four legs
   const DP = [], by = 30;
   DP.push({ box: [24, 24, 64], uv: [0, 0], pos: [0, by, 24] }); for (const z of [-2, 18, 38]) DP.push({ box: [2, 6, 12], uv: [220, 53], pos: [0, by + 15, z] });
-  for (let i = 0; i < 5; i++) { const z = -13 - i * 10, y = by + 2 + i * 1.6; DP.push({ box: [10, 10, 10], uv: [192, 104], pos: [0, y, z], head: 1, pivot: [0, by, -8] }, { box: [2, 4, 6], uv: [48, 0], pos: [0, y + 7, z], head: 1, pivot: [0, by, -8] }); }
-  const hy = by + 11, hz = -66;
+  for (let i = 0; i < 5; i++) { const z = -13 - i * 9.4, y = by + 4 + i * 3.2; DP.push({ box: [10, 10, 10], uv: [192, 104], pos: [0, y, z], head: 1, pivot: [0, by, -8] }, { box: [2, 4, 6], uv: [48, 0], pos: [0, y + 7, z], head: 1, pivot: [0, by, -8] }); }
+  const hy = by + 20, hz = -63;
   DP.push({ box: [16, 16, 16], uv: [112, 30], pos: [0, hy, hz], head: 1, pivot: [0, by, -8] }, { box: [12, 5, 16], uv: [176, 44], pos: [0, hy - 1.5, hz - 14], head: 1, pivot: [0, by, -8] },
     { box: [12, 4, 16], uv: [176, 65], pos: [0, hy - 6, hz - 14], head: 1, jaw: 1, pivot: [0, by, -8] }, { box: [2, 4, 6], uv: [0, 0], pos: [-4, hy + 10, hz + 1], head: 1, pivot: [0, by, -8] }, { box: [2, 4, 6], uv: [0, 0], pos: [4, hy + 10, hz + 1], head: 1, pivot: [0, by, -8] },
     { box: [2, 2, 4], uv: [112, 0], pos: [-4, hy + 2, hz - 22 + 8], head: 1, pivot: [0, by, -8] }, { box: [2, 2, 4], uv: [112, 0], pos: [4, hy + 2, hz - 22 + 8], head: 1, pivot: [0, by, -8] });
-  for (let i = 0; i < 12; i++) { const z = 61 + i * 10, y = by + 2 - i * .8; DP.push({ box: [10, 10, 10], uv: [192, 104], pos: [0, y, z], dtail: i }, { box: [2, 4, 6], uv: [48, 0], pos: [0, y + 7, z], dtail: i }); }
+  for (let i = 0; i < 12; i++) { const z = 61 + i * 9.6, y = by + 2 - Math.sin(i / 11 * Math.PI) * 9; DP.push({ box: [10, 10, 10], uv: [192, 104], pos: [0, y, z], dtail: i }, { box: [2, 4, 6], uv: [48, 0], pos: [0, y + 7, z], dtail: i }); }
   for (const sx of [-1, 1]) { const wy = by + 11;
     DP.push({ box: [56, 8, 8], uv: [112, 88], pos: [sx * 40, wy, 2], dwing: sx, pivot: [sx * 12, wy, 2] }, { box: [56, 0, 56], uv: [-56, 88], pos: [sx * 40, wy, 32], dwing: sx, pivot: [sx * 12, wy, 2] },
       { box: [56, 4, 4], uv: [112, 136], pos: [sx * 96, wy, 2], dwing: sx * 2, pivot: [sx * 12, wy, 2] }, { box: [56, 0, 56], uv: [-56, 144], pos: [sx * 96, wy, 32], dwing: sx * 2, pivot: [sx * 12, wy, 2] });
-    DP.push({ box: [8, 24, 8], uv: [112, 104], pos: [sx * 12, by - 18, 2], leg: sx > 0 ? 1 : 0, pivot: [sx * 12, by - 8, 2] }, { box: [6, 24, 6], uv: [226, 138], pos: [sx * 12, by - 40, 1], leg: sx > 0 ? 1 : 0, pivot: [sx * 12, by - 8, 2] }, { box: [8, 4, 16], uv: [144, 104], pos: [sx * 12, by - 54, -4], leg: sx > 0 ? 1 : 0, pivot: [sx * 12, by - 8, 2] },
-      { box: [16, 32, 16], uv: [0, 0], pos: [sx * 16, by - 18, 42], leg: sx > 0 ? 0 : 1, pivot: [sx * 16, by - 4, 42] }, { box: [12, 32, 12], uv: [196, 0], pos: [sx * 16, by - 48, 44], leg: sx > 0 ? 0 : 1, pivot: [sx * 16, by - 4, 42] }, { box: [18, 6, 24], uv: [112, 0], pos: [sx * 16, by - 67, 36], leg: sx > 0 ? 0 : 1, pivot: [sx * 16, by - 4, 42] }); }
+    DP.push({ box: [8, 24, 8], uv: [112, 104], pos: [sx * 12, by - 18, 2], dleg: 0, pivot: [sx * 12, by - 8, 2] }, { box: [6, 24, 6], uv: [226, 138], pos: [sx * 12, by - 40, 1], dleg: 0, pivot: [sx * 12, by - 8, 2] }, { box: [8, 4, 16], uv: [144, 104], pos: [sx * 12, by - 54, -4], dleg: 0, pivot: [sx * 12, by - 8, 2] },
+      { box: [16, 32, 16], uv: [0, 0], pos: [sx * 16, by - 18, 42], dleg: 1, pivot: [sx * 16, by - 4, 42] }, { box: [12, 32, 12], uv: [196, 0], pos: [sx * 16, by - 48, 44], dleg: 1, pivot: [sx * 16, by - 4, 42] }, { box: [18, 6, 24], uv: [112, 0], pos: [sx * 16, by - 67, 36], dleg: 1, pivot: [sx * 16, by - 4, 42] }); }
   MOBDEF.ender_dragon = { tex: 'mob_ender_dragon', w: 8, h: 6, hp: 200, hostile: 1, fly: 1, flyH: 14, noclip: 1, speed: 6, dmg: [0, 6, 10, 15], drop: [['dragon_egg', 1, 1]], sound: 'mob/enderdragon/growl', hurt: 'mob/enderdragon/hit', death: 'mob/enderdragon/end', step: null, boss: 1, parts: DP };
 }
 for (const [n, d] of Object.entries(MOBDEF)) for (const p of d.parts || []) {
@@ -963,6 +964,7 @@ function renderEntities(sk) {
       if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
       if (p.vw) ay += p.vw * (.5 + Math.sin(t * 18) * .35); // vex wings flutter
       if (p.dwing) rzv += Math.sign(p.dwing) * (Math.sin(t * 2.2) * .55 + (Math.abs(p.dwing) > 1 ? Math.sin(t * 2.2 - .6) * .3 : 0)); // dragon wing beats
+      if (p.dleg !== undefined) ax += (p.dleg ? .55 : .35) + Math.sin(t * 2.2 + p.dleg) * .08; // dragon legs hang back while it flies
       if (p.dtail !== undefined) ay += Math.sin(t * 1.5 - p.dtail * .35) * .04 * p.dtail;
       if (p.jaw) ax += m.target ? Math.max(0, Math.sin(t * 4)) * .35 : .05;
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
