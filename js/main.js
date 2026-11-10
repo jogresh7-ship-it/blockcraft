@@ -350,6 +350,20 @@ function cartMove(m, dt) {
   if (n == 'detector_rail' && m.detKey != key) { RSS.on.add(key); rsNotify(bx, by, bz); m.detKey = key; }
   if (sp > 1 && Math.random() < dt * 2) SND.play('minecart/base', .25, 1, [m.x, m.y, m.z]);
 }
+// ---- particles with Minecraft's own sprites ----
+function spark(pt, x, y, z, o = {}) { const life = o.life ?? .8; particles.push(Object.assign({ x, y, z, vx: (Math.random() - .5) * (o.spread ?? .3), vy: o.vy ?? .4, vz: (Math.random() - .5) * (o.spread ?? .3), life, ml: life, g: o.g ?? 0, s: o.s ?? .08, pt }, o.extra || {})); }
+const AMB = { torch: ['flame', .7], wall_torch: ['flame', .62], soul_torch: ['soul_fire_flame', .7], soul_wall_torch: ['soul_fire_flame', .62], copper_torch: ['copper_fire_flame', .7], copper_wall_torch: ['copper_fire_flame', .62], lantern: ['flame', .45], soul_lantern: ['soul_fire_flame', .45], campfire: ['big_smoke', .9], soul_campfire: ['big_smoke', .9], furnace_lit: ['flame', .2], smoker_lit: ['big_smoke', .9], blast_furnace_lit: ['flame', .2], end_rod: ['glitter', .8], firefly_bush: ['firefly', .9], lava: ['lava', .9], cherry_leaves: ['cherry', 0], pale_oak_leaves: ['pale_oak', 0], red_poplar_leaves: ['red_poplar', 0], orange_poplar_leaves: ['orange_poplar', 0], yellow_poplar_leaves: ['yellow_poplar', 0] };
+function ambientParticles(dt) {
+  if (!world || !player || !window.PTEX) return; const P = player, n = Math.min(60, Math.floor(dt * 1800));
+  for (let i = 0; i < n; i++) { const x = Math.floor(P.x + (Math.random() - .5) * 24), y = Math.floor(P.y + (Math.random() - .3) * 14), z = Math.floor(P.z + (Math.random() - .5) * 24), nm = BL[world.get(x, y, z)]?.n; const a = nm && AMB[nm]; if (!a) continue;
+    const [pt, h] = a; if (/leaves$/.test(nm)) { if (Math.random() < .25 && !world.get(x, y - 1, z)) spark(pt, x + Math.random(), y - .05, z + Math.random(), { vy: -.6, spread: .6, life: 4, g: .02, s: .07, extra: { fr: Math.floor(Math.random() * 4) } }); continue; }
+    if (nm == 'lava') { if (Math.random() < .05 && !world.get(x, y + 1, z)) spark('lava', x + .5, y + 1, z + .5, { vy: 4, spread: 2, g: 1, life: 1.2, s: .06 }); continue; }
+    if (nm == 'firefly_bush') { if (skyState().day < .5) spark('firefly', x + Math.random() * 2 - .5, y + .5 + Math.random() * 1.5, z + Math.random() * 2 - .5, { vy: .1, spread: .3, life: 3, s: .05, extra: { glow: 1 } }); continue; }
+    spark(pt, x + .5 + (Math.random() - .5) * .1, y + h, z + .5 + (Math.random() - .5) * .1, { vy: pt == 'big_smoke' ? 1.2 : .05, spread: .04, life: pt == 'big_smoke' ? 4 : .8, s: pt == 'big_smoke' ? .35 : .06, extra: { glow: pt != 'big_smoke' ? 1 : 0, fr: pt == 'big_smoke' ? Math.floor(Math.random() * 12) : undefined } });
+    if (/torch|lantern/.test(nm) && Math.random() < .5) spark('generic', x + .5, y + h + .1, z + .5, { vy: .5, spread: .05, life: 1.2, s: .05 });
+  }
+  if (P.headWater && Math.random() < dt * 6) spark('bubble', P.x + (Math.random() - .5) * .4, P.y + 1.5, P.z + (Math.random() - .5) * .4, { vy: 1.5, spread: .2, life: 1.2, s: .05 });
+}
 // ---- things mobs do on their own, like in Minecraft ----
 function mobLife(m, D, dt) {
   const bx = Math.floor(m.x), by = Math.floor(m.y), bz = Math.floor(m.z), below = BL[world.get(bx, by - 1, bz)]?.n;
@@ -563,7 +577,7 @@ function updatePlayer(dt) {
   if (!spect) for (const m of mobs) { const t = rayBox(eye, d, [m.x - m.r, m.y, m.z - m.r], [m.x + m.r, m.y + m.h, m.z + m.r]); if (t !== null && t < tmd && t < 3.5) { tm = m; tmd = t; } }
   P.targetMob = tm;
   if (mouse.down && !spect && !(performance.now() < (S.noBreak || 0))) {
-    if (tm && attackCd <= 0) { attackCd = .5; swing = 1; const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, attackDamage(h && h.k) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 8; i++) particles.push({ x: tm.x, y: tm.y + tm.h * .7, z: tm.z, vx: (Math.random() - .5) * 4, vy: Math.random() * 3, vz: (Math.random() - .5) * 4, life: .5, tile: TEX[B('white_wool') * 4], g: 1, s: .05 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
+    if (tm && attackCd <= 0) { attackCd = .5; swing = 1; const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, attackDamage(h && h.k) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 10; i++) spark('critical_hit', tm.x, tm.y + tm.h * .7, tm.z, { vy: Math.random() * 3, spread: 4, life: .5, g: .6, s: .06 }); else spark('damage', tm.x, tm.y + tm.h * .8, tm.z, { vy: 1.5, spread: .4, life: .5, s: .07 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
     else if (hit && !tm) {
       if (creative) { if (attackCd <= 0) { attackCd = .25; const h = held(); if (!(h && toolInfo(h.k) && toolInfo(h.k).type == 'sword')) netBegin(); doBreak(hit, false); netEnd(hit); swing = 1; } }
       else {
@@ -624,7 +638,7 @@ function useItem(hit, tm, h) {
   if (tm && MOBDEF[tm.type].cart) { player.ride = tm; return; } // get in the minecart
   if (/minecart$/.test(n) && hit && BL[hit.b].rails) { consume(); const m = spawnMob('minecart', hit.x + .5, hit.y + .07, hit.z + .5); m.vx = m.vz = 0; m.persist = 1; return; }
   if (tm) { // shear sheep
-    if (n == 'bone' && tm.type == 'wolf' && !tm.tamed) { consume(); if (Math.random() < .35) { tm.tamed = true; tm.provoked = false; for (let i = 0; i < 7; i++) particles.push({ x: tm.x, y: tm.y + 1, z: tm.z, vx: (Math.random() - .5), vy: 1, vz: (Math.random() - .5), life: .8, tile: TEX[B('red_wool') * 4], g: 0, s: .06 }); chat('§aWolf tamed!'); } return; }
+    if (n == 'bone' && tm.type == 'wolf' && !tm.tamed) { consume(); if (Math.random() < .35) { tm.tamed = true; tm.provoked = false; for (let i = 0; i < 7; i++) spark('heart', tm.x + (Math.random() - .5), tm.y + 1 + Math.random() * .5, tm.z + (Math.random() - .5), { vy: .8, spread: .4, life: 1.2, s: .1 }); chat('§aWolf tamed!'); } return; }
     if (n == 'shears' && tm.type == 'sheep' && !tm.sheared) { tm.sheared = true; SND.play('mob/sheep/shear', 1); dropItem(itemKey('white_wool'), 1 + (Math.random() * 3 | 0), tm.x, tm.y + 1, tm.z); wear(h, 1); }
     else if (n == 'bucket' && tm.type == 'cow') { consume(); giveItem(itemKey('item:milk_bucket'), 1); }
     return;
@@ -762,6 +776,7 @@ function growTree(x, y, z, bio) {
 }
 function explode(x, y, z, R0, power) {
   SND.play('explode', 1, .8 + Math.random() * .3, [x, y, z]);
+  for (let i = 0; i < 14; i++) spark('explosion', x + (Math.random() - .5) * R0 * 1.5, y + (Math.random() - .5) * R0, z + (Math.random() - .5) * R0 * 1.5, { vy: 0, spread: 0, life: .5 + Math.random() * .3, s: .6 + Math.random() * .5, extra: { glow: 1 } });
   for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) for (let dz = -4; dz <= 4; dz++) {
     const d = Math.hypot(dx, dy, dz); if (d > R0 * (0.7 + Math.random() * .5)) continue;
     const bx = Math.floor(x) + dx, by = Math.floor(y) + dy, bz = Math.floor(z) + dz, b = world.get(bx, by, bz);
@@ -856,6 +871,7 @@ function updateWorld(dt) {
   for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const c = world.chunk(pcx + dx, pcz + dz); if (c && c.dirty && c.meshes) world.mesh(c); }
   for (const c of [...world.chunks.values()]) if (Math.abs(c.cx - pcx) > R + 3 || Math.abs(c.cz - pcz) > R + 3) world.unload(c);
   // particles
+  ambientParticles(dt);
   for (const p of particles) { p.life -= dt; p.vy -= (p.g ?? 1) * 12 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; if (p.g && SOLID[world.get(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))]) { p.vy = 0; p.vx *= .5; p.vz *= .5; p.y = Math.ceil(p.y); } }
   particles = particles.filter(p => p.life > 0);
   // ambience
@@ -1076,16 +1092,17 @@ function renderEntities(sk) {
 }
 function renderParticles(view, sk) {
   if (!particles.length) return;
-  const R = [view[0], view[4], view[8]], U = [view[1], view[5], view[9]]; const arrB = [], arrI = [];
+  const R = [view[0], view[4], view[8]], U = [view[1], view[5], view[9]]; const arrB = [], arrI = [], arrP = [];
   for (const p of particles) {
     const s = p.s || .1, L = lightAt(p.x, p.y, p.z), l = [1, L[0], L[1]];
     const c = [[p.x - R[0] * s - U[0] * s, p.y - R[1] * s - U[1] * s, p.z - R[2] * s - U[2] * s], [p.x + R[0] * s - U[0] * s, p.y + R[1] * s - U[1] * s, p.z + R[2] * s - U[2] * s], [p.x + R[0] * s + U[0] * s, p.y + R[1] * s + U[1] * s, p.z + R[2] * s + U[2] * s], [p.x - R[0] * s + U[0] * s, p.y - R[1] * s + U[1] * s, p.z - R[2] * s + U[2] * s]];
+    if (p.pt && TEXS.particles && window.PTEX && PTEX.map[p.pt]) { const [i0, nf] = PTEX.map[p.pt], fi = i0 + (p.fr != null ? p.fr : Math.min(nf - 1, Math.floor((1 - p.life / (p.ml || 1)) * nf))), cu = 1 / PTEX.cols, cv = 1 / PTEX.rows, u0 = (fi % PTEX.cols) * cu, v0 = Math.floor(fi / PTEX.cols) * cv; pushQuad(arrP, c, [[u0, v0 + cv], [u0 + cu, v0 + cv], [u0 + cu, v0], [u0, v0]], p.glow ? [1, 1, 1] : l); continue; }
     let uv; if (p.item) { const it = p.item >= ITEM_BASE ? p.item - ITEM_BASE : 0; uv = itemUV(it); } else uv = tileUV(p.tile);
     const ou = p.ou || 0, ov = p.ov || 0, fw = p.ou !== undefined ? .25 : 1, du = (uv[2] - uv[0]), dv = (uv[3] - uv[1]);
     const u0 = uv[0] + du * ou, v0 = uv[1] + dv * ov, u1 = u0 + du * fw, v1 = v0 + dv * fw;
     pushQuad(p.item ? arrI : arrB, c, [[u0, v1], [u1, v1], [u1, v0], [u0, v0]], l);
   }
-  if (arrB.length) drawMesh(dynMesh('pb', arrB), 'blocks', { alphaTest: .5 }); if (arrI.length) drawMesh(dynMesh('pi', arrI), 'items', { alphaTest: .5 });
+  if (arrB.length) drawMesh(dynMesh('pb', arrB), 'blocks', { alphaTest: .5 }); if (arrI.length) drawMesh(dynMesh('pi', arrI), 'items', { alphaTest: .5 }); if (arrP.length) drawMesh(dynMesh('pp', arrP), 'particles', { alphaTest: .1 });
 }
 function renderRain(eye) {
   const snowy = /taiga|mountains|frozen/.test(world.biome(Math.floor(eye[0]), Math.floor(eye[2]))), desert = /desert|badlands|savanna/.test(world.biome(Math.floor(eye[0]), Math.floor(eye[2])));
