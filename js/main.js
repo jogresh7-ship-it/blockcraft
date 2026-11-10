@@ -182,6 +182,10 @@ for (const [n, base, tex, ext] of [['husk', 'zombie', 'husk', { burns: 0 }], ['d
     endermite: { tex: 'mob_endermite', w: .4, h: .3, hp: 8, hostile: 1, speed: 1.6, dmg: [0, 2, 2, 2], drop: [], ...snd('mob/endermite/', 'say', 'hit', 'kill'), step: 'mob/endermite/step',
       parts: [{ box: [4, 3, 2], uv: [0, 0], pos: [0, 1.5, -3] }, { box: [6, 4, 5], uv: [0, 5], pos: [0, 2, .5] }, { box: [3, 3, 1], uv: [0, 14], pos: [0, 1.5, 3.5] }, { box: [1, 2, 1], uv: [0, 18], pos: [0, 1, 4.5] }] },
   });
+// horse, villager and witch: geometry measured from the reference models, rigged and UV-mapped onto the real Minecraft textures
+MOBDEF.horse.parts = [{box: [10, 10, 22], uv: [0, 32], pos: [0.0, 16.004, 1.019]}, {box: [4, 12, 7], uv: [0, 35], pos: [0.0, 19.549, -7.826], rot: [-0.4364, 0, 0], head: 1, pivot: [0, 22, -9]}, {box: [6, 5, 7], uv: [0, 13], pos: [0.0, 27.252, -11.418], rot: [-0.4363, 0, 0], head: 1, pivot: [0, 22, -9]}, {box: [2, 3, 1], uv: [19, 16], pos: [1.5, 32.145, -10.39], rot: [-0.1144, 0, 0], head: 1, pivot: [0, 22, -9]}, {box: [2, 3, 1], uv: [19, 16], pos: [-1.5, 32.145, -10.39], rot: [-0.1144, 0, 0], head: 1, pivot: [0, 22, -9]}, {box: [2, 16, 2], uv: [56, 36], pos: [0.0, 24.622, -5.227], rot: [-0.312, 0, 0], head: 1, pivot: [0, 22, -9]}, {box: [4, 5, 5], uv: [0, 25], pos: [0.0, 23.81, -16.433], rot: [-0.4365, 0, 0], head: 1, pivot: [0, 22, -9]}, {box: [4, 11, 4], uv: [48, 21], pos: [3.0, 5.504, -7.981], leg: 1, pivot: [3.0, 11, -7.981]}, {box: [4, 11, 4], uv: [48, 21], pos: [-3.0, 5.504, -7.981], leg: 0, pivot: [-3.0, 11, -7.981]}, {box: [4, 11, 4], uv: [48, 21], pos: [3.0, 5.504, 9.019], leg: 0, pivot: [3.0, 11, 9.019]}, {box: [4, 11, 4], uv: [48, 21], pos: [-3.0, 5.504, 9.019], leg: 1, pivot: [-3.0, 11, 9.019]}, {box: [3, 14, 4], uv: [42, 36], pos: [0.0, 12.702, 14.524], rot: [-0.5236, 0, 0]}];
+MOBDEF.villager.parts = [{box: [8, 10, 8], uv: [0, 0], pos: [0.0, 29.0, 0.0], head: 1, pivot: [0, 24, 0]}, {box: [8, 18, 6], uv: [0, 38], pos: [0.0, 14.0, 0.0], inf: 0.5}, {box: [4, 8, 4], uv: [44, 22], pos: [6.0, 19.644, -1.867], rot: [0.7854, 0, 0]}, {box: [8, 4, 4], uv: [40, 38], pos: [0.0, 18.23, -3.281], rot: [0.7854, 0, 0]}, {box: [4, 8, 4], uv: [44, 22], pos: [-6.0, 19.644, -1.867], rot: [0.7854, 0, 0]}, {box: [4, 12, 4], uv: [0, 22], pos: [-2.0, 6.0, 0.0], leg: 0, pivot: [-2.0, 12, 0]}, {box: [4, 12, 4], uv: [0, 22], pos: [2.0, 6.0, 0.0], leg: 1, pivot: [2.0, 12, 0]}, {box: [8, 12, 6], uv: [16, 20], pos: [0.0, 18.0, 0.0]}, {box: [2, 4, 2], uv: [24, 0], pos: [0.0, 25.0, -5.0], head: 1, pivot: [0, 24, 0]}];
+MOBDEF.witch.parts = [{box: [8, 10, 8], uv: [0, 0], pos: [0.0, 29.0, 0.0], head: 1, pivot: [0, 24, 0]}, {box: [8, 18, 6], uv: [0, 38], pos: [0.0, 14.0, 0.0], inf: 0.5}, {box: [4, 8, 4], uv: [44, 22], pos: [6.0, 19.644, -1.867], rot: [0.7854, 0, 0]}, {box: [8, 4, 4], uv: [40, 38], pos: [0.0, 18.23, -3.281], rot: [0.7854, 0, 0]}, {box: [4, 8, 4], uv: [44, 22], pos: [-6.0, 19.644, -1.867], rot: [0.7854, 0, 0]}, {box: [4, 12, 4], uv: [0, 22], pos: [-2.0, 6.0, 0.0], leg: 0, pivot: [-2.0, 12, 0]}, {box: [4, 12, 4], uv: [0, 22], pos: [2.0, 6.0, 0.0], leg: 1, pivot: [2.0, 12, 0]}, {box: [8, 12, 6], uv: [16, 20], pos: [0.0, 18.0, 0.0]}, {box: [2, 4, 2], uv: [24, 0], pos: [0.0, 25.0, -5.0], head: 1, pivot: [0, 24, 0]}, {box: [10, 2, 10], uv: [0, 64], pos: [0.0, 33.072, 0.0], head: 1, pivot: [0, 24, 0]}, {box: [7, 4, 7], uv: [0, 76], pos: [0.0, 35.733, 0.266], rot: [0.0874, 0, 0], head: 1, pivot: [0, 24, 0]}, {box: [4, 4, 4], uv: [0, 87], pos: [0.0, 39.524, 0.677], rot: [0.1746, 0, 0], head: 1, pivot: [0, 24, 0]}, {box: [1, 2, 1], uv: [0, 95], pos: [0.0, 42.402, 1.298], rot: [0.2615, 0, 0], inf: 0.25, head: 1, pivot: [0, 24, 0]}, {box: [1, 1, 1], uv: [0, 0], pos: [-0.5, 24.5, -6.25], inf: -0.25, head: 1, pivot: [0, 24, 0]}];
   for (const [n, base, tex, ext] of [['glow_squid', 'squid', 'mob_glow_squid', {}], ['donkey', 'horse', 'mob_donkey', { hp: 20 }], ['mule', 'horse', 'mob_mule', {}], ['skeleton_horse', 'horse', 'mob_skeleton_horse', { drop: [['item:bone', 0, 2]] }],
     ['zombie_horse', 'horse', 'mob_zombie_horse', { drop: [['item:rotten_flesh', 0, 2]] }], ['zoglin', 'hoglin', 'mob_zoglin', { drop: [['item:rotten_flesh', 1, 3]] }]])
     MOBDEF[n] = Object.assign({}, MOBDEF[base], { tex }, ext);
@@ -240,6 +244,8 @@ function updateMobs(dt) {
       } else { m.speedMul = 1; if (m.fuse > 0) m.fuse = 0; }
       if (D.burns && skyState().day > .8 && !world.meta.rain && world.topY(Math.floor(m.x), Math.floor(m.z)) < m.y + 1 && !(SHAPE[world.get(Math.floor(m.x), Math.floor(m.y + .5), Math.floor(m.z))] == 3)) { m.burnT = (m.burnT || 0) - dt; if (m.burnT <= 0) { m.burnT = 1; m.hurtT = 0; hurtMob(m, 1, 0, 0, true); } }
     }
+    if (!m.target) mobVsMob(m, D, dt);
+    if (m.mt) { m.wt = Math.max(m.wt, .5); }
     m.wt -= dt; if (m.wt <= 0) { m.wt = 2 + Math.random() * 5; m.mv = Math.random() < .6 ? 1 : 0; m.yawT = m.yaw + (Math.random() - .5) * 3; }
     if (m.panic > 0) { m.panic -= dt; m.mv = 1.8; if (Math.random() < dt * 2) m.yawT = Math.random() * 6.28; }
     else if (m.mv > 1) m.mv = 1;
@@ -261,8 +267,43 @@ function updateMobs(dt) {
   mobs = mobs.filter(m => !m.dead && Math.hypot(m.x - player.x, m.z - player.z) < (MOBDEF[m.type].hostile ? 100 : 160) && !(MOBDEF[m.type].hostile && world.meta.diff == 0));
   updateArrows(dt); hostileSpawn(dt);
 }
+// ---- mobs fighting each other, like in Minecraft ----
+const UNDEAD = /^(zombie|husk|drowned|zombie_villager|skeleton|stray|wither_skeleton|bogged|zombified_piglin|zoglin)$/;
+const PREY = { // who hunts whom
+  wolf: n => /^(sheep|rabbit|fox|skeleton|stray|wither_skeleton|bogged)$/.test(n),
+  fox: n => /^(chicken|rabbit)$/.test(n), cat: n => /^(chicken|rabbit)$/.test(n), ocelot: n => /^(chicken)$/.test(n),
+  iron_golem: n => MOBDEF[n] && MOBDEF[n].hostile && n != 'creeper' && n != 'ghast', snow_golem: n => MOBDEF[n] && MOBDEF[n].hostile && n != 'creeper',
+  zombie: n => /^(villager|wandering_trader|iron_golem|turtle)$/.test(n), husk: n => /^(villager|wandering_trader|iron_golem)$/.test(n), drowned: n => /^(villager|wandering_trader|iron_golem|turtle)$/.test(n), zombie_villager: n => /^(villager|wandering_trader|iron_golem)$/.test(n),
+  pillager: n => /^(villager|wandering_trader|iron_golem)$/.test(n), vindicator: n => /^(villager|wandering_trader|iron_golem)$/.test(n), evoker: n => /^(villager|wandering_trader|iron_golem)$/.test(n),
+  skeleton: n => n == 'iron_golem', polar_bear: n => n == 'fox', axolotl: n => /^(squid|glow_squid|drowned|cod|salmon)$/.test(n),
+};
+const FEARS = { villager: /^(zombie|husk|drowned|zombie_villager|pillager|vindicator|evoker|vex|zoglin)$/, wandering_trader: /^(zombie|husk|drowned|zombie_villager|pillager|vindicator|evoker)$/, skeleton: /^wolf$/, stray: /^wolf$/, creeper: /^(cat|ocelot)$/, rabbit: /^(wolf|fox)$/, sheep: /^wolf$/, chicken: /^(fox|cat|ocelot)$/ };
+function mobVsMob(m, D, dt) {
+  m.mtT = (m.mtT || 0) - dt;
+  if (m.mtT <= 0) { m.mtT = .6 + Math.random() * .4; m.mt = null; m.fear = null;
+    const hunt = m.tamed ? (n => MOBDEF[n] && MOBDEF[n].hostile && n != 'creeper') : PREY[m.type], fear = FEARS[m.type];
+    let best = 16 * 16, fb = 8 * 8;
+    for (const o of mobs) { if (o == m || o.dead || o.ghost) continue; const d2 = (o.x - m.x) ** 2 + (o.y - m.y) ** 2 + (o.z - m.z) ** 2; if (d2 > 256) continue;
+      if (hunt && hunt(o.type) && d2 < best && !(o.tamed && m.tamed)) { if (m.tamed && Math.hypot(o.x - player.x, o.z - player.z) > 12) continue; best = d2; m.mt = o; }
+      if (fear && fear.test(o.type) && d2 < fb && !o.tamed) { fb = d2; m.fear = o; } }
+  }
+  if (m.fear && !m.fear.dead) { const f = m.fear; m.yawT = Math.atan2(m.x - f.x, m.z - f.z); m.mv = 1.6; m.wt = 1; m.mt = null; return; }
+  const o = m.mt; if (!o || o.dead) { m.mt = null; return; }
+  const dx = o.x - m.x, dz = o.z - m.z, dist = Math.hypot(dx, dz);
+  m.yawT = Math.atan2(-dx, -dz); m.mv = dist > 1.2 ? 1.3 : 0; m.wt = 1; m.speedMul = (D.speed || 1.1) / 1.1;
+  m.atkCd = (m.atkCd || 0) - dt; if (m.atkT > 0) m.atkT -= dt * 3;
+  const reach = (D.w || .6) / 2 + (MOBDEF[o.type].w || .6) / 2 + .8;
+  if (D.ranged && dist < 14 && m.atkCd <= 0) { m.atkCd = 2; hurtMob(o, 3, dx / (dist || 1) * .3, dz / (dist || 1) * .3); return; }
+  if (dist < reach && Math.abs(o.y - m.y) < 1.5 && m.atkCd <= 0) {
+    m.atkCd = m.type == 'iron_golem' ? 1.2 : 1; m.atkT = 1;
+    const dmg = m.type == 'iron_golem' ? 10 : m.type == 'wolf' ? 4 : D.dmg ? (D.dmg[2] || 3) : 2;
+    hurtMob(o, dmg, dx / (dist || 1) * .4, dz / (dist || 1) * .4);
+    if (m.type == 'iron_golem') o.vy = 9;
+    if (o.hp > 0 && PREY[o.type] && PREY[o.type](m.type) && !o.mt) o.mt = m; // fights back
+  }
+}
 function hurtMob(m, dmg, kx, kz, quiet) {
-  if (m.hurtT > 0) return; m.hp -= dmg; m.hurtT = .5; if (!MOBDEF[m.type].hostile) m.panic = 4; m.provoked = true; m.kx = kx * 8; m.kz = kz * 8; if (!quiet) m.vy = 5.5;
+  if (m.hurtT > 0) return; m.hp -= dmg; m.hurtT = .5; if (!MOBDEF[m.type].hostile && !/^(iron_golem|wolf|polar_bear|snow_golem)$/.test(m.type)) m.panic = 4; m.provoked = true; m.kx = kx * 8; m.kz = kz * 8; if (!quiet) m.vy = 5.5;
   const d = MOBDEF[m.type];
   if (d.neutral) for (const o of mobs) if (o.type == m.type && Math.hypot(o.x - m.x, o.z - m.z) < 16 && !o.tamed) o.provoked = true;
   if (m.hp <= 0) {

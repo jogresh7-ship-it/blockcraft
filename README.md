@@ -28,3 +28,6 @@ WASD to move, Space to jump, mouse to look, left click to break, right click to 
 - `tools/` holds the Python scripts used to build the texture atlas and convert block models.
 
 Blockcraft is a fan project. It is not affiliated with Mojang or Microsoft.
+
+## Credits
+Horse, villager and witch model geometry is based on "Minecraft - Horse", "Minecraft - Villager" and "Minecraft - Witch" by Vincent Yanez (https://sketchfab.com/vinceyanez), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
