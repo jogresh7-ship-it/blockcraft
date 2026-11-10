@@ -945,15 +945,24 @@ function renderEntities(sk) {
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
     const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; let parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
     const sw = Math.sin(m.walk) * .7 * Math.min(1, Math.hypot(m.vx, m.vz));
-    if (m.swim || m.glide) base = M4.chain(base, M4.trans(0, 12, 0), M4.rx(-Math.PI / 2 + (m.glide ? clamp(-(m.lookP || 0), -.6, .9) * .6 : 0)), M4.trans(0, -12, 0));
+    // poses blend smoothly instead of snapping (water -> standing, sneaking, sitting, gliding)
+    const st = m === pobj ? P : m, now = performance.now(); st.pk = st.pk || { sneak: 0, sit: 0, swim: 0, glide: 0, t: now };
+    const pk = st.pk, bdt = Math.min(.1, (now - pk.t) / 1000); pk.t = now;
+    for (const [k, on] of [['sneak', m.sneak], ['sit', m.sitting], ['swim', m.swim], ['glide', m.glide]]) pk[k] += ((on ? 1 : 0) - pk[k]) * Math.min(1, bdt * 7);
+    const flat = Math.max(pk.swim, pk.glide);
+    if (flat > .01) base = M4.chain(base, M4.trans(0, 12 - pk.swim * 9, 0), M4.rx(-Math.PI / 2 * flat + pk.glide * clamp(-(m.lookP || 0), -.6, .9) * .6), M4.trans(0, -12, 0));
     const fl = m.fuse > 0 && Math.floor(m.fuse * 8) % 2;
     if (m.fuse > 0) { const s = 1 + (1.5 - m.fuse) * .12; M4.mul; }
     for (const p of parts) {
       if (p.wool && m.sheared) continue;
       const pv = p.pivot || p.hp || p.pos; let ax = 0, ay = p.ry || 0;
-      if (p.leg !== undefined) ax = p.leg ? sw : -sw;
-      else if (p.arm !== undefined) ax = (p.fwd ? Math.PI / 2 : 0) + (p.arm ? -sw : sw) * (p.fwd ? .15 : .8) + (m.atkT > 0 ? Math.sin(m.atkT * Math.PI) * .9 : 0) + (MOBDEF[m.type].ranged && m.target ? Math.PI / 2 : 0);
-      else if (p.head) ax = m.target ? clamp(m.lookP || 0, -.6, .6) : Math.sin(t * .7 + m.x) * .1;
+      if (p.leg !== undefined) ax = (p.leg ? sw : -sw) * Math.min(1, 11 / (p.box[1] || 12)); // long legs take smaller steps
+      else if (p.arm !== undefined) ax = (p.fwd ? Math.PI / 2 : 0) + (p.arm ? -sw : sw) * (p.fwd ? .15 : .8) * (m.type == 'iron_golem' ? .7 : 1) + (m.atkT > 0 ? Math.sin(m.atkT * Math.PI) * (m.type == 'iron_golem' ? 2.2 : .9) : 0) + (MOBDEF[m.type].ranged && m.target ? Math.PI / 2 : 0);
+      else if (p.head) { // heads look at what they're chasing; otherwise they glance around (no more nodding)
+        ax = m.target || m.type == 'player' ? clamp(m.lookP || 0, -.8, .8) : 0;
+        if (!m.target && m.type != 'player') ay += Math.sin(t * .35 + m.x * 1.7) * .3 * (Math.sin(t * .13 + m.z) > 0 ? 1 : 0);
+        if (m.atkT > 0 && m.type != 'player') ax += Math.sin(m.atkT * Math.PI) * (m.type == 'ravager' ? .8 : .35); // lunge / head-butt
+      }
       else if (p.sleg !== undefined) ay += (p.sleg ? sw : -sw) * .4;
       else if (p.tail) ax = .9 + Math.sin(t * 6) * .1;
       else if (p.tent !== undefined) ax = Math.sin(t * 2 + p.tent) * .25;
@@ -971,13 +980,20 @@ function renderEntities(sk) {
       if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
       let pvv = pv, off = null;
       if (m.type == 'player' || D0.humanPose) { // the player's pose: sneaking leans the body forward, arms forward, legs back
-        if (m.sneak) {
-          if (p.leg !== undefined) off = [0, -.2, 4];
-          else { off = [0, -3.2, 0]; if (p.arm !== undefined) { pvv = [p.pos[0], 24, 0]; ax -= .5; } else if (!p.head) { pvv = [0, 24, 0]; ax -= .5; } }
-        }
-        if (m.sitting && p.leg !== undefined) ax = 1.45;
-        if (m.swim) { if (p.arm !== undefined) { ax = Math.PI - Math.abs(Math.sin(t * 2.5)) * 1.7; rzv += (p.pos[0] < 0 ? -1 : 1) * Math.abs(Math.sin(t * 2.5)) * .6; } if (p.leg !== undefined) ax = Math.sin(t * 8 + (p.leg ? Math.PI : 0)) * .4; if (p.head) ax = 1.1; }
-        if (m.glide) { if (p.arm !== undefined) { ax = .1; rzv += p.pos[0] < 0 ? -.45 : .45; } if (p.leg !== undefined) { ax = 0; rzv += p.pos[0] < 0 ? -.12 : .12; } if (p.head) ax = 1.1; }
+        const L = (a, b, k) => a + (b - a) * k;
+        if (pk.sneak > .01) { const k = pk.sneak;
+          if (p.leg !== undefined) off = [0, -.2 * k, 4 * k];
+          else { off = [0, -3.2 * k, 0]; if (p.arm !== undefined) { pvv = [p.pos[0], 24, 0]; ax -= .5 * k; } else if (!p.head) { pvv = [0, 24, 0]; ax -= .5 * k; } } }
+        if (pk.sit > .01 && p.leg !== undefined) ax = L(ax, 1.45, pk.sit);
+        if (pk.swim > .01) { const k = pk.swim, c = (t * .9) % 1; // Minecraft's swim stroke: arms reach forward, sweep out to the sides and back to the hips, then come forward again
+          if (p.arm !== undefined) { const sx = p.pos[0] < 0 ? -1 : 1; let a, z; if (c < .5) { const u = c / .5; a = Math.PI * (1 - u) + .3 * u; z = Math.sin(u * Math.PI) * 1.2; } else { const u = (c - .5) / .5; a = .3 + (Math.PI - .3) * u; z = 0; }
+            ax = L(ax, a, k); rzv += sx * z * k; }
+          if (p.leg !== undefined) ax = L(ax, Math.sin(t * 9 + (p.leg ? Math.PI : 0)) * .35, k);
+          if (p.head) ax = L(ax, 1.15, k); }
+        if (pk.glide > .01) { const k = pk.glide;
+          if (p.arm !== undefined) { ax = L(ax, .15, k); rzv += (p.pos[0] < 0 ? -.4 : .4) * k; }
+          if (p.leg !== undefined) { ax = L(ax, 0, k); rzv += (p.pos[0] < 0 ? -.1 : .1) * k; }
+          if (p.head) ax = L(ax, 1.1, k); }
         if (p.arm !== undefined && m.swingT > 0 && p.hand) ax += Math.sin(m.swingT * Math.PI) * 1.4; // punching / using an item
         if (p.arm !== undefined && m.sprinting) ax *= 1.25;
       }
