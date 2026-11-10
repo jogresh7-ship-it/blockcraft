@@ -30,6 +30,7 @@ async function netHost(fixed) {
 }
 function netHostData(id, c, d) {
   if (!d || !d.t) return;
+  if (d.t == 'ping') { netSend(c, { t: 'pong', players: NET.conns.size + (NET.bot ? 0 : 1), max: 20, motd: (world && world.meta.name) || 'Blockcraft', names: [...NET.avatars.values()].map(a => a.name).concat(NET.bot ? [] : [player ? player.name : 'Host']) }); return; }
   if (d.t == 'hello') {
     if (d.v !== 1) { netSend(c, { t: 'kick', why: 'Different game version - update the page' }); return; }
     NET.conns.set(id, c); const m = world.meta;
@@ -148,27 +149,75 @@ function netDrawNames(PV, W, H) {
   }
 }
 // ---- screens ----
+// ---------- Multiplayer screens, laid out like Minecraft's "Play Multiplayer" server list ----------
+const DEFAULT_SERVERS = [{ name: 'Blockcraft Survival', addr: 'Survival', motd: 'The official survival server' }, { name: 'Blockcraft Creative', addr: 'Creative', motd: 'Build anything, unlimited blocks' }, { name: 'Parkour', addr: 'Parkour', motd: 'Jump and run on a flat world' }];
+function mpServers() { let l = store.get('servers', null); if (!l) { l = DEFAULT_SERVERS.slice(); store.set('servers', l); } return l; }
+const isCode = a => /^[A-Z0-9]{6}$/.test(a) && !/^(SURVIV|CREATI|PARKOU)/.test(a);
+function mpJoin(sv) { S.mp = S.mp || {}; if (isCode(sv.addr.toUpperCase())) { S.mp.busy = 1; S.mp.msg = '§7Connecting to ' + sv.name + '...'; netJoin(sv.addr.toUpperCase()).then(w => { S.mp.busy = 0; netEnter(w); }).catch(e => { S.mp.busy = 0; S.mp.msg = '§c' + e.message; }); } else netServer(sv.addr); }
+// ask a server how it is doing without joining it (players online, ping)
+const MP_STAT = {};
+async function mpProbe(sv) {
+  const key = sv.addr.toUpperCase(), stt = MP_STAT[key] = { state: 'pinging', t: performance.now() };
+  try { await netLoadLib(); } catch (e) { stt.state = 'offline'; stt.err = 'Offline'; return; }
+  const code = isCode(key) ? key : 'SRV' + srvSlug(sv.addr), t0 = performance.now(), peer = new Peer(); let done = false;
+  const end = (st, extra) => { if (done) return; done = true; Object.assign(stt, { state: st }, extra || {}); try { peer.destroy(); } catch (e) { } };
+  setTimeout(() => end('offline'), 6000);
+  peer.on('error', () => end('offline'));
+  peer.on('open', () => { const c = peer.connect(peerId(code), { reliable: true }); c.on('open', () => c.send({ t: 'ping' })); c.on('data', d => { if (d && d.t == 'pong') end('online', { ping: Math.round(performance.now() - t0), players: d.players, max: d.max, motd: d.motd, names: d.names }); }); });
+}
+function pingBars(x, y, st) {
+  const lvl = !st || st.state == 'offline' ? 0 : st.state == 'pinging' ? 1 + Math.floor(performance.now() / 150) % 5 : st.ping < 150 ? 5 : st.ping < 300 ? 4 : st.ping < 600 ? 3 : st.ping < 1000 ? 2 : 1;
+  for (let i = 0; i < 5; i++) { const h = 2 + i * 1.5; cx2.fillStyle = !st || st.state == 'offline' ? '#5a1010' : i < lvl ? (st.state == 'pinging' ? '#7fbfff' : '#55FF55') : '#333'; cx2.fillRect(x + i * 2.2, y + 8 - h, 1.6, h); }
+  if (!st || st.state == 'offline') { cx2.fillStyle = '#FF5555'; cx2.fillRect(x + 1, y + 1, 1, 1); }
+}
 function scrMultiplayer() {
-  screenBg(); header('Multiplayer'); S.mp = S.mp || {}; for (const k of ['code', 'name', 'srv']) if (typeof S.mp[k] != 'string') S.mp[k] = '';
-  const two = UW >= 430, x = two ? UW / 2 - 210 : UW / 2 - 100, y = two ? Math.max(32, UH / 2 - 70) : Math.max(32, Math.min(UH / 2 - 60, UH - 260)), cxm = x + 100;
-  textC('Join a friend\'s world', cxm, y, '#FFFFFF');
-  textC('§7Ask your friend for the code from', cxm, y + 14, '#FFFFFF'); textC('§7"Open to Friends" in their pause menu.', cxm, y + 24, '#FFFFFF');
-  textField('mpcode', S.mp, 'code', x, y + 40, 200, 20, 'Friend code (e.g. K7QX2M)'); S.mp.code = S.mp.code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-  textField('mpname', S.mp, 'name', x, y + 66, 200, 20, 'Your name: ' + netName()); if (S.mp.name !== undefined && S.mp.name) store.set('mpName', S.mp.name);
-  if (button(S.mp.busy ? 'Connecting...' : 'Join', x, y + 92, 200, 20, S.mp.code.length == 6 && !S.mp.busy)) {
-    S.mp.busy = 1; S.mp.msg = '';
-    netJoin(S.mp.code).then(w => { S.mp.busy = 0; netEnter(w); }).catch(e => { S.mp.busy = 0; S.mp.msg = '§c' + e.message; });
-  }
-  if (S.mp.msg) textC(S.mp.msg, UW / 2, y + 118 + (two ? 0 : 108), '#FFFFFF');
-  // public servers: always the same name, so anyone can find them
-  const sx = two ? UW / 2 + 10 : x, sy = two ? y : y + 132; textC('§eServers', sx + 100, sy, '#FFFFFF');
-  const SV = ['Survival', 'Creative', 'Parkour'], bw = 64;
-  SV.forEach((n, i) => { if (button(n, sx + i * 68, sy + 12, bw, 20, !S.mp.busy)) netServer(n); });
-  textField('mpsrv', S.mp, 'srv', sx, sy + 36, 132, 20, 'Server name'); S.mp.srv = (S.mp.srv || '').replace(/[^A-Za-z0-9 ]/g, '').slice(0, 16);
-  if (button('Join', sx + 136, sy + 36, 64, 20, S.mp.srv.length >= 3 && !S.mp.busy)) netServer(S.mp.srv);
-  if (button('Run a hidden server bot', sx, sy + 60, 200, 20, (S.mp.srv || '').length >= 3 && !S.mp.busy)) netServer(S.mp.srv, true);
-  if (two) textC('§8A server stays online while someone (or a hidden bot tab) is hosting it.', UW / 2, UH - 42, '#FFFFFF');
-  if (button('Back', UW / 2 - 100, UH - 28)) go('title');
+  screenBg(); header(S.bedrock ? 'Servers' : 'Play Multiplayer'); S.mp = S.mp || {};
+  const L = mpServers(), top = 32, bottom = UH - 58, w = Math.min(300, UW - 20), x = UW / 2 - w / 2;
+  if (!S.mp.probed) { S.mp.probed = 1; L.forEach(mpProbe); }
+  listFrame(top, bottom);
+  if (mouse.wheel && hover(0, top, UW, bottom - top)) S.scroll = clamp(S.scroll + mouse.wheel * 18, 0, Math.max(0, L.length * 36 - (bottom - top) + 8));
+  cx2.save(); cx2.beginPath(); cx2.rect(0, top, UW, bottom - top); cx2.clip();
+  L.forEach((sv, i) => {
+    const y = top + 4 + i * 36 - S.scroll, st = MP_STAT[sv.addr.toUpperCase()], hv = hover(x, y, w, 32) && mouse.y > top && mouse.y < bottom;
+    if (S.mp.sel == i) { cx2.fillStyle = '#808080'; cx2.fillRect(x - 2, y - 2, w + 4, 36); cx2.fillStyle = '#000'; cx2.fillRect(x - 1, y - 1, w + 2, 34); }
+    cx2.fillStyle = '#2a2a2a'; cx2.fillRect(x, y, 32, 32); drawIcon(BYNAME[['grass_block', 'diamond_block', 'oak_log', 'crafting_table', 'tnt'][i % 5]] || 1, x + 2, y + 2, 28);
+    if (hv) { cx2.fillStyle = 'rgba(160,160,160,.5)'; cx2.fillRect(x, y, 32, 32); spr(hover(x, y, 32, 32) ? 'world_list_join_highlighted' : 'world_list_join', x, y, 32, 32); }
+    text(sv.name, x + 35, y + 1, '#FFFFFF');
+    const motd = st && st.state == 'online' ? (st.motd || sv.motd || 'A Blockcraft world') : st && st.state == 'pinging' ? '§8Pinging...' : '§4Can\'t connect to server' + (isCode(sv.addr.toUpperCase()) ? '' : ' §8- §7join to start it');
+    text(motd, x + 35, y + 12, '#808080', false); text('§8' + (isCode(sv.addr.toUpperCase()) ? 'Friend code ' : 'Server ') + sv.addr, x + 35, y + 22, '#808080', false);
+    pingBars(x + w - 14, y + 1, st); if (st && st.state == 'online') { const pc = '§7' + st.players + '§8/§7' + (st.max || 20); text(pc, x + w - 17 - textW(pc), y + 1, '#FFFFFF', false); }
+    if (hv && st && st.state == 'online' && st.names && st.names.length && hover(x + w - 40, y, 40, 10)) S.mp.tip = st.names.join(', ');
+    if (hv && mouse.click && !clickUsed) { clickUsed = true; if (S.mp.sel == i && performance.now() - (S.mp.lastClick || 0) < 400 || hover(x, y, 32, 32)) mpJoin(sv); S.mp.sel = i; S.mp.lastClick = performance.now(); SND.play('ui_click', .5); }
+  });
+  cx2.restore();
+  if (S.mp.tip) { const tw = textW(S.mp.tip) + 8; nine('tooltip_background', mouse.x + 8, mouse.y - 14, tw, 14, 3, 3, 3, 3); text(S.mp.tip, mouse.x + 12, mouse.y - 11, '#FFFFFF', false); S.mp.tip = null; }
+  if (S.mp.msg) textC(S.mp.msg, UW / 2, bottom + 2, '#FFFFFF');
+  const sel = L[S.mp.sel], bx = UW / 2 - 154, by = UH - 50;
+  if (button(S.mp.busy ? 'Connecting...' : 'Join Server', bx, by, 100, 20, !!sel && !S.mp.busy)) mpJoin(sel);
+  if (button('Direct Connection', bx + 104, by, 100)) { S.mpEdit = { name: 'Minecraft Server', addr: '', direct: 1 }; go('mpdirect'); }
+  if (button('Add Server', bx + 208, by, 100)) { S.mpEdit = { name: 'Blockcraft Server', addr: '', idx: -1 }; go('mpadd'); }
+  if (button('Edit', bx, by + 24, 74, 20, !!sel)) { S.mpEdit = Object.assign({ idx: S.mp.sel }, sel); go('mpadd'); }
+  if (button('Delete', bx + 78, by + 24, 74, 20, !!sel)) { L.splice(S.mp.sel, 1); store.set('servers', L); S.mp.sel = -1; }
+  if (button('Refresh', bx + 156, by + 24, 74)) { for (const k in MP_STAT) delete MP_STAT[k]; S.mp.probed = 0; }
+  if (button('Back', bx + 234, by + 24, 74)) go('title');
+}
+function scrMpAdd() { // "Edit Server Info"
+  screenBg(); header(S.mpEdit.idx >= 0 ? 'Edit Server Info' : 'Add Server'); const E = S.mpEdit, x = UW / 2 - 100, y = Math.max(40, UH / 2 - 70);
+  text('Server Name', x, y, '#A0A0A0'); textField('mpaddn', E, 'name', x, y + 10, 200);
+  text('Server Address', x, y + 38, '#A0A0A0'); textField('mpadda', E, 'addr', x, y + 48, 200, 20, 'Server name (e.g. Survival) or friend code'); E.addr = E.addr.replace(/[^A-Za-z0-9 ]/g, '').slice(0, 16);
+  text('§8Your name in multiplayer:', x, y + 76, '#FFFFFF', false); E.pn = E.pn ?? store.get('mpName', ''); textField('mpaddp', E, 'pn', x, y + 86, 200, 20, netName());
+  const ok = E.addr.length >= 3;
+  if (button('Done', x, UH - 52, 200, 20, ok)) { if (E.pn) store.set('mpName', E.pn); const L = mpServers(), v = { name: E.name || 'Blockcraft Server', addr: E.addr }; if (E.idx >= 0) L[E.idx] = Object.assign(L[E.idx], v); else L.push(v); store.set('servers', L); delete MP_STAT[E.addr.toUpperCase()]; mpProbe(v); go('multiplayer'); }
+  if (button('Host as hidden server bot', x, UH - 76, 200, 20, ok && !isCode(E.addr.toUpperCase()))) { netServer(E.addr, true); }
+  if (button('Cancel', x, UH - 28, 200)) go('multiplayer');
+}
+function scrMpDirect() { // "Direct Connection"
+  screenBg(); header('Direct Connection'); const E = S.mpEdit, x = UW / 2 - 100, y = Math.max(50, UH / 2 - 40);
+  text('Server Address', x, y, '#A0A0A0'); textField('mpdir', E, 'addr', x, y + 10, 200, 20, 'Friend code or server name'); E.addr = E.addr.replace(/[^A-Za-z0-9 ]/g, '').slice(0, 16);
+  textC('§8Friend codes come from "Open to Friends" in the pause menu', UW / 2, y + 36, '#FFFFFF');
+  if (S.mp && S.mp.msg) textC(S.mp.msg, UW / 2, y + 50, '#FFFFFF');
+  if (button(S.mp && S.mp.busy ? 'Connecting...' : 'Join Server', x, UH - 52, 200, 20, E.addr.length >= 3 && !(S.mp && S.mp.busy))) mpJoin({ name: E.addr, addr: E.addr });
+  if (button('Cancel', x, UH - 28, 200)) go('multiplayer');
 }
 
 // ---- servers: a fixed name instead of a random code. Whoever is hosting keeps it alive; a hidden "bot" tab can host it 24/7 ----
