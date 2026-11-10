@@ -359,7 +359,7 @@ function cartMove(m, dt) {
   if (sp > 1 && Math.random() < dt * 2) SND.play('minecart/base', .25, 1, [m.x, m.y, m.z]);
 }
 // ---- particles with Minecraft's own sprites ----
-function spark(pt, x, y, z, o = {}) { const life = o.life ?? .8; particles.push(Object.assign({ x, y, z, vx: (Math.random() - .5) * (o.spread ?? .3), vy: o.vy ?? .4, vz: (Math.random() - .5) * (o.spread ?? .3), life, ml: life, g: o.g ?? 0, s: o.s ?? .08, pt }, o.extra || {})); }
+function spark(pt, x, y, z, o = {}) { const life = o.life ?? .8; particles.push(Object.assign({ x, y, z, vx: o.vx ?? (Math.random() - .5) * (o.spread ?? .3), vy: o.vy ?? .4, vz: o.vz ?? (Math.random() - .5) * (o.spread ?? .3), life, ml: life, g: o.g ?? 0, s: o.s ?? .08, pt }, o.extra || {})); }
 const AMB = { torch: ['flame', .7], wall_torch: ['flame', .62], soul_torch: ['soul_fire_flame', .7], soul_wall_torch: ['soul_fire_flame', .62], copper_torch: ['copper_fire_flame', .7], copper_wall_torch: ['copper_fire_flame', .62], lantern: ['flame', .45], soul_lantern: ['soul_fire_flame', .45], campfire: ['big_smoke', .9], soul_campfire: ['big_smoke', .9], furnace_lit: ['flame', .2], smoker_lit: ['big_smoke', .9], blast_furnace_lit: ['flame', .2], end_rod: ['glitter', .8], firefly_bush: ['firefly', .9], lava: ['lava', .9], cherry_leaves: ['cherry', 0], pale_oak_leaves: ['pale_oak', 0], red_poplar_leaves: ['red_poplar', 0], orange_poplar_leaves: ['orange_poplar', 0], yellow_poplar_leaves: ['yellow_poplar', 0] };
 function ambientParticles(dt) {
   if (!world || !player || !window.PTEX) return; const P = player, n = Math.min(60, Math.floor(dt * 1800));
@@ -491,8 +491,10 @@ function armorPts() { return player.armor.reduce((s, a) => s + (a && ARMOR(a.k) 
 function hurtPlayer(dmg, msg, ignoreArmor, src) {
   if (player.mode != 'survival' || player.dead) return; if (world.meta.diff == 0 && msg == 'starved to death') return;
   if (!ignoreArmor) { const a = armorPts(); dmg *= 1 - Math.min(20, a) * .04; player.armor.forEach((s, i) => { if (s) { s.dmg = (s.dmg || 0) + 1; if (s.dmg >= toolDurability(s.k)) { player.armor[i] = null; SND.play('break'); } } }); }
+  dmg = effDamage(dmg, msg, src); if (dmg <= 0) return;
   if (player.invuln > 0 && !ignoreArmor) return; player.invuln = .5; player.hp -= dmg; player.stats.dmg += dmg; player.hurtT = .5; SND.play('hurt', 1, 1);
   if (src) { const dx = player.x - src[0], dz = player.z - src[2], d = Math.hypot(dx, dz) || 1; player.vx += dx / d * 7; player.vz += dz / d * 7; player.vy = Math.max(player.vy, 5.5); player.ground = false; }
+  if (player.hp <= 0 && tryTotem()) return;
   if (player.hp <= 0) { player.hp = 0; player.dead = true; player.deathMsg = player.name + ' ' + msg; if (!api.settings.keepInventory) { for (const s of [...player.inv, ...player.armor, player.offhand]) if (s) dropItem(s.k, s.c, player.x, player.y + 1, player.z); player.inv.fill(null); player.armor.fill(null); player.offhand = null; } carried = null; go('death'); }
 }
 let breaking = null, useT = 0, eatT = 0, lastSpace = 0, lastW = 0, sprintTap = false, attackCd = 0, stepAcc = 0, swing = 0, placeCd = 0;
@@ -507,7 +509,7 @@ function updatePlayer(dt) {
   let f = 0, s = 0; if (active) { f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0); s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0); }
   const sneak = active && (keys.ShiftLeft || keys.ShiftRight) && !P.fly;
   if (active && (keys.ControlLeft || sprintTap) && f > 0 && (P.food > 6 || P.mode != 'survival') && !sneak) P.sprint = true; if (f <= 0 || P.hitH) { P.sprint = false; sprintTap = false; }
-  let sp = P.fly ? (P.sprint ? 21.6 : 10.9) : P.sprint ? 5.6 : sneak ? 1.3 : 4.317; if (inWater && !P.fly) sp *= .5; if (eatT > 0) sp *= .3;
+  let sp = P.fly ? (P.sprint ? 21.6 : 10.9) : P.sprint ? 5.6 : sneak ? 1.3 : 4.317; if (inWater && !P.fly) sp *= .5; if (eatT > 0) sp *= .3; sp *= effSpeed(); if (P.blocking > 0 || P.draw > 0) sp *= .3;
   const under = BL[world.get(fx, Math.floor(P.y - .05), fz)]?.n || '', inWeb = world.get(fx, Math.floor(P.y + .2), fz) == B('cobweb') || world.get(fx, Math.floor(P.y + 1.2), fz) == B('cobweb');
   if (P.ride) { if (P.ride.dead || !mobs.includes(P.ride) || active && keys.ShiftLeft) { const c = P.ride; P.ride = null; P.sit = null; if (c) { P.x = c.x; P.y = c.y + 1; P.z = c.z; } } else P.sit = [P.ride.x, P.ride.y + .35, P.ride.z]; }
   if (P.sit) { if (!P.ride && (active && (keys.Space || keys.ShiftLeft) || P.fly)) P.sit = null; else { P.x = P.sit[0]; P.y = P.sit[1]; P.z = P.sit[2]; P.vx = P.vy = P.vz = 0; P.fallStart = null; } }
@@ -524,7 +526,8 @@ function updatePlayer(dt) {
   if (P.fly) { const up = active && keys.Space ? 1 : 0, dn = active && (keys.ShiftLeft || keys.ShiftRight) ? 1 : 0; P.vy += ((up - dn) * 8 - P.vy) * Math.min(1, 10 * dt); }
   else if (inWater || inLava) { P.vy -= 8 * dt; P.vy *= Math.pow(.2, dt); if (active && keys.Space) P.vy = Math.min(P.vy + 25 * dt, 2.5); if (P.vy < -3) P.vy = -3; }
   else if (P.glide) { const f = fwd(), sp = Math.hypot(P.vx, P.vy, P.vz); P.vx += f[0] * (6 + Math.max(0, -f[1]) * 20) * dt; P.vz += f[2] * (6 + Math.max(0, -f[1]) * 20) * dt; P.vy += (f[1] * sp * .6 - 2 - P.vy) * Math.min(1, dt * 2); const s2 = Math.hypot(P.vx, P.vz); if (s2 > 33) { P.vx *= 33 / s2; P.vz *= 33 / s2; } P.vx *= Math.pow(.99, dt * 20); P.vz *= Math.pow(.99, dt * 20); P.fallStart = P.y; }
-  else { P.vy -= 32 * dt; P.vy *= Math.pow(.98, dt * 20); if (P.vy < -78) P.vy = -78; if (active && keys.Space && P.ground) { P.vy = 9 * Math.sqrt(api.settings.jumpBoost); P.ground = false; P.stats.jumps++; P.exh += P.sprint ? .2 : .05; if (P.sprint) { const fw = fwd(); P.vx -= Math.sin(P.yaw) * 2; P.vz -= Math.cos(P.yaw) * 2; } } }
+  else { P.vy -= 32 * dt; P.vy *= Math.pow(.98, dt * 20); if (P.vy < -78) P.vy = -78; if (active && keys.Space && P.ground) { P.vy = 9 * Math.sqrt(api.settings.jumpBoost) * effJump(); P.ground = false; P.stats.jumps++; P.exh += P.sprint ? .2 : .05; if (P.sprint) { const fw = fwd(); P.vx -= Math.sin(P.yaw) * 2; P.vz -= Math.cos(P.yaw) * 2; } } }
+  climbTick(dt, active);
   const ox = P.x, oy = P.y, oz = P.z;
   if (spect) { P.x += P.vx * dt; P.y += P.vy * dt; P.z += P.vz * dt; P.ground = false; }
   else {
@@ -588,7 +591,7 @@ function updatePlayer(dt) {
   if (!spect) for (const m of mobs) { const t = rayBox(eye, d, [m.x - m.r, m.y, m.z - m.r], [m.x + m.r, m.y + m.h, m.z + m.r]); if (t !== null && t < tmd && t < 3.5) { tm = m; tmd = t; } }
   P.targetMob = tm;
   if (mouse.down && !spect && !(performance.now() < (S.noBreak || 0))) {
-    if (tm && attackCd <= 0) { attackCd = .5; swing = 1; const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, attackDamage(h && h.k) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 10; i++) spark('critical_hit', tm.x, tm.y + tm.h * .7, tm.z, { vy: Math.random() * 3, spread: 4, life: .5, g: .6, s: .06 }); else spark('damage', tm.x, tm.y + tm.h * .8, tm.z, { vy: 1.5, spread: .4, life: .5, s: .07 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
+    if (tm && attackCd <= 0) { attackCd = .5; swing = 1; const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, (attackDamage(h && h.k) + effStrength()) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 10; i++) spark('critical_hit', tm.x, tm.y + tm.h * .7, tm.z, { vy: Math.random() * 3, spread: 4, life: .5, g: .6, s: .06 }); else spark('damage', tm.x, tm.y + tm.h * .8, tm.z, { vy: 1.5, spread: .4, life: .5, s: .07 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
     else if (hit && !tm) {
       if (creative) { if (attackCd <= 0) { attackCd = .25; const h = held(); if (!(h && toolInfo(h.k) && toolInfo(h.k).type == 'sword')) netBegin(); doBreak(hit, false); netEnd(hit); swing = 1; } }
       else {
@@ -602,12 +605,14 @@ function updatePlayer(dt) {
   } else breaking = null;
   // use / place
   const h = held();
-  if (mouse.rdown && !(performance.now() < (S.noBreak || 0))) {
-    const fv = h && foodVal(h.k);
-    if (fv && (P.food < 20 || /golden_apple|chorus/.test(keyName(h.k)) || P.mode == 'creative')) {
+  const rdn = mouse.rdown && !(performance.now() < (S.noBreak || 0)), holding = holdTick(h, dt, rdn);
+  if (rdn && holding) { eatT = 0; }
+  else if (rdn) {
+    const fv = h && foodVal(h.k), drink = h && DRINKS[keyName(h.k)];
+    if (drink || fv && (P.food < 20 || /golden_apple|chorus/.test(keyName(h.k)) || P.mode == 'creative')) {
       eatT += dt; if ((P.eatS = (P.eatS || 0) - dt) <= 0) { P.eatS = .22; SND.play('eat', .5, .8 + Math.random() * .4); spawnEatParticles(h.k); }
-      if (eatT >= 1.6) { eatT = 0; P.food = Math.min(20, P.food + fv); P.sat = Math.min(P.food, P.sat + fv * 1.2); if (P.mode == 'survival') { h.c--; if (!h.c) P.inv[P.sel] = null; } P.stats.eaten++; SND.play('burp', .5); award('eat'); const n = keyName(h.k); if (/stew|soup/.test(n)) giveItem(itemKey('item:bowl'), 1); }
-    } else if (placeCd <= 0) { eatT = 0; placeCd = .25; netBegin(); useItem(hit, tm, h); netEnd(hit); }
+      if (eatT >= 1.6) { eatT = 0; const en = keyName(h.k); P.food = Math.min(20, P.food + (fv || 0)); if (drink) afterDrink(en, h); else afterEat(en); P.sat = Math.min(P.food, P.sat + fv * 1.2); if (P.mode == 'survival') { h.c--; if (!h.c) P.inv[P.sel] = null; } P.stats.eaten++; SND.play('burp', .5); award('eat'); const n = keyName(h.k); if (/stew|soup/.test(n)) giveItem(itemKey('item:bowl'), 1); }
+    } else if (placeCd <= 0) { eatT = 0; placeCd = .25; if (!(h && !tm && useSpecial(h, hit))) { netBegin(); useItem(hit, tm, h); netEnd(hit); } }
   } else { eatT = 0; placeCd = Math.min(placeCd, 0); }
   if (mouse.mclick && hit) { const k = hit.b; if (creative) { const i = P.inv.findIndex((s, i) => i < 9 && s && s.k == k); if (i >= 0) P.sel = i; else P.inv[P.sel] = { k, c: 1 }; } else { const i = P.inv.findIndex((s, i) => i < 9 && s && s.k == k); if (i >= 0) P.sel = i; } }
 }
@@ -819,12 +824,13 @@ function shootArrow(m, t) {
 function updateArrows(dt) {
   for (const a of arrows) {
     a.life -= dt; if (a.stuck) continue;
-    if (a.reflect === undefined) for (const mm of mobs) if (a.byPlayer && !mm.dead && Math.abs(a.x - mm.x) < mm.r + .2 && a.y > mm.y && a.y < mm.y + mm.h && Math.abs(a.z - mm.z) < mm.r + .2) { a.life = 0; hurtMob(mm, 6, a.vx / 20, a.vz / 20); }
-    if (!a.fire) a.vy -= 20 * dt; else if (Math.random() < .5) particles.push({ x: a.x, y: a.y, z: a.z, vx: 0, vy: .3, vz: 0, life: .4, tile: TEX[B('gray_wool') * 4], g: 0, s: .15 }); const nx = a.x + a.vx * dt, ny = a.y + a.vy * dt, nz = a.z + a.vz * dt;
+    if (a.reflect === undefined) for (const mm of mobs) if (a.byPlayer && !mm.dead && Math.abs(a.x - mm.x) < mm.r + .2 && a.y > mm.y && a.y < mm.y + mm.h && Math.abs(a.z - mm.z) < mm.r + .2) { a.life = 0; if (a.onHit) a.onHit(mm, a.x, a.y, a.z); else hurtMob(mm, a.dmg ?? 6, a.vx / 20, a.vz / 20); }
+    if (!a.fire) a.vy -= (a.grav ?? 20) * dt; else if (Math.random() < .5) particles.push({ x: a.x, y: a.y, z: a.z, vx: 0, vy: .3, vz: 0, life: .4, tile: TEX[B('gray_wool') * 4], g: 0, s: .15 }); const nx = a.x + a.vx * dt, ny = a.y + a.vy * dt, nz = a.z + a.vz * dt;
     if (a.fire && (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] || Math.hypot(nx - player.x, ny - player.y - 1, nz - player.z) < 1.2)) { a.life = 0; explode(nx, ny, nz, 1.6, .5); continue; }
-    if (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))]) { a.stuck = true; a.life = Math.min(a.life, 20); SND.play('random/bowhit', .5, 1, [nx, ny, nz]); continue; }
+    if (a.onHit && (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] || FLUID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] && a.wet)) { a.life = 0; a.onHit(null, a.x, a.y, a.z); continue; }
+    if (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))]) { a.stuck = true; if (a.pick) a.life = 60; a.life = Math.min(a.life, 20); SND.play('random/bowhit', .5, 1, [nx, ny, nz]); continue; }
     a.x = nx; a.y = ny; a.z = nz;
-    if (Math.abs(a.x - player.x) < .4 && a.y > player.y && a.y < player.y + 1.8 && Math.abs(a.z - player.z) < .4 && player.mode == 'survival' && !a.fire) { a.life = 0; hurtPlayer([0, 2, 3, 4][world.meta.diff] + (Math.random() * 2 | 0), 'was shot by Skeleton', false, [a.x - a.vx, a.y, a.z - a.vz]); }
+    if (Math.abs(a.x - player.x) < .4 && a.y > player.y && a.y < player.y + 1.8 && Math.abs(a.z - player.z) < .4 && player.mode == 'survival' && !a.fire && !a.byPlayer) { a.life = 0; if (shieldBlocks([a.x - a.vx, a.y, a.z - a.vz])) continue; hurtPlayer([0, 2, 3, 4][world.meta.diff] + (Math.random() * 2 | 0), 'was shot by Skeleton', false, [a.x - a.vx, a.y, a.z - a.vz]); }
   }
   arrows = arrows.filter(a => a.life > 0);
 }
@@ -866,7 +872,7 @@ function spawnEatParticles(k) {
 }
 // ---------------- world tick ----------------
 function updateWorld(dt) {
-  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); lidTick(dt); netTick(dt);
+  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); lidTick(dt); effTick(dt); fishTick(dt); rocketTick(dt); if (player.fish) drawFishLine(); netTick(dt);
   if (world.dim == 'nether') m.rain = false;
   m.weatherT -= dt; if (m.weatherT <= 0 && world.dim != 'nether') { m.rain = !m.rain && Math.random() < .5; m.thunder = m.rain && Math.random() < .3; m.weatherT = m.rain ? 300 + Math.random() * 400 : 600 + Math.random() * 1200; SND.setRain(m.rain); }
   if (m.thunder && Math.random() < dt / 20) { S.flash = .3; setTimeout(() => SND.play('thunder', .7), 600); }
@@ -915,7 +921,7 @@ function skyState() {
 }
 function camMatrices(fovMul = 1) {
   const W = glc.width, H = glc.height; const P = player;
-  if (P) P.fovK = lerp(P.fovK || 1, P.sprint ? (P.fly ? 1.1 : 1.08) : 1, .08); let fov = opts.fov * (P ? P.fovK : 1) * fovMul;
+  if (P) P.fovK = lerp(P.fovK || 1, P.sprint ? (P.fly ? 1.1 : 1.08) : 1, .08); let fov = opts.fov * (P ? P.fovK : 1) * fovMul * (P && P.spy ? .12 : 1);
   const proj = M4.persp(fov * Math.PI / 180, W / H, .1, Math.max(1000, opts.rd * 24));
   return proj;
 }
@@ -943,7 +949,7 @@ function render(dt) {
   const PV = M4.mul(proj, view); NET.PV = PV;
   gl.useProgram(PROG.p); gl.uniformMatrix4fv(u.uPV, false, PV); gl.uniform3f(u.uCam, eye[0], eye[1], eye[2]);
   gl.uniform3f(u.uFog, fogC[0], fogC[1], fogC[2]);
-  gl.uniform1f(u.uMinL, api.settings.fullbright ? 1 : (sk.nether ? .28 : .09) + (opts.bright || 0) * .18); gl.uniform1f(u.uBright, opts.bright || 0); const fogF = underwater ? 20 : inLava ? 2 : sk.nether ? Math.min(80, opts.rd * 12) : opts.rd * 16 * (world.meta.rain ? .8 : 1), fogN = underwater ? 0 : inLava ? 0 : fogF * .6;
+  gl.uniform1f(u.uMinL, api.settings.fullbright ? 1 : (sk.nether ? .28 : .09) + (opts.bright || 0) * .18); gl.uniform1f(u.uBright, (opts.bright || 0) + (eff('night_vision') ? 1.6 : 0)); const fogF = underwater ? 20 : inLava ? 2 : sk.nether ? Math.min(80, opts.rd * 12) : opts.rd * 16 * (world.meta.rain ? .8 : 1), fogN = underwater ? 0 : inLava ? 0 : fogF * .6;
   // sky objects
   gl.depthMask(false); gl.uniform1f(u.uFogN, 1e4); gl.uniform1f(u.uFogF, 2e4); gl.uniform1f(u.uDay, 1);
   if (!underwater && !sk.nether) {
@@ -1128,7 +1134,7 @@ function renderEntities(sk) {
     drawMesh(mesh, tex, { model: M });
     if (it.c > 1) drawMesh(mesh, tex, { model: M4.mul(M4.trans(.06, .06, .06), M) });
   }
-  for (const a of arrows) { const [mesh, tex] = itemMesh(itemKey(a.fire ? 'item:fire_charge' : 'item:arrow')); const yaw = Math.atan2(a.vx, a.vz), pit = Math.atan2(a.vy, Math.hypot(a.vx, a.vz)); if (!a.stuck) { a.yaw = yaw; a.pit = pit; } gl.uniform1f(u.uDay, sk.day); drawMesh(mesh, tex, { model: M4.chain(M4.trans(a.x, a.y, a.z), M4.ry(a.yaw), M4.rx(-a.pit), M4.ry(Math.PI / 2), M4.rz(-Math.PI / 4), M4.scale(.5, .5, .5)) }); }
+  for (const a of arrows) { const [mesh, tex] = itemMesh(a.k || itemKey(a.fire ? 'item:fire_charge' : 'item:arrow')); const yaw = Math.atan2(a.vx, a.vz), pit = Math.atan2(a.vy, Math.hypot(a.vx, a.vz)); if (!a.stuck) { a.yaw = yaw; a.pit = pit; } gl.uniform1f(u.uDay, sk.day); drawMesh(mesh, tex, { model: M4.chain(M4.trans(a.x, a.y, a.z), M4.ry(a.yaw), M4.rx(-a.pit), M4.ry(Math.PI / 2), M4.rz(-Math.PI / 4), M4.scale(.5, .5, .5)) }); }
   for (const f of falling) { const [mesh, tex] = itemMesh(f.k); const L = lightAt(f.x, f.y + .5, f.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1])); drawMesh(mesh, tex, { model: M4.trans(f.x, f.y + .5, f.z) }); }
   for (const tn of tnts) { const [mesh, tex] = itemMesh(B('tnt')); const fl = Math.floor(tn.fuse * 4) % 2; const s = 1 + Math.max(0, .5 - tn.fuse) * .3; gl.uniform1f(u.uDay, 1); drawMesh(mesh, tex, { model: M4.chain(M4.trans(tn.x, tn.y + .5, tn.z), M4.scale(s, s, s)), tint: fl ? [1, 1, 1, .5] : [0, 0, 0, 0] }); }
   gl.uniform1f(u.uDay, sk.day);
@@ -1179,9 +1185,10 @@ function renderHand(proj, sk, dt) {
   // Java ItemInHandRenderer, right hand: same arm/item transforms, swing curves and item display transforms
   const D = Math.PI / 180, sp = swing > 0 ? 1 - swing : 0, sq = Math.sqrt(sp), PI = Math.PI;
   if (h) {
-    const [mesh, tex] = itemMesh(h.k), disp = heldDisplay(h.k, 'fp');
+    const [mesh, tex] = itemMesh(h.k), disp = heldDisplay(h.k, 'fp'), pose = handPose(); if (pose && pose.hide) return;
     let M = M4.chain(M4.trans(-.4 * Math.sin(sq * PI) + bob, .2 * Math.sin(sq * PI * 2) + bobY + eat + (eatT > 0 ? .1 : 0), -.2 * Math.sin(sp * PI)),
       M4.trans(.56, -.52, -.72), M4.ry((45 + Math.sin(sp * sp * PI) * -20) * D), M4.rz(Math.sin(sq * PI) * -20 * D), M4.rx(Math.sin(sq * PI) * -80 * D), M4.ry(-45 * D));
+    if (pose) M = M4.chain(M4.trans(pose.dx, pose.dy, pose.dz), M, M4.ry(pose.ry), M4.rz(pose.rz));
     M = M4.chain(M, ...dispMats(disp));
     drawMesh(mesh, tex, { model: M, alphaTest: .1 });
   } else if (IMG.steve) {
@@ -1256,6 +1263,7 @@ function drawHUD(dt) {
   if (NET.PV && S.screen == 'game') netDrawNames(NET.PV);
   drawBotOverlay();
   if (S.sleepT > 0) { S.sleepT -= 1 / 60; const a = Math.min(1, Math.min(S.sleepT, 2.5 - S.sleepT) * 1.5); cx2.fillStyle = 'rgba(8,8,20,' + a + ')'; cx2.fillRect(0, 0, UW, UH); if (a > .6) textC('Good morning!', UW / 2, UH / 2 - 4, '#FFFFFF'); }
+  if (!debug) drawItemHud();
   if (!debug) modEmit('hud', cx2, UW, UH, dt); // mods can draw on the HUD
   if (S.screen == 'game' && !locked && !noLock && !PAD.on) { cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(0, 0, UW, UH); textC('Click to continue playing', UW / 2, UH / 2 - 4, '#FFFFFF'); }
 }

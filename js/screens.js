@@ -550,7 +550,7 @@ function scrChat() {
 }
 const CMDS = ['nether', 'gamemode', 'time', 'weather', 'tp', 'give', 'kill', 'summon', 'seed', 'clear', 'effect', 'difficulty', 'spawnpoint', 'help', 'say', 'xp', 'fill', 'setblock'];
 const CMD_ARGS = { weather: [['clear', 'rain', 'thunder']], time: [['set', 'add'], ['day', 'noon', 'night', 'midnight', '0', '6000', '12000', '18000']], gamemode: [['survival', 'creative', 'spectator', 'adventure']], difficulty: [['peaceful', 'easy', 'normal', 'hard']],
-  summon: [() => Object.keys(MOBDEF)], give: [() => ['@s'], () => Object.keys(typeof BYNAME == 'object' ? BYNAME : {})], effect: [['give', 'clear'], ['@s'], ['speed', 'jump_boost', 'night_vision', 'regeneration', 'strength', 'invisibility', 'slow_falling', 'fire_resistance', 'water_breathing']], kill: [['@s', '@e']], clear: [['@s']], tp: [['~', '@s']] };
+  summon: [() => Object.keys(MOBDEF)], give: [() => ['@s'], () => Object.keys(typeof BYNAME == 'object' ? BYNAME : {})], effect: [['give', 'clear'], ['@s'], () => Object.keys(EFF_NAMES)], kill: [['@s', '@e']], clear: [['@s']], tp: [['~', '@s']] };
 function runCommand(s) {
   const a = s.split(/\s+/), c = a[0]; const ok = world.meta.cheats || world.meta.mode == 'creative';
   if (MODS.cmds[c]) { try { MODS.cmds[c].fn(a.slice(1)); } catch (e) { chat('§c' + e.message); } return; }
@@ -572,7 +572,8 @@ function runCommand(s) {
     case 'spawnpoint': player.spawn = [player.x, player.y, player.z]; chat('Set spawn point'); break;
     case 'say': chat(`[${player.name}] ${a.slice(1).join(' ')}`); break;
     case 'xp': addXp(parseInt(a[1]) || 0); break;
-    case 'effect': chat('§7Effects are not available'); break;
+    case 'effect': { if (a[1] == 'clear') { clearEff(); chat('Removed every effect'); break; } const n = (a[1] == 'give' ? a[3] : a[1] || '').replace('minecraft:', ''), sec = +(a[1] == 'give' ? a[4] : a[2]) || 30, amp = +(a[1] == 'give' ? a[5] : a[3]) || 0;
+      if (!EFF_NAMES[n]) return chat('§cUnknown effect: ' + n + '. Try: ' + Object.keys(EFF_NAMES).join(', ')); addEff(n, sec, amp); chat('Applied effect ' + EFF_NAMES[n] + ' for ' + sec + 's'); break; }
     case 'setblock': { const x = num(a[1], Math.floor(player.x)), y = num(a[2], Math.floor(player.y)), z = num(a[3], Math.floor(player.z)), b = BYNAME[(a[4] || '').replace('minecraft:', '')]; if (b === undefined) return chat('§cUnknown block'); world.set(Math.floor(x), Math.floor(y), Math.floor(z), b); chat('Changed the block'); break; }
     case 'fill': { const p = a.slice(1, 7).map((v, i) => Math.floor(num(v, [player.x, player.y, player.z][i % 3]))), b = BYNAME[(a[7] || '').replace('minecraft:', '')]; if (b === undefined || p.some(isNaN)) return chat('§cUsage: /fill x1 y1 z1 x2 y2 z2 block'); let n = 0; for (let x = Math.min(p[0], p[3]); x <= Math.max(p[0], p[3]); x++) for (let y = Math.min(p[1], p[4]); y <= Math.max(p[1], p[4]); y++) for (let z = Math.min(p[2], p[5]); z <= Math.max(p[2], p[5]); z++) if (n++ < 32768) world.set(x, y, z, b); chat(`Successfully filled ${Math.min(n, 32768)} blocks`); break; }
     default: chat('§cUnknown command. Type /help for help');
