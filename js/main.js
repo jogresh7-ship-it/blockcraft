@@ -233,6 +233,8 @@ MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, 
       { box: [16, 32, 16], uv: [0, 0], pos: [sx * 16, by - 18, 42], dleg: 1, pivot: [sx * 16, by - 4, 42] }, { box: [12, 32, 12], uv: [196, 0], pos: [sx * 16, by - 48, 44], dleg: 1, pivot: [sx * 16, by - 4, 42] }, { box: [18, 6, 24], uv: [112, 0], pos: [sx * 16, by - 67, 36], dleg: 1, pivot: [sx * 16, by - 4, 42] }); }
   MOBDEF.ender_dragon = { tex: 'mob_ender_dragon', w: 8, h: 6, hp: 200, hostile: 1, fly: 1, flyH: 14, noclip: 1, speed: 6, dmg: [0, 6, 10, 15], drop: [['dragon_egg', 1, 1]], sound: 'mob/enderdragon/growl', hurt: 'mob/enderdragon/hit', death: 'mob/enderdragon/end', step: null, boss: 1, parts: DP };
 }
+MOBDEF.minecart = { tex: 'mob_minecart', w: .98, h: .7, hp: 6, cart: 1, drop: [['item:minecart', 1, 1]], sound: null, hurt: 'step/stone', death: 'step/stone', step: null,
+  parts: [{ box: [20, 2, 16], uv: [0, 10], pos: [0, 3, 0] }, { box: [16, 8, 2], uv: [0, 0], pos: [0, 8, -7] }, { box: [16, 8, 2], uv: [0, 0], pos: [0, 8, 7] }, { box: [16, 8, 2], uv: [0, 0], pos: [-9, 8, 0], ry: Math.PI / 2 }, { box: [16, 8, 2], uv: [0, 0], pos: [9, 8, 0], ry: Math.PI / 2 }] };
 for (const d of Object.values(MOBDEF)) { const arms = (d.parts || []).filter(p => p.arm !== undefined); if (arms.length == 2 && arms.some(p => p.hand && p.pos[0] < 0)) for (const p of arms) { if (p.pos[0] > 0) p.hand = 1; else { delete p.hand; p.offhand = 1; } } }
 for (const [n, d] of Object.entries(MOBDEF)) for (const p of d.parts || []) {
   if (n == 'chicken' && p.box[0] == 1 && p.box[1] == 4 && p.box[2] == 6) { p.wing = p.pos[0] < 0 ? 1 : -1; p.pivot = [p.pos[0], p.pos[1] + 2, p.pos[2]]; }
@@ -272,6 +274,7 @@ function spawnMob(type, x, y, z) { const m = makeMob(type, x, y, z); mobs.push(m
 function updateMobs(dt) {
   for (const m of mobs) {
     if (m.ghost) continue; // a copy of the host's mob
+    if (MOBDEF[m.type].cart) { cartMove(m, dt); continue; }
     const c = world.chunk(Math.floor(m.x / 16), Math.floor(m.z / 16)); if (!c || !c.meshes) continue;
     const D = MOBDEF[m.type]; m.target = null;
     if (D.wolf && m.tamed) { const dx = player.x - m.x, dz = player.z - m.z, dist = Math.hypot(dx, dz); if (dist > 3) { m.yawT = Math.atan2(-dx, -dz); m.mv = dist > 6 ? 1.8 : 1; m.wt = 1; } else if (m.mv > 1) m.mv = 0; if (dist > 20) { m.x = player.x + 1; m.y = player.y; m.z = player.z + 1; } }
@@ -315,6 +318,37 @@ function updateMobs(dt) {
   }
   mobs = mobs.filter(m => !m.dead && Math.hypot(m.x - player.x, m.z - player.z) < (MOBDEF[m.type].hostile ? 100 : 160) && !(MOBDEF[m.type].hostile && world.meta.diff == 0));
   updateArrows(dt); hostileSpawn(dt);
+}
+// ---- minecarts: ride along rails, round curves and up slopes; powered rails push, unpowered ones brake ----
+const RDIR = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+function railAt(x, y, z) { const b = world.get(x, y, z); return BL[b] && BL[b].rails ? b : 0; }
+function cartMove(m, dt) {
+  let bx = Math.floor(m.x), by = Math.floor(m.y + .1), bz = Math.floor(m.z), rb = railAt(bx, by, bz);
+  if (!rb && railAt(bx, by - 1, bz)) { by--; rb = railAt(bx, by, bz); }
+  const rider = player.ride === m;
+  if (rider && (keys.KeyW || TOUCH.joy && TOUCH.joy.dy < -.3)) { const f = fwd(); m.vx += f[0] * 4 * dt; m.vz += f[2] * 4 * dt; }
+  if (!rb) { m.vy -= 28 * dt; m.vx *= Math.pow(.5, dt * 4); m.vz *= Math.pow(.5, dt * 4); const r = moveBody(world, m, dt); m.ground = r.ground; return; }
+  const st = world.state[bx + ',' + by + ',' + bz] || {}, sh = railShape(world, rb, st, bx, by, bz, (X, Y, Z) => world.get(bx - (bx & 15) + X, Y, bz - (bz & 15) + Z), bx & 15, bz & 15);
+  const parts = sh.replace('ascending_', '').split('_'); let exits = sh.startsWith('ascending') ? (parts[0] == 'north' || parts[0] == 'south' ? ['north', 'south'] : ['east', 'west']) : parts.length == 2 && RDIR[parts[0]] && RDIR[parts[1]] ? parts : ['north', 'south'];
+  let sp = Math.hypot(m.vx, m.vz), dir = Math.abs(m.vx) > Math.abs(m.vz) ? (m.vx > 0 ? 'east' : 'west') : (m.vz > 0 ? 'south' : 'north');
+  const back = { north: 'south', south: 'north', east: 'west', west: 'east' }[dir];
+  let out = exits.includes(dir) ? dir : exits.includes(back) ? exits.find(e => e != back) : exits[0];
+  if (exits[0] == back && exits[1] == dir) out = dir;
+  const n = BL[rb].n;
+  if (n == 'powered_rail') { if (st.on) { sp = Math.min(8, sp + 10 * dt); if (sp < .2) { sp = 1; out = exits[0]; } } else sp *= Math.pow(.02, dt); }
+  if (sh.startsWith('ascending')) { const upD = parts[0]; sp += (out == upD ? -9 : 9) * dt * .4; if (sp < 0) { sp = -sp; out = { north: 'south', south: 'north', east: 'west', west: 'east' }[out]; } }
+  sp *= Math.pow(.97, dt * 20); if (sp < .02) sp = 0;
+  const d = RDIR[out]; m.vx = d[0] * sp; m.vz = d[1] * sp;
+  if (d[0]) m.z += (bz + .5 - m.z) * Math.min(1, dt * 12); else m.x += (bx + .5 - m.x) * Math.min(1, dt * 12);
+  m.x += m.vx * dt; m.z += m.vz * dt;
+  if (sh.startsWith('ascending')) { const upD = RDIR[parts[0]], f = upD[0] ? (m.x - bx) : (m.z - bz), t2 = upD[0] > 0 || upD[1] > 0 ? f : 1 - f; m.y = by + .07 + clamp(t2, 0, 1); }
+  else m.y = by + .07;
+  const nb = Math.floor(m.x), nz = Math.floor(m.z); if (!railAt(nb, Math.floor(m.y + .1), nz) && !railAt(nb, Math.floor(m.y + .1) - 1, nz) && !railAt(nb, Math.floor(m.y + .1) + 1, nz) && sp > 0 && (nb != bx || nz != bz)) { m.vx *= -.3; m.vz *= -.3; m.x = bx + .5; m.z = bz + .5; } // end of the line: bump back
+  if (sp > .1) m.yaw = Math.atan2(-m.vx, -m.vz) + Math.PI / 2;
+  // detector rails give a redstone signal while a cart is on them
+  const key = bx + ',' + by + ',' + bz; if (m.detKey && m.detKey != key) { RSS.on.delete(m.detKey); const [a, b2, c] = m.detKey.split(',').map(Number); rsNotify(a, b2, c); m.detKey = null; }
+  if (n == 'detector_rail' && m.detKey != key) { RSS.on.add(key); rsNotify(bx, by, bz); m.detKey = key; }
+  if (sp > 1 && Math.random() < dt * 2) SND.play('minecart/base', .25, 1, [m.x, m.y, m.z]);
 }
 // ---- things mobs do on their own, like in Minecraft ----
 function mobLife(m, D, dt) {
@@ -451,7 +485,8 @@ function updatePlayer(dt) {
   if (active && (keys.ControlLeft || sprintTap) && f > 0 && (P.food > 6 || P.mode != 'survival') && !sneak) P.sprint = true; if (f <= 0 || P.hitH) { P.sprint = false; sprintTap = false; }
   let sp = P.fly ? (P.sprint ? 21.6 : 10.9) : P.sprint ? 5.6 : sneak ? 1.3 : 4.317; if (inWater && !P.fly) sp *= .5; if (eatT > 0) sp *= .3;
   const under = BL[world.get(fx, Math.floor(P.y - .05), fz)]?.n || '', inWeb = world.get(fx, Math.floor(P.y + .2), fz) == B('cobweb') || world.get(fx, Math.floor(P.y + 1.2), fz) == B('cobweb');
-  if (P.sit) { if (active && (keys.Space || keys.ShiftLeft) || P.fly) P.sit = null; else { P.x = P.sit[0]; P.y = P.sit[1]; P.z = P.sit[2]; P.vx = P.vy = P.vz = 0; P.fallStart = null; } }
+  if (P.ride) { if (P.ride.dead || !mobs.includes(P.ride) || active && keys.ShiftLeft) { const c = P.ride; P.ride = null; P.sit = null; if (c) { P.x = c.x; P.y = c.y + 1; P.z = c.z; } } else P.sit = [P.ride.x, P.ride.y + .35, P.ride.z]; }
+  if (P.sit) { if (!P.ride && (active && (keys.Space || keys.ShiftLeft) || P.fly)) P.sit = null; else { P.x = P.sit[0]; P.y = P.sit[1]; P.z = P.sit[2]; P.vx = P.vy = P.vz = 0; P.fallStart = null; } }
   const icy = P.ground && /ice$/.test(under); if (P.ground && /^(soul_sand|honey_block)$/.test(under) && !P.fly) sp *= .45; if (inWeb && !P.fly) { sp *= .15; P.vy *= .3; P.fallStart = null; }
   const mx = -Math.sin(P.yaw) * f + Math.cos(P.yaw) * s, mz = -Math.cos(P.yaw) * f - Math.sin(P.yaw) * s, ml = Math.hypot(mx, mz) || 1;
   const tvx = mx / ml * sp * (f || s ? 1 : 0), tvz = mz / ml * sp * (f || s ? 1 : 0);
@@ -586,6 +621,8 @@ function canPlaceAt(x, y, z) { const b = world.get(x, y, z); return !b || SHAPE[
 function useItem(hit, tm, h) {
   const n = h ? keyName(h.k) : '';
   const consume = () => { if (player.mode == 'survival') { h.c--; if (!h.c) player.inv[player.sel] = null; } };
+  if (tm && MOBDEF[tm.type].cart) { player.ride = tm; return; } // get in the minecart
+  if (/minecart$/.test(n) && hit && BL[hit.b].rails) { consume(); const m = spawnMob('minecart', hit.x + .5, hit.y + .07, hit.z + .5); m.vx = m.vz = 0; m.persist = 1; return; }
   if (tm) { // shear sheep
     if (n == 'bone' && tm.type == 'wolf' && !tm.tamed) { consume(); if (Math.random() < .35) { tm.tamed = true; tm.provoked = false; for (let i = 0; i < 7; i++) particles.push({ x: tm.x, y: tm.y + 1, z: tm.z, vx: (Math.random() - .5), vy: 1, vz: (Math.random() - .5), life: .8, tile: TEX[B('red_wool') * 4], g: 0, s: .06 }); chat('§aWolf tamed!'); } return; }
     if (n == 'shears' && tm.type == 'sheep' && !tm.sheared) { tm.sheared = true; SND.play('mob/sheep/shear', 1); dropItem(itemKey('white_wool'), 1 + (Math.random() * 3 | 0), tm.x, tm.y + 1, tm.z); wear(h, 1); }
@@ -678,6 +715,9 @@ function useItem(hit, tm, h) {
   { // upside-down stairs, buttons on walls/ceilings, hanging lanterns
     const B0 = BL[place], key0 = p.join(','), st0 = world.state[key0] || {}, f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north');
     const side = hit.n[0] > 0 ? 'east' : hit.n[0] < 0 ? 'west' : hit.n[2] > 0 ? 'south' : hit.n[2] < 0 ? 'north' : null;
+    if (B0.fy && B0.fy.north && B0.fy.north[0] == 90 && !B0.stv) { // end rods, lightning rods, amethyst, chains: point out of the face you click
+      const fr = hit.n[1] == 1 ? [0, 0] : hit.n[1] == -1 ? [180, 0] : B0.fy[side]; if (fr) world.state[key0] = Object.assign(st0, { fd: side || (hit.n[1] > 0 ? 'up' : 'down'), fr }); }
+    else if (B0.axisRot) { const fr = hit.n[1] ? null : hit.n[0] ? [90, 90] : [90, 0]; if (fr) world.state[key0] = Object.assign(st0, { fr }); }
     if (B0.fyt && hit.n[1] == -1 && st0.fd) { st0.fr = B0.fyt[st0.fd]; st0.top = 1; world.state[key0] = st0; }
     if (B0.fyw2 && side) world.state[key0] = Object.assign(st0, { fd: side, fr: B0.fyw2[side] });
     else if (B0.fyc && hit.n[1] == -1) world.state[key0] = Object.assign(st0, { fd: look, fr: B0.fyc[look] });

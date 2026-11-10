@@ -496,6 +496,7 @@ class World {
           const st = this.state[wx + ',' + y + ',' + wz] || {}; let f = st.f;
           if (!f && /piston_head/.test(BL[b].n)) for (const d of [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) { const ps = this.state[(wx - d[0]) + ',' + (y - d[1]) + ',' + (wz - d[2])]; if (ps && ps.f && ps.f[0] == d[0] && ps.f[1] == d[1] && ps.f[2] == d[2]) { f = d; break; } }
           const cull = (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)];
+          if (BL[b].rails) { const sh = railShape(this, b, st, wx, y, wz, getB, x, z), r = BL[b].rails[sh + (st.on ? '|on' : '')] || BL[b].rails[sh] || BL[b].rails.north_south; emitMM(out[0], BL[b].rmods[r[0]], wx, y, wz, [0, 1, 0], ll, [r[1], r[2]], cull); continue; }
           const sc = BL[b].stv ? stairShape(this, b, st, wx, y, wz, getB, x, z) : null;
           if (sc) emitMM(out[0], sc[2] == 1 ? BL[b].mmi : BL[b].mmu, wx, y, wz, [0, 1, 0], ll, [sc[0], sc[1]], cull); else
           emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : st.open && BL[b].mmo ? BL[b].mmo : st.hang && BL[b].mmh ? BL[b].mmh : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, /piston/.test(BL[b].n) ? null : st.fr || BL[b].mr || null, cull);
@@ -683,4 +684,16 @@ function stairShape(w, b, st, wx, y, wz, getB, lx, lz) {
   else { const bk = look(ST_OPP[f]); if (bk && axis(bk) != axis(f)) shape = bk == ST_CCW[f] ? 'inner_left' : 'inner_right'; }
   if (!shape) return null;
   return BL[b].stv[f + '|' + half + '|' + shape] || null;
+}
+
+// rails join their neighbours: straight lines, slopes up a block, and (plain rails only) curves
+function railShape(w, b, st, wx, y, wz, getB, lx, lz) {
+  const R = (dx, dy, dz) => !!(BL[getB(lx + dx, y + dy, lz + dz)] || {}).rails;
+  const c = {}, up = {};
+  for (const [d, dx, dz] of [['north', 0, -1], ['south', 0, 1], ['east', 1, 0], ['west', -1, 0]]) { up[d] = R(dx, 1, dz); c[d] = up[d] || R(dx, 0, dz) || R(dx, -1, dz); }
+  const ns = c.north || c.south, ew = c.east || c.west, plain = BL[b].n == 'rail';
+  if (plain && ns && ew && !(c.north && c.south) && !(c.east && c.west)) return (c.south ? 'south' : 'north') + '_' + (c.east ? 'east' : 'west');
+  if (ns && (!ew || (c.north && c.south))) return up.north ? 'ascending_north' : up.south ? 'ascending_south' : 'north_south';
+  if (ew) return up.east ? 'ascending_east' : up.west ? 'ascending_west' : 'east_west';
+  return st.fd == 'east' || st.fd == 'west' ? 'east_west' : 'north_south';
 }
