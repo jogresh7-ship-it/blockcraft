@@ -339,6 +339,7 @@ class World {
         // biome-specific ground cover: leaf litter under forests, petals in cherry groves, wildflowers in meadows, dry grass in savanna
         if (/forest|birch/.test(bio) && bio != 'flower_forest' && patch < -.3 && r2 < .45 + (-.3 - patch)) { put(lx, h + 1, lz, X('leaf_litter')); continue; }
         if (bio == 'dappled_forest' && r2 < .05) { put(lx, h + 1, lz, X('red_shrub')); continue; }
+        if (bio == 'dappled_forest' && X('leaf_litter') && N.n2(wx / 7 + 90, wz / 7) + r2 * .6 > .15) { put(lx, h + 1, lz, X('leaf_litter')); continue; } // fallen autumn leaves carpet the ground, like the title panorama
         if (bio == 'cherry' && fpatch > -.1 && r2 < .4) { put(lx, h + 1, lz, X('pink_petals')); continue; }
         if ((bio == 'meadow' || bio == 'birch' || bio == 'flower_forest' || bio == 'plains') && fpatch < -.35 && r2 < (bio == 'plains' ? .12 : .35)) { put(lx, h + 1, lz, X('wildflowers')); continue; }
         if (bio == 'savanna' && r2 < .1 && patch > 0) { put(lx, h + 1, lz, X(r2 < .03 ? 'tall_dry_grass' : 'short_dry_grass')); continue; }
@@ -495,10 +496,10 @@ class World {
     const bgrp = new Array(256), CW = []; let TCOR = null; if (this.dim == 'overworld' || !this.dim) {
       // soft biome borders: every column gets distance-weighted biome mix from a coarse grid around it. Grass, plants and leaves
       // are then tinted per vertex (so colours fade smoothly between biomes); grass block sides pick a tile variant from the mix
-      const R = 5, G = new Map(); const gb = (cx, cz) => { const k = cx + ',' + cz; let v = G.get(k); if (v === undefined) { v = BIO_GROUP[this.biome(cx * 2, cz * 2)] || 0; G.set(k, v); } return v; };
+      const R = 3, G = new Map(); const gb = (cx, cz) => { const k = cx + ',' + cz; let v = G.get(k); if (v === undefined) { v = BIO_GROUP[this.biome(cx * 2, cz * 2)] || 0; G.set(k, v); } return v; };
       const BT = REG.biomeTint;
       for (let z = -1; z <= 16; z++) for (let x = -1; x <= 16; x++) { const wx = x0 + x, wz = z0 + z, w = {}; let tot = 0;
-        for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { const d2 = dx * dx + dz * dz; if (d2 > R * R) continue; const g = gb(Math.floor(wx / 2) + dx, Math.floor(wz / 2) + dz), wt = 1 / (1 + d2); w[g] = (w[g] || 0) + wt; tot += wt; }
+        for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { const d2 = dx * dx + dz * dz; if (d2 > R * R) continue; const g = gb(Math.floor(wx / 2) + dx, Math.floor(wz / 2) + dz), wt = 1 / (1 + d2 * d2); w[g] = (w[g] || 0) + wt; tot += wt; }
         const tg = [0, 0, 0], tf = [0, 0, 0];
         for (const g in w) { const f = w[g] / tot, c = BT && BT.groups[g]; for (let i = 0; i < 3; i++) { tg[i] += f * (c ? c[0][i] / BT.base.g[i] : 1); tf[i] += f * (c ? c[1][i] / BT.base.f[i] : 1); } }
         CW[(x + 1) + (z + 1) * 18] = { g: tg, f: tf };
@@ -619,7 +620,7 @@ class World {
   }
   collides(px, py, pz, r, h) {
     for (let x = Math.floor(px - r); x <= Math.floor(px + r); x++) for (let y = Math.floor(py); y <= Math.floor(py + h - 0.001); y++) for (let z = Math.floor(pz - r); z <= Math.floor(pz + r); z++)
-      { const b = this.getOr(x, y, z, 1); if (SOLID[b]) return true; if (SBOX[b]) { let bb = BL[b].bb; if (BL[b].mmo || BL[b].fy) { const st = this.state[x + ',' + y + ',' + z]; if (st && st.open) continue; if (st && (st.fd == 'east' || st.fd == 'west')) bb = [bb[2], bb[1], bb[0], bb[5], bb[4], bb[3]]; } if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) return true; } }
+      { const b = this.getOr(x, y, z, 1); if (SOLID[b]) return true; if (SBOX[b]) { let bb = BL[b].bb; if (BL[b].mmo || BL[b].fy) { const st = this.state[x + ',' + y + ',' + z]; if (st && st.open) continue; if (st && st.fd) bb = rotBB(bb, st.fd); } if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) return true; } }
     return false;
   }
   topY(x, z) { for (let y = WH - 1; y > 0; y--) { const b = this.get(x, y, z); if (SOLID[b] || SHAPE[b] == 3) return y; } return 0; }
@@ -678,6 +679,11 @@ function lidOpen(x, y, z, on) { const k = x + ',' + y + ',' + z; const l = LIDS[
 function lidTick(dt) { for (const k in LIDS) { const l = LIDS[k]; l.a = Math.max(0, Math.min(1, l.a + (l.o ? dt : -dt) * 4)); const e = l.a < .5 ? 2 * l.a * l.a : 1 - (2 - 2 * l.a) ** 2 / 2, s = Math.round(e * 5);
   if (s != l.s) { l.s = s; const [x, , z] = k.split(',').map(Number); const c = world.chunk(Math.floor(x / 16), Math.floor(z / 16)); if (c) c.dirty = true; }
   if (!l.o && l.a == 0) { delete LIDS[k]; } } }
+// a block's hitbox turned the way the block faces (Java y-rotation: 90 = north->east, (x,z) -> (16-z, x))
+const RBB = {};
+function rotBB(bb, fd) { const n = { east: 1, south: 2, west: 3 }[fd]; if (!n) return bb; const k = bb.join(',') + fd; if (RBB[k]) return RBB[k];
+  let [x0, z0, x1, z1] = [bb[0], bb[2], bb[3], bb[5]]; for (let i = 0; i < n; i++) [x0, z0, x1, z1] = [16 - z0, x0, 16 - z1, x1];
+  return RBB[k] = [Math.min(x0, x1), bb[1], Math.min(z0, z1), Math.max(x0, x1), bb[4], Math.max(z0, z1)]; }
 function emitMM(out, els, wx, y, wz, facing, ll, rot, cull) {
   const [rx, ry] = rot || facingRot(facing);
   for (const e of els) for (const d in e.faces) {

@@ -921,7 +921,7 @@ function skyState() {
 }
 function camMatrices(fovMul = 1) {
   const W = glc.width, H = glc.height; const P = player;
-  if (P) P.fovK = lerp(P.fovK || 1, P.sprint ? (P.fly ? 1.1 : 1.08) : 1, .08); let fov = opts.fov * (P ? P.fovK : 1) * fovMul * (P && P.spy ? .12 : 1);
+  if (P) P.fovK = lerp(P.fovK || 1, P.sprint ? (P.fly ? 1.1 : 1.08) : 1, .08); let fov = opts.fov * (P ? P.fovK : 1) * fovMul * (P && P.spy ? .12 : 1) * (P && eff('nausea') ? 1 + Math.sin(performance.now() / 500) * .12 : 1);
   const proj = M4.persp(fov * Math.PI / 180, W / H, .1, Math.max(1000, opts.rd * 24));
   return proj;
 }
@@ -981,11 +981,11 @@ function render(dt) {
   vis.sort((a, b) => a[0] - b[0]);
   for (const [, c] of vis) drawMesh(c.meshes[0], 'blocks', { alphaTest: .5 });
   // entities
-  renderEntities(sk);
+  renderEntities(sk); renderShadows();
   // breaking overlay
   if (breaking && breaking.p > 0) { const st = Math.min(9, Math.floor(breaking.p * 10)), arr = []; cubeQuads(arr, breaking.x, breaking.y, breaking.z, tileUV(REG.tiles['destroy_stage_' + st]), 1.002); gl.enable(gl.BLEND); gl.blendFunc(gl.DST_COLOR, gl.SRC_COLOR); gl.depthMask(false); drawMesh(dynMesh('brk', arr), 'blocks', { alphaTest: .01, full: 1 }); gl.depthMask(true); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.BLEND); }
   // selection box
-  if (P.target && !hideHud && S.screen == 'game') { const t = P.target, e = .002, bb = BL[t.b].bb ? BL[t.b].bb.map(v => v / 16) : [0, 0, 0, 1, SHAPE[t.b] == 2 ? .8 : SHAPE[t.b] == 6 ? .0625 : 1, 1], x0 = t.x + bb[0] - e, y0 = t.y + bb[1] - e, z0 = t.z + bb[2] - e, x1 = t.x + bb[3] + e, y1 = t.y + bb[4] + e, z1 = t.z + bb[5] + e; const L = [], v = (x, y, z) => L.push(x, y, z, 0, 0, 1, 1, 1); const ed = [[x0, y0, z0, x1, y0, z0], [x0, y1, z0, x1, y1, z0], [x0, y0, z1, x1, y0, z1], [x0, y1, z1, x1, y1, z1], [x0, y0, z0, x0, y1, z0], [x1, y0, z0, x1, y1, z0], [x0, y0, z1, x0, y1, z1], [x1, y0, z1, x1, y1, z1], [x0, y0, z0, x0, y0, z1], [x1, y0, z0, x1, y0, z1], [x0, y1, z0, x0, y1, z1], [x1, y1, z0, x1, y1, z1]]; for (const s of ed) { v(s[0], s[1], s[2]); v(s[3], s[4], s[5]); } gl.enable(gl.BLEND); drawMesh(dynMesh('sel', L), 'white', { lines: 1, tint: [0, 0, 0, 1], alpha: .5, alphaTest: 0, full: 1 }); gl.disable(gl.BLEND); }
+  if (P.target && !hideHud && S.screen == 'game') { const t = P.target, e = .002, bb = BL[t.b].bb ? rotBB(BL[t.b].bb, (world.state[t.x + ',' + t.y + ',' + t.z] || {}).fd).map(v => v / 16) : [0, 0, 0, 1, SHAPE[t.b] == 2 ? .8 : SHAPE[t.b] == 6 ? .0625 : 1, 1], x0 = t.x + bb[0] - e, y0 = t.y + bb[1] - e, z0 = t.z + bb[2] - e, x1 = t.x + bb[3] + e, y1 = t.y + bb[4] + e, z1 = t.z + bb[5] + e; const L = [], v = (x, y, z) => L.push(x, y, z, 0, 0, 1, 1, 1); const ed = [[x0, y0, z0, x1, y0, z0], [x0, y1, z0, x1, y1, z0], [x0, y0, z1, x1, y0, z1], [x0, y1, z1, x1, y1, z1], [x0, y0, z0, x0, y1, z0], [x1, y0, z0, x1, y1, z0], [x0, y0, z1, x0, y1, z1], [x1, y0, z1, x1, y1, z1], [x0, y0, z0, x0, y0, z1], [x1, y0, z0, x1, y0, z1], [x0, y1, z0, x0, y1, z1], [x1, y1, z0, x1, y1, z1]]; for (const s of ed) { v(s[0], s[1], s[2]); v(s[3], s[4], s[5]); } gl.enable(gl.BLEND); drawMesh(dynMesh('sel', L), 'white', { lines: 1, tint: [0, 0, 0, 1], alpha: .5, alphaTest: 0, full: 1 }); gl.disable(gl.BLEND); }
   // translucent: clouds, water, glass
   gl.enable(gl.BLEND);
   for (let i = vis.length - 1; i >= 0; i--) { const c = vis[i][1]; drawMesh(c.meshes[1], 'blocks', { alphaTest: .01 }); }

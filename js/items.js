@@ -1,7 +1,7 @@
 'use strict';
 // ---------- items that do things: effects, bows, throwables, shields, totems, potions, spyglass, fishing, fireworks, horns, compass/clock, climbing ----------
 // ---- status effects (like Java: name -> { t: seconds left, a: amplifier 0 = level I }) ----
-const EFF_NAMES = { speed: 'Speed', slowness: 'Slowness', haste: 'Haste', strength: 'Strength', instant_health: 'Instant Health', instant_damage: 'Instant Damage', jump_boost: 'Jump Boost', regeneration: 'Regeneration', resistance: 'Resistance', fire_resistance: 'Fire Resistance', water_breathing: 'Water Breathing', invisibility: 'Invisibility', night_vision: 'Night Vision', hunger: 'Hunger', weakness: 'Weakness', poison: 'Poison', wither: 'Wither', absorption: 'Absorption', saturation: 'Saturation', levitation: 'Levitation', slow_falling: 'Slow Falling', glowing: 'Glowing' };
+const EFF_NAMES = { speed: 'Speed', slowness: 'Slowness', haste: 'Haste', strength: 'Strength', instant_health: 'Instant Health', instant_damage: 'Instant Damage', jump_boost: 'Jump Boost', regeneration: 'Regeneration', resistance: 'Resistance', fire_resistance: 'Fire Resistance', water_breathing: 'Water Breathing', invisibility: 'Invisibility', night_vision: 'Night Vision', hunger: 'Hunger', weakness: 'Weakness', poison: 'Poison', wither: 'Wither', absorption: 'Absorption', saturation: 'Saturation', levitation: 'Levitation', slow_falling: 'Slow Falling', glowing: 'Glowing', nausea: 'Nausea' };
 const EFF_COL = { speed: '#7CAFC6', slowness: '#5A6C81', strength: '#932423', jump_boost: '#22FF4C', regeneration: '#CD5CAB', resistance: '#99453A', fire_resistance: '#E49A3A', water_breathing: '#2E5299', invisibility: '#7F8392', night_vision: '#1F1FA1', hunger: '#587653', weakness: '#484D48', poison: '#4E9331', wither: '#352A27', absorption: '#2552A5', saturation: '#F82423', levitation: '#CEFFFF', slow_falling: '#FFEFD1', haste: '#D9C043' };
 function eff(n) { const e = player && player.eff && player.eff[n]; return e && e.t > 0 ? e : null; }
 function addEff(n, sec, a = 0) {
@@ -26,6 +26,11 @@ function effTick(dt) {
     if (n == 'water_breathing') P.air = 300;
   }
   if (!eff('absorption')) P.abs = 0;
+  { // catching fire: lava, fire and soul fire set you alight for a few seconds; water puts it out
+    const at = dy => BL[world.get(Math.floor(P.x), Math.floor(P.y + dy), Math.floor(P.z))]?.n || '', fe = at(.1), bo = at(1);
+    if (/^(lava|fire|soul_fire)$/.test(fe) || /^(lava|fire|soul_fire)$/.test(bo)) P.burnT = Math.max(P.burnT || 0, /lava/.test(fe + bo) ? 15 : 8);
+    if (P.burnT > 0) { if (/water/.test(fe + bo) || world.meta.rain && world.topY(Math.floor(P.x), Math.floor(P.z)) <= P.y) { P.burnT = 0; SND.play('random/fizz', .6); }
+      else { P.burnT -= dt; P.burnAcc = (P.burnAcc || 0) + dt; if (P.burnAcc >= 1) { P.burnAcc = 0; hurtPlayer(1, 'burned to death', true); } if (Math.random() < .3) spark('flame', P.x + (Math.random() - .5) * .6, P.y + Math.random() * 1.8, P.z + (Math.random() - .5) * .6, { life: .4 }); } } }
   // arrows you shot that are stuck: walk over them to pick them back up
   for (const a of arrows) if (a.byPlayer && a.stuck && a.pick && Math.hypot(a.x - P.x, a.y - P.y - .5, a.z - P.z) < 1.3) { a.life = 0; giveItem(itemKey('item:arrow'), 1); SND.play('pop', .3, 1.6); }
   if (P.cool) for (const k in P.cool) P.cool[k] -= dt;
@@ -63,7 +68,7 @@ function shieldBlocks(src) {
 // ---- food & drink effects (Java values) ----
 const FOOD_EFF = {
   golden_apple: [['regeneration', 5, 1], ['absorption', 120, 0]], enchanted_golden_apple: [['regeneration', 20, 1], ['absorption', 120, 3], ['resistance', 300, 0], ['fire_resistance', 300, 0]],
-  pufferfish: [['hunger', 15, 2], ['poison', 60, 1]], spider_eye: [['poison', 5, 0]], rotten_flesh: [['hunger', 30, 0, .8]], chicken: [['hunger', 30, 0, .3]], poisonous_potato: [['poison', 5, 0, .6]],
+  pufferfish: [['hunger', 15, 2], ['poison', 60, 1], ['nausea', 15, 0]], spider_eye: [['poison', 5, 0]], rotten_flesh: [['hunger', 30, 0, .8]], chicken: [['hunger', 30, 0, .3]], poisonous_potato: [['poison', 5, 0, .6]],
   suspicious_stew: [['regeneration', 8, 0]], golden_carrot: [], honey_bottle: [], glow_berries: [['glowing', 10, 0]],
 };
 const DRINKS = { milk_bucket: 1, honey_bottle: 1, potion: 1, ominous_bottle: 1 };
@@ -158,7 +163,8 @@ function handPose() { const P = player, n0 = held() ? keyName(held().k) : '', n 
 // ---- HUD bits: effects, totem pop, spyglass, compass/clock read-outs ----
 function drawItemHud() {
   const P = player; if (!P) return;
-  if (P.spy) { const r = Math.min(UW, UH) * .42, cx = UW / 2, cy = UH / 2; cx2.save(); cx2.fillStyle = '#000'; cx2.beginPath(); cx2.rect(0, 0, UW, UH); cx2.arc(cx, cy, r, 0, 6.283, true); cx2.fill(); cx2.strokeStyle = 'rgba(60,40,20,.9)'; cx2.lineWidth = 4; cx2.beginPath(); cx2.arc(cx, cy, r, 0, 6.283); cx2.stroke(); cx2.restore(); }
+  drawScreenEffects();
+  if (P.spy && IMG.misc_spyglass) drawScope(); else if (P.spy) { const r = Math.min(UW, UH) * .42, cx = UW / 2, cy = UH / 2; cx2.save(); cx2.fillStyle = '#000'; cx2.beginPath(); cx2.rect(0, 0, UW, UH); cx2.arc(cx, cy, r, 0, 6.283, true); cx2.fill(); cx2.strokeStyle = 'rgba(60,40,20,.9)'; cx2.lineWidth = 4; cx2.beginPath(); cx2.arc(cx, cy, r, 0, 6.283); cx2.stroke(); cx2.restore(); }
   let y = 4; for (const n in P.eff || {}) { const e = P.eff[n]; const s = Math.ceil(e.t), lbl = (EFF_NAMES[n] || n) + (e.a ? ' ' + ['', 'II', 'III', 'IV', 'V', 'VI'][e.a] : '') + ' ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), w = textW(lbl) + 16;
     cx2.fillStyle = 'rgba(0,0,0,.45)'; cx2.fillRect(UW - w - 4, y, w, 12); cx2.fillStyle = EFF_COL[n] || '#fff'; cx2.fillRect(UW - w - 1, y + 3, 7, 7); text(lbl, UW - w + 10, y + 2, e.t < 10 && (performance.now() / 250 | 0) % 2 ? '#AAAAAA' : '#FFFFFF', false); y += 14; }
   if (P.abs > 0) { const hx = UW / 2 - 91, hy = UH - 39 - 10; for (let i = 0; i < Math.ceil(P.abs / 2); i++) { cx2.fillStyle = '#E8C400'; cx2.fillRect(hx + i * 8 + 1, hy, 7, 6); } }
@@ -225,4 +231,31 @@ function cloudTick(dt) { // lingering potion clouds and potion effects on mobs
     if ((e == 'poison' && m.hp > 1 || e == 'wither') && o.acc >= 1.25 / 2 ** o.a) { o.acc = 0; hurtMob(m, 1, 0, 0); }
     if (e == 'regeneration' && o.acc >= 2.5 / 2 ** o.a) { o.acc = 0; m.hp = Math.min(MOBDEF[m.type].hp, m.hp + 1); }
     if (e == 'slowness') { m.vx *= .7; m.vz *= .7; } if (Math.random() < .05) spark('effect', m.x, m.y + m.h, m.z, { life: .5 }); }
+}
+// ---------- vanilla screen effects from assets/minecraft/textures/misc ----------
+const invCache = {};
+function inverted(img) { if (invCache.src === img) return invCache.c; const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, c.width, c.height), p = d.data; for (let i = 0; i < p.length; i += 4) { p[i + 3] = p[i]; p[i] = p[i + 1] = p[i + 2] = 0; /* black, as opaque as the vignette is bright: the HUD layer is transparent, so blend modes cannot darken it */ } g.putImageData(d, 0, 0); invCache.src = img; return invCache.c = c; }
+function drawScreenEffects() {
+  const P = player; if (!P || S.screen != 'game' && S.screen != 'chat') return;
+  // vignette: darker edges, stronger where it is dark (vanilla blends ZERO / ONE_MINUS_SRC_COLOR)
+  if (IMG.misc_vignette && opts.vignette !== false) { const L = typeof lightAt == 'function' ? lightAt(P.x, P.y + 1.6, P.z) : [1, 0]; const br = Math.max(L[0] * (world.meta.time % 24000 < 13000 ? 1 : .3), L[1] || 0); P.vig = lerp(P.vig ?? 1, 1 - br, .02);
+    cx2.save(); cx2.globalAlpha = .45 + P.vig * .45; cx2.drawImage(inverted(IMG.misc_vignette), 0, 0, UW, UH); cx2.restore(); }
+  // carved pumpkin on your head
+  const hd = P.armor[0] && keyName(P.armor[0].k); if (hd == 'carved_pumpkin' && IMG.misc_pumpkin) cx2.drawImage(IMG.misc_pumpkin, 0, 0, UW, UH);
+  // powder snow: frost creeps in from the edges
+  const inSnow = BL[world.get(Math.floor(P.x), Math.floor(P.y + .2), Math.floor(P.z))]?.n == 'powder_snow' || BL[world.get(Math.floor(P.x), Math.floor(P.y + 1.5), Math.floor(P.z))]?.n == 'powder_snow';
+  P.frost = Math.max(0, Math.min(1, (P.frost || 0) + (inSnow && P.mode != 'creative' ? 1 / 7 : -2 / 7) / 60)); if (P.frost >= 1) { P.frT = (P.frT || 0) - 1 / 60; if (P.frT <= 0) { P.frT = 2; hurtPlayer(1, 'froze to death', true); } }
+  if (P.frost > 0 && IMG.misc_snow) { cx2.globalAlpha = P.frost; cx2.drawImage(IMG.misc_snow, 0, 0, UW, UH); cx2.globalAlpha = 1; }
+  // nausea swirl
+  const nz = eff('nausea'); if (nz && IMG.misc_nausea) { cx2.save(); cx2.globalAlpha = Math.min(1, nz.t / 2) * .35; const s = 1 + Math.sin(performance.now() / 600) * .1; cx2.drawImage(IMG.misc_nausea, UW * (1 - s) / 2, UH * (1 - s) / 2, UW * s, UH * s); cx2.restore(); }
+  // burning: flames licking up the bottom of the screen
+  if (P.burnT > 0 && P.mode != 'creative' && !eff('fire_resistance')) { const t = REG.tiles.fire_0; if (t !== undefined) { const ts = IMG.blocks.width / REG.cols, fr = Math.floor(performance.now() / 60) % 32, sz = UH * .5; cx2.globalAlpha = .9; cx2.drawImage(IMG.blocks, (t % REG.cols) * ts, Math.floor(t / REG.cols) * ts, ts, ts, -sz * .2, UH - sz * .7, sz, sz); cx2.save(); cx2.scale(-1, 1); cx2.drawImage(IMG.blocks, (t % REG.cols) * ts, Math.floor(t / REG.cols) * ts, ts, ts, -UW - sz * .2, UH - sz * .7, sz, sz); cx2.restore(); cx2.globalAlpha = 1; } }
+}
+// real spyglass scope texture (replaces the plain black circle) + soft blob shadows under mobs
+function drawScope() { const s = Math.min(UW, UH) * .9, x = UW / 2 - s / 2, y = UH / 2 - s / 2; cx2.fillStyle = '#000'; cx2.fillRect(0, 0, UW, y); cx2.fillRect(0, y + s, UW, UH); cx2.fillRect(0, y, x, s); cx2.fillRect(x + s, y, UW, s); cx2.drawImage(IMG.misc_spyglass, x, y, s, s); }
+function renderShadows() {
+  if (!IMG.misc_shadow) return; if (!TEXS.misc_shadow || TEXS.misc_shadow._img !== IMG.misc_shadow) { TEXS.misc_shadow = mkTex(IMG.misc_shadow); TEXS.misc_shadow._img = IMG.misc_shadow; }
+  const A = []; for (const m of mobs) { if (m.dead) continue; const d = MOBDEF[m.type]; if (!d || d.fly) continue; const gy = Math.floor(m.y), r = Math.min(3, m.r * 1.6 || .5); if (!SOLID[world.get(Math.floor(m.x), gy - 1, Math.floor(m.z))] && !SOLID[world.get(Math.floor(m.x), gy, Math.floor(m.z))]) continue; const y = (SOLID[world.get(Math.floor(m.x), gy, Math.floor(m.z))] ? gy + 1 : gy) + .015, a = Math.max(0, 1 - (m.y - y) / 3) * .55;
+    pushQuad(A, [[m.x - r, y, m.z - r], [m.x + r, y, m.z - r], [m.x + r, y, m.z + r], [m.x - r, y, m.z + r]], [[0, 0], [1, 0], [1, 1], [0, 1]], [a, 0, 0]); }
+  if (!A.length) return; gl.enable(gl.BLEND); gl.depthMask(false); gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA); drawMesh(dynMesh('shadows', A), 'misc_shadow', { alphaTest: 0, full: 1 }); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true); gl.disable(gl.BLEND);
 }
