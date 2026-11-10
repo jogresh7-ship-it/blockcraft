@@ -5,7 +5,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('blockcraft_' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   del(k) { try { localStorage.removeItem('blockcraft_' + k); } catch (e) { } },
 };
-const opts = Object.assign({ fov: 70, rd: /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 4 : 6, sens: .5, gui: 0, bob: false, clouds: true, fps: false, master: 1, music: .5, blocks: 1, mobs: 1, ambient: .7, ui: 1, smooth: true, font: 'improved' }, store.get('options2', {}));
+const opts = Object.assign({ fov: 70, rd: LOW_END ? 4 : 6, mres: LOW_END && !IS_MOBILE ? 1 : 1.5, autoPerf: true, sens: .5, gui: 0, bob: false, clouds: true, fps: false, master: 1, music: .5, blocks: 1, mobs: 1, ambient: .7, ui: 1, smooth: true, font: 'improved' }, store.get('options2', {}));
 function saveOpts() { store.set('options2', opts); Object.assign(SND.vol, { master: opts.master, music: opts.music, blocks: opts.blocks, mobs: opts.mobs, ambient: opts.ambient, ui: opts.ui }); SND.setMusicVol(); }
 const SPLASHES = ['Faithful to the original!', 'Now with sound packs!', 'Made in a browser!', '32x textures!', 'Punch a tree!', 'Infinite terrain!', 'Also try the real thing!', 'Voxel-tastic!', 'WebGL2!', 'Pixel perfect!', 'Bitmap font included!', 'Cubes all the way down!', 'Don\'t dig straight down!', 'Mind the lava!', '545 blocks!', '677 items!', 'Sheep included!', 'Moo!', 'Oink!', 'Ambient occlusion!'];
 const S = { screen: 'loading', prev: null, splash: SPLASHES[Math.random() * SPLASHES.length | 0], sel: -1, scroll: 0, cw: null, tab: 0, msg: '', loadP: 0, worlds: store.get('worlds', []), confirm: null, cscroll: 0, search: { q: '' }, ctab: 0 };
@@ -193,6 +193,9 @@ function scrVideo() {
   if (button('Smooth Lighting: ' + (opts.smooth ? 'ON' : 'OFF'), x + 160, y + 24, 150)) { opts.smooth = !opts.smooth; }
   if (button('Show FPS: ' + (opts.fps ? 'ON' : 'OFF'), x, y + 48, 150)) opts.fps = !opts.fps;
   opts.rd = Math.round(2 + slider('rd2', 'Render Distance: ' + opts.rd + ' chunks', x + 160, y + 48, 150, (opts.rd - 2) / 30) * 30);
+  if (button('Auto Performance: ' + (opts.autoPerf ? 'ON' : 'OFF'), x, y + 96, 150)) opts.autoPerf = !opts.autoPerf;
+  if (button('3D Quality: ' + ((opts.mres || 1.5) >= 1.5 ? 'High' : opts.mres >= 1 ? 'Normal' : 'Low'), x + 160, y + 96, 150)) { opts.mres = (opts.mres || 1.5) >= 1.5 ? 1 : opts.mres >= 1 ? .7 : 1.5; S.forceScale = 1; S.perfScale = 1; resize(); }
+  textC('§7' + (GL1 ? 'Compatibility graphics (WebGL 1)' : 'WebGL 2') + (LOW_END ? ' - low-power device' : ''), UW / 2, y + 122, '#FFFFFF');
   const nC = Math.round(Math.PI * (opts.rd + 1.5) ** 2); textC('About ' + nC + ' chunks loaded' + (opts.rd > 16 ? ' - needs a powerful computer' : ''), UW / 2, y + 76, opts.rd > 16 ? '#FFAA00' : '#A0A0A0');
   if (button('Done', UW / 2 - 100, UH / 6 + 168)) { saveOpts(); go('options'); }
 }

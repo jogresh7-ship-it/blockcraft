@@ -1,6 +1,11 @@
 'use strict';
 // ---------- touch (phones/tablets) and gamepad (Xbox/PlayStation/Switch) controls ----------
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)) || (matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches);
+const IS_CROS = /CrOS/.test(navigator.userAgent);
+const IS_CONSOLE = /Xbox|PlayStation|Nintendo|SMART-TV|SmartTV|Tizen|Web0S|CrKey|AFT[A-Z]|Android TV/i.test(navigator.userAgent);
+// school Chromebooks and cheap laptops: few cores / little memory
+const LOW_END = IS_MOBILE || IS_CROS || IS_CONSOLE || (navigator.hardwareConcurrency || 4) <= 4 || (navigator.deviceMemory || 8) <= 4;
+if (IS_CONSOLE) try { navigator.gamepadInputEmulation = 'gamepad'; } catch (e) { } // Xbox Edge: give the controller to the game, not the page
 const TOUCH = { on: false, joy: null, look: null, btn: {}, ids: {} };
 const PAD = { on: false, prev: [], cx: 0, cy: 0 };
 const key = (code, down) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code == 'Escape' ? 'Escape' : code == 'Space' ? ' ' : code.replace('Key', '').toLowerCase() }));
@@ -19,8 +24,10 @@ function setupTouch() {
   document.body.appendChild(kb);
   kb.addEventListener('input', e => { if (e.data) typed += e.data; kb.value = ''; });
   kb.addEventListener('keydown', e => { if (e.key == 'Backspace') keysPressed.push('Backspace'); if (e.key == 'Enter') keysPressed.push('Enter'); });
+  // touchscreen laptops / Chromebooks: touch controls while you touch, mouse + keyboard once you use the mouse again
+  if (!IS_MOBILE) document.addEventListener('pointerdown', e => { if (e.pointerType == 'mouse' && TOUCH.on) { TOUCH.on = false; noLock = false; } });
   const start = e => {
-    if (IS_MOBILE) { TOUCH.on = true; noLock = true; } SND.ensure(); if (!SND.music && !world && SND.idx) SND.playMusic('menu');
+    if (!TOUCH.on) { TOUCH.on = true; noLock = true; if (document.pointerLockElement) document.exitPointerLock(); } SND.ensure(); if (!SND.music && !world && SND.idx) SND.playMusic('menu');
     for (const t of e.changedTouches) {
       const [x, y] = guiPos(t);
       if (S.screen != 'game' || !TOUCH.on) { mouse.x = x; mouse.y = y; mouse.down = true; mouse.click = true; TOUCH.ids[t.identifier] = { menu: 1, t0: performance.now(), x, y }; continue; }

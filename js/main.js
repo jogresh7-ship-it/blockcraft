@@ -992,7 +992,7 @@ function safeInsets() { try { let p = document.getElementById('safeprobe'); if (
 function resize() {
   const dpr = devicePixelRatio || 1, W = Math.floor(innerWidth * dpr), H = Math.floor(innerHeight * dpr);
   // phones: draw the 3D world at a lower resolution (much faster); the menus stay sharp
-  const rs = IS_MOBILE ? Math.min(1, (opts.mres || 1.5) / dpr) : 1;
+  const rs = (IS_MOBILE || LOW_END || S.forceScale) ? Math.min(1, (opts.mres || 1.5) / dpr) * (S.perfScale || 1) : 1;
   glc.width = Math.floor(W * rs); glc.height = Math.floor(H * rs); ui.width = W; ui.height = H;
   if (IS_MOBILE) GS = Math.max(2, Math.min(Math.floor(H / 205), Math.floor(W / 370))); // big, finger-sized GUI (like Bedrock on phones)
   else GS = Math.max(1, Math.min(Math.floor(W / 480), Math.floor(H / 330), 3));
@@ -1000,9 +1000,18 @@ function resize() {
   SAFE = safeInsets().map(v => v * dpr / GS);
   UW = W / GS; UH = H / GS;
 }
+// automatic performance: on a slow computer, lower the 3D resolution, then the render distance, until it plays smoothly
+function autoPerf() {
+  if (!opts.autoPerf || S.screen != 'game' || !world || document.hidden) { S.slowS = 0; return; }
+  S.slowS = fps < 24 ? (S.slowS || 0) + 1 : 0;
+  if (S.slowS >= 4) { S.slowS = 0;
+    if ((S.perfScale || 1) > .55) { S.perfScale = (S.perfScale || 1) * .8; if (!LOW_END) S.forceScale = 1; resize(); }
+    else if (opts.rd > 3) { opts.rd--; saveOpts(); chat('§7Running slowly - render distance lowered to ' + opts.rd + ' (Video Settings)'); }
+  }
+}
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(.25, (now - lastT) / 1000); lastT = now; fcount++; ftime += dt; if (ftime >= 1) { fps = fcount; fcount = 0; ftime = 0; }
+  const dt = Math.min(.25, (now - lastT) / 1000); lastT = now; fcount++; ftime += dt; if (ftime >= 1) { fps = fcount; fcount = 0; ftime = 0; autoPerf(); }
   if (glc.width != Math.floor(innerWidth * devicePixelRatio) || S.lastGui != opts.gui) { S.lastGui = opts.gui; resize(); }
   try {
     padFrame(dt); touchFrame();
@@ -1056,7 +1065,7 @@ async function boot() {
   if (!ANIMS.length) setupAnims(null);
   setLoad(1, 'Loading complete'); resize(); go('title');
   const shown = performance.now() - BOOT_T0; await new Promise(r => setTimeout(r, Math.max(400, MIN_T + 300 - shown)));
-  pre.classList.add('done'); setTimeout(() => pre.remove(), 1100);
+  window.BOOTED = 1; pre.classList.add('done'); setTimeout(() => pre.remove(), 1100);
   if (window.SOUND_FILES && SOUND_FILES.length) (async () => { let n = 0; for (const f of SOUND_FILES) { SND.loadingSounds = Math.round(n / SOUND_FILES.length * 100) + '%'; try { await new Promise(r => setTimeout(r, 50)); await loadScript(f); while (window.EMBED_SOUND_PARTS && EMBED_SOUND_PARTS.length) SND.addEmbedded(EMBED_SOUND_PARTS.shift()); } catch (e) { console.warn(e); S.pmsg = '§cSounds missing - keep the "sounds" folder next to Blockcraft.html'; break; } n++; if (n == 1 && !world) SND.playMusic('menu'); } SND.loadingSounds = null; })();
   else if (window.EMBED_SOUND_PARTS) for (const part of EMBED_SOUND_PARTS) SND.addEmbedded(part); else PackStore.load().then(f => { if (f) loadPackFile(f, false); });
   requestAnimationFrame(frame);

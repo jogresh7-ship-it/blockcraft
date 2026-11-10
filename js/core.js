@@ -104,9 +104,10 @@ void main(){ vec4 c = texture(uTex, vUv); if(c.a < uAlphaTest) discard;
   float f = clamp((vDist-uFogN)/(uFogF-uFogN),0.0,1.0);
   o = vec4(mix(col, uFog, f), min(1.0, c.a*uAlpha)); }`;
 function initGL(canvas) {
-  gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
-  if (!gl) throw new Error('WebGL2 not supported');
-  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(o); return o; };
+  const ca = { antialias: false, alpha: false, powerPreference: 'default', failIfMajorPerformanceCaveat: false };
+  gl = canvas.getContext('webgl2', ca); GL1 = false;
+  if (!gl) { gl = canvas.getContext('webgl', ca) || canvas.getContext('experimental-webgl', ca); if (!gl) throw new Error('This browser has 3D graphics (WebGL) turned off. On a school Chromebook, ask your IT admin to allow WebGL, or open chrome://gpu to check it.'); GL1 = true; webgl1Shim(gl); }
+  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, GL1 ? toGLSL100(s, t == gl.FRAGMENT_SHADER) : s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(o); return o; };
   const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FS));
   gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aUv'); gl.bindAttribLocation(p, 2, 'aL'); gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
@@ -119,7 +120,29 @@ function initGL(canvas) {
   for (const k in IMG) if (k.startsWith('mob_') && IMG[k] && !TEXS[k]) TEXS[k] = mkTex(IMG[k]);
   const white = document.createElement('canvas'); white.width = white.height = 1; const wc = white.getContext('2d'); wc.fillStyle = '#fff'; wc.fillRect(0, 0, 1, 1); TEXS.white = mkTex(white);
 }
+// ---- old GPUs / browsers without WebGL2 (older Chromebooks, consoles, old phones) ----
+let GL1 = false;
+function toGLSL100(s, frag) {
+  s = s.replace('#version 300 es\n', '').replace(/\btexture\(/g, 'texture2D(');
+  if (frag) s = s.replace(/\bin\s+(vec|float)/g, 'varying $1').replace(/out vec4 o;\s*/, '').replace(/\bo\s*=/g, 'gl_FragColor =');
+  else s = s.replace(/\bin\s+(vec|float)/g, 'attribute $1').replace(/\bout\s+(vec|float)/g, 'varying $1');
+  return s;
+}
+function webgl1Shim(g) {
+  const ext = g.getExtension('OES_vertex_array_object');
+  if (ext) { g.createVertexArray = () => ext.createVertexArrayOES(); g.bindVertexArray = v => ext.bindVertexArrayOES(v); g.deleteVertexArray = v => ext.deleteVertexArrayOES(v); }
+  else { // no VAO support at all: remember each "VAO"'s buffer + attribute layout and replay it on bind
+    let cur = null; const vap = g.vertexAttribPointer.bind(g), bb = g.bindBuffer.bind(g);
+    g.createVertexArray = () => ({ ptr: [], buf: null });
+    g.bindBuffer = (t, b) => { if (cur && t == g.ARRAY_BUFFER) cur.buf = b; bb(t, b); };
+    g.vertexAttribPointer = (...a) => { if (cur) cur.ptr[a[0]] = [a, cur.buf]; vap(...a); };
+    g.bindVertexArray = v => { cur = v; if (v) for (const p of v.ptr) if (p) { bb(g.ARRAY_BUFFER, p[1]); g.enableVertexAttribArray(p[0][0]); vap(...p[0]); } };
+    g.deleteVertexArray = () => { };
+  }
+}
+const isPOT = n => (n & (n - 1)) == 0;
 function mkTex(img, repeat, linear) {
+  if (GL1 && repeat && !(isPOT(img.width) && isPOT(img.height))) { const c = document.createElement('canvas'); c.width = 1 << Math.ceil(Math.log2(img.width)); c.height = 1 << Math.ceil(Math.log2(img.height)); const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0, c.width, c.height); img = c; }
   const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
   const f = linear ? gl.LINEAR : gl.NEAREST;
