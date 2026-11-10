@@ -49,17 +49,22 @@ function scrTitle() {
   cx2.save(); cx2.translate(UW / 2 + lg.w / 2 - 20, ly + lg.h - 12); cx2.rotate(-20 * Math.PI / 180); const sc = 1.8 - Math.abs(Math.sin(performance.now() / 1000 * Math.PI * 2)) * 0.1;
   const sw = textW(S.splash); const f = 100 / (sw + 32) * sc; cx2.scale(f, f); textC(S.splash, 0, -8, '#FFFF00'); cx2.restore();
   if (S.bedrock) {
-    // Bedrock-style: large stacked buttons
-    // squeeze the column to fit short (phone) screens instead of running off the bottom
-    const bw = 220, bx = UW / 2 - bw / 2, top = ly + lg.h + 8, step = clamp((UH - 14 - top - 20) / 3, 22, 30), bh = Math.min(24, step - 4);
-    let by = Math.max(top, Math.min(UH / 2 - 30, UH - 14 - 3 * step - 20));
-    if (button('Play', bx, by, bw, bh)) go('worlds');
-    if (button('Settings', bx, by + step, bw, bh)) go('options');
-    if (button('Dressing Room', bx, by + 2 * step, bw, bh)) go('skins');
-    const w3 = (bw - 4) / 3;
-    if (button('Mods', bx, by + 3 * step, w3, 20)) { S.modmsg = ''; go('mods'); }
-    if (button('Friends', bx + w3 + 2, by + 3 * step, w3, 20)) go('multiplayer');
-    if (button('Credits', bx + 2 * w3 + 4, by + 3 * step, w3, 20)) go('credits');
+    // Bedrock home screen: big Play / Settings / Marketplace column in the middle, your character on the left with Profile under it
+    const bw = Math.min(200, UW * .42), bx = UW / 2 - bw / 2, top = ly + lg.h + 10, step = clamp((UH - 40 - top) / 3.4, 22, 30), bh = Math.min(26, step - 4);
+    let by = Math.max(top, Math.min(UH / 2 - 28, UH - 40 - 3 * step));
+    if (button('Play', bx, by, bw, bh + 2)) go('worlds');
+    if (button('Settings', bx, by + step + 2, bw, bh)) go('options');
+    if (button('Marketplace', bx, by + 2 * step + 2, bw, bh)) go('market');
+    // character + profile (left), like Bedrock
+    const cw = Math.min(70, (UW / 2 - bw / 2) - 20), cx0 = Math.max(SAFE[3] + 12, UW / 2 - bw / 2 - cw - 26), ch = Math.min(110, UH - by - 40);
+    if (cw > 30 && ch > 50) { cx2.fillStyle = 'rgba(0,0,0,.35)'; cx2.fillRect(cx0, by, cw, ch); drawPlayerDoll(cx0 + cw / 2, by + 6, ch - 30, IMG['skin_' + PROFILE.skin] || IMG.steve);
+      textC(store.get('mpName', '') || 'Steve', cx0 + cw / 2, by + ch - 20, '#FFFFFF'); if (button('Profile', cx0, by + ch + 2, cw, 18)) go('skins'); }
+    // small corner buttons
+    const sx = UW - SAFE[1] - 26; if (button('', sx, 6, 20, 20)) go('multiplayer'); drawIcon(itemKey('item:player_head') || itemKey('player_head'), sx + 2, sy0(), 16);
+    function sy0() { return 8; }
+    if (hover(sx, 6, 20, 20)) S.tip = ['Friends & Servers'];
+    if (button('', sx - 24, 6, 20, 20)) { S.modmsg = ''; go('mods'); } drawIcon(itemKey('item:knowledge_book') || itemKey('item:book'), sx - 22, 8, 16); if (hover(sx - 24, 6, 20, 20)) S.tip = ['Mods'];
+    if (button('', sx - 48, 6, 20, 20)) go('credits'); drawIcon(itemKey('item:writable_book') || itemKey('item:book'), sx - 46, 8, 16); if (hover(sx - 48, 6, 20, 20)) S.tip = ['Credits'];
   } else {
     // Java-style
     const by = UH / 4 + 48, bx = UW / 2 - 100;
