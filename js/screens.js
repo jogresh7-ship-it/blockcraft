@@ -9,7 +9,7 @@ const opts = Object.assign({ fov: 70, rd: LOW_END ? 4 : 6, mres: LOW_END && !IS_
 function saveOpts() { store.set('options2', opts); Object.assign(SND.vol, { master: opts.master, music: opts.music, blocks: opts.blocks, mobs: opts.mobs, ambient: opts.ambient, ui: opts.ui }); SND.setMusicVol(); }
 const SPLASHES = ['Faithful to the original!', 'Now with sound packs!', 'Made in a browser!', '32x textures!', 'Punch a tree!', 'Infinite terrain!', 'Also try the real thing!', 'Voxel-tastic!', 'WebGL2!', 'Pixel perfect!', 'Bitmap font included!', 'Cubes all the way down!', 'Don\'t dig straight down!', 'Mind the lava!', '545 blocks!', '677 items!', 'Sheep included!', 'Moo!', 'Oink!', 'Ambient occlusion!'];
 const S = { screen: 'loading', prev: null, splash: SPLASHES[Math.random() * SPLASHES.length | 0], sel: -1, scroll: 0, cw: null, tab: 0, msg: '', loadP: 0, worlds: store.get('worlds', []), confirm: null, cscroll: 0, search: { q: '' }, ctab: 0 };
-function go(s) { S.prev = S.screen; S.screen = s; focus = null; S.scroll = 0; if (s == 'game') lockPointer(); else unlockPointer(); }
+function go(s) { S.prev = S.screen; S.screen = s; focus = null; S.scroll = 0; if (s == 'game') { lockPointer(); if (typeof mouse != 'undefined') { mouse.down = false; mouse.rdown = false; mouse.click = false; mouse.rclick = false; } S.noBreak = performance.now() + 250; } else unlockPointer(); } // the click that closes a menu never breaks or places a block
 const inGame = () => !!world;
 function screenBg() { if (inGame()) { cx2.fillStyle = S.bedrock ? 'rgba(30,30,31,.75)' : 'rgba(16,16,16,.6)'; cx2.fillRect(0, 0, UW, UH); } else tiledBg('menu_background', 0.55); }
 

@@ -527,7 +527,7 @@ function updatePlayer(dt) {
   let tm = null, tmd = hit ? hit.t : reach;
   if (!spect) for (const m of mobs) { const t = rayBox(eye, d, [m.x - m.r, m.y, m.z - m.r], [m.x + m.r, m.y + m.h, m.z + m.r]); if (t !== null && t < tmd && t < 3.5) { tm = m; tmd = t; } }
   P.targetMob = tm;
-  if (mouse.down && !spect) {
+  if (mouse.down && !spect && !(performance.now() < (S.noBreak || 0))) {
     if (tm && attackCd <= 0) { attackCd = .5; swing = 1; const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, attackDamage(h && h.k) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 8; i++) particles.push({ x: tm.x, y: tm.y + tm.h * .7, z: tm.z, vx: (Math.random() - .5) * 4, vy: Math.random() * 3, vz: (Math.random() - .5) * 4, life: .5, tile: TEX[B('white_wool') * 4], g: 1, s: .05 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
     else if (hit && !tm) {
       if (creative) { if (attackCd <= 0) { attackCd = .25; const h = held(); if (!(h && toolInfo(h.k) && toolInfo(h.k).type == 'sword')) netBegin(); doBreak(hit, false); netEnd(hit); swing = 1; } }
@@ -542,7 +542,7 @@ function updatePlayer(dt) {
   } else breaking = null;
   // use / place
   const h = held();
-  if (mouse.rdown) {
+  if (mouse.rdown && !(performance.now() < (S.noBreak || 0))) {
     const fv = h && foodVal(h.k);
     if (fv && (P.food < 20 || /golden_apple|chorus/.test(keyName(h.k)) || P.mode == 'creative')) {
       eatT += dt; if ((P.eatS = (P.eatS || 0) - dt) <= 0) { P.eatS = .22; SND.play('eat', .5, .8 + Math.random() * .4); spawnEatParticles(h.k); }
