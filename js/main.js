@@ -879,7 +879,7 @@ function itemMesh(k) { // returns [mesh, tex] centered at origin, unit size
 function lightAt(x, y, z) { const c = world.chunk(Math.floor(x) >> 4, Math.floor(z) >> 4); if (!c || !c.L || y < 0 || y >= WH) return [1, 0]; const l = c.L[lidx(Math.floor(x) & 15, Math.floor(y), Math.floor(z) & 15)]; return [Math.pow(.82, 15 - (l >> 4)), Math.pow(.82, 15 - (l & 15))]; }
 function renderEntities(sk) {
   const u = PROG.u, t = performance.now() / 1000;
-  const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly } : null;
+  const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly, swingT: typeof swing != 'undefined' ? swing : 0, sprinting: P.sprint } : null;
   for (const m of [...mobs, ...netAvatarsFor(), ...(pobj ? [pobj] : [])]) {
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
     const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; const parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
@@ -902,7 +902,16 @@ function renderEntities(sk) {
       if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
       if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
-      let M = M4.chain(base, M4.trans(...pv), M4.ry(ay), M4.rz(rzv), M4.rx(ax), M4.trans(p.pos[0] - pv[0], p.pos[1] - pv[1], p.pos[2] - pv[2]));
+      let pvv = pv, off = null;
+      if (m.type == 'player' || D0.humanPose) { // the player's pose: sneaking leans the body forward, arms forward, legs back
+        if (m.sneak) {
+          if (p.leg !== undefined) off = [0, -.2, 4];
+          else { off = [0, -3.2, 0]; if (p.arm !== undefined) ax += .4; else if (!p.head) { pvv = [0, 24, 0]; ax -= .5; } }
+        }
+        if (p.arm !== undefined && m.swingT > 0 && p.hand) ax += Math.sin(m.swingT * Math.PI) * 1.4; // punching / using an item
+        if (p.arm !== undefined && m.sprinting) ax *= 1.25;
+      }
+      let M = M4.chain(base, off ? M4.trans(off[0], off[1], off[2]) : ID, M4.trans(...pvv), M4.ry(ay), M4.rz(rzv), M4.rx(ax), M4.trans(p.pos[0] - pvv[0], p.pos[1] - pvv[1], p.pos[2] - pvv[2]));
       if (p.rot) M = M4.mul(M, M4.rx(p.rot[0]));
       if (m.fuse > 0) { const s = 1 + (1.5 - m.fuse) * .1; M = M4.chain(M4.trans(m.x, m.y, m.z), M4.scale(s, s, s), M4.trans(-m.x, -m.y, -m.z), M); }
       const tx = p.tex == 'ghast' && m.shootT > 0 ? 'ghast_shooting' : p.tex == 'wolf' && m.tamed ? 'wolf_tame' : p.tex == 'wolf' && m.provoked ? 'wolf_angry' : p.tex;
