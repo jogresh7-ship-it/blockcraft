@@ -20,14 +20,21 @@ function openWorld(meta, fresh) {
     fix(data.player); fix(data.containers); data.ib = 4096;
   }
   meta.time = data?.time ?? 1000; meta.rain = data?.rain || false; meta.weatherT = data?.weatherT ?? 600;
+  setWorldHeight(meta.map && window.MAPS && MAPS[meta.map] ? MAPS[meta.map].h : 128);
   world = new World(Object.assign(meta, { edits: data?.edits || {}, dimEdits: data?.dimEdits, dim: data?.dim || 'overworld', state: data?.state || {}, containers: data?.containers || {} }));
-  if (meta.flat) { const hh = world.height.bind(world); world.height = (x, z) => world.dim == 'nether' ? hh(x, z) : ({ h: 4, bio: 'plains' }); }
+  if (meta.map && window.MAPS && MAPS[meta.map]) { // a downloaded map (e.g. Spiral Parkour): void world filled from the map's chunks
+    const MP = MAPS[meta.map], cache = {}; world.height = () => ({ h: 0, bio: 'plains' }); if (!data) for (const k in MP.state) if (!world.state[k]) world.state[k] = Object.assign({}, MP.state[k]);
+    const pid = MP.palette.map(n => BYNAME[n] || 0);
+    world.generate = (cx, cz) => { const d = new Uint16Array(CV), s = MP.chunks[cx + ',' + cz];
+      if (s) { const bin = atob(s), u = new Uint16Array(bin.length / 2); for (let i = 0; i < u.length; i++) u[i] = bin.charCodeAt(i * 2) | bin.charCodeAt(i * 2 + 1) << 8; let p = 0; for (let i = 0; i < u.length; i += 2) { const n = u[i], v = pid[u[i + 1]]; if (v) d.fill(v, p, p + n); p += n; } }
+      const c = { cx, cz, d, dirty: true, meshes: null }; const ed = world.edits[cx + ',' + cz]; if (ed) for (const k in ed) d[+k] = ed[k]; world.chunks.set(cx + ',' + cz, c); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = world.chunk(cx + a, cz + b); if (n) n.dirty = true; } return c; }; }
+  else if (meta.flat) { const hh = world.height.bind(world); world.height = (x, z) => world.dim == 'nether' ? hh(x, z) : ({ h: 4, bio: 'plains' }); }
   if (meta.flat) { const g = world.generate.bind(world); world.generate = (cx, cz) => { if (world.dim == 'nether') return g(cx, cz); const d = new Uint16Array(CV); for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) { d[lidx(x, 0, z)] = B('bedrock'); d[lidx(x, 1, z)] = B('dirt'); d[lidx(x, 2, z)] = B('dirt'); d[lidx(x, 3, z)] = B('grass_block'); } const c = { cx, cz, d, dirty: true, meshes: null }; const ed = world.edits[cx + ',' + cz]; if (ed) for (const k in ed) d[+k] = ed[k]; world.chunks.set(cx + ',' + cz, c); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = world.chunk(cx + a, cz + b); if (n) n.dirty = true; } return c; }; }
   world.onSet = (x, y, z) => { fluidWake(x, y, z); if (!S.inFall) { S.inFall = 1; checkFall(x, y + 1, z); checkFall(x, y, z); S.inFall = 0; } };
   falling = [];
   player = Object.assign(newPlayer(meta), data?.player || {});
   window.player = player;
-  if (!data?.player) { const sp = findSpawn(world); player.x = sp[0]; player.y = sp[1]; player.z = sp[2]; player.spawn = sp; player.needGround = true; if (player.mode == 'creative') { } }
+  if (!data?.player) { const sp = meta.map && window.MAPS && MAPS[meta.map] ? MAPS[meta.map].spawn.slice() : findSpawn(world); player.x = sp[0]; player.y = sp[1]; player.z = sp[2]; player.spawn = sp; player.needGround = !meta.map; if (meta.map) player.yaw = Math.PI; if (player.mode == 'creative') { } }
   mobs = (data?.mobs || []).map(m => Object.assign(makeMob(m.type, m.x, m.y, m.z), m)); items = []; particles = []; tnts = [];
   meta.last = Date.now(); store.set('worlds', S.worlds);
   startLoad();
@@ -566,6 +573,7 @@ function updatePlayer(dt) {
   if (P.portalCool > 0) P.portalCool -= dt;
   if (world.get(fx, Math.floor(P.y + .5), fz) == B('nether_portal') && !(P.portalCool > 0)) { if (!P.portalT) SND.play('portal/trigger', .3); P.portalT = (P.portalT || 0) + dt; if (P.portalT > (P.mode == 'creative' ? 1 : 4)) { travel(); return; } } else P.portalT = Math.max(0, (P.portalT || 0) - dt * 2);
   if (P.hurtT > 0) P.hurtT -= dt; if (P.invuln > 0) P.invuln -= dt;
+  if (world.meta.map && P.y < -10 && MAPS[world.meta.map]) { const sp = P.cp || MAPS[world.meta.map].spawn; P.x = sp[0]; P.y = sp[1]; P.z = sp[2]; P.vx = P.vy = P.vz = 0; P.fallStart = null; chat('§7Back to the ' + (P.cp ? 'checkpoint' : 'start')); }
   if (P.y < -64) { if (P.mode == 'survival') hurtPlayer(4, 'fell out of the world', true); else if (P.y < -128) { P.y = 120; P.vy = 0; } }
   if (P.y < 0 && P.y > -1 && false) { }
   if (P.y < 10 && P.y > 0 && !world.meta.flat) award('deep');
@@ -607,6 +615,7 @@ function wear(st, n) { if (player.mode != 'survival') return; st.dmg = (st.dmg |
 function rayBox(o, d, mn, mx) { let t0 = 0, t1 = 1e9; for (let i = 0; i < 3; i++) { const inv = 1 / d[i]; let a = (mn[i] - o[i]) * inv, b = (mx[i] - o[i]) * inv; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); if (t1 < t0) return null; } return t0; }
 const GRAVITY_B = n => /^(sand|red_sand|gravel|.+_concrete_powder|suspicious_sand|suspicious_gravel)$/.test(n);
 function doBreak(hit, survival) {
+  if (world.meta.map && player.mode != 'creative') return; // maps are adventure mode: look, don't break
   const { x, y, z, b } = hit, n = BL[b].n;
   if (survival && blockProps(b).h < 0) return;
   if (!survival && /^(bedrock)$/.test(n) && false) return;
@@ -704,6 +713,7 @@ function useItem(hit, tm, h) {
   const seedMap = { redstone: 'redstone_wire', wheat_seeds: 'wheat', carrot: 'carrots', potato: 'potatoes', beetroot_seeds: 'beetroots', sweet_berries: 'sweet_berry_bush' };
   let place = h.k < ITEM_BASE ? h.k : seedMap[n] && (tb == 'farmland' || n == 'sweet_berries' || n == 'redstone') && hit.n[1] == 1 ? B(seedMap[n]) : 0;
   if (!place) { const alt = { oak_sign: 0, ladder: 0 }; return; }
+  if (world.meta.map && player.mode != 'creative') return;
   if (canPlaceAt(hit.x, hit.y, hit.z) && SHAPE[hit.b] != 1 && !SBOX[hit.b]) { p[0] = hit.x; p[1] = hit.y; p[2] = hit.z; }
   { const sp = placeSpecial(h, hit, p); if (sp == 'ok') { blockSound(BL[h.k].n, 'place', 1, .8, [hit.x + .5, hit.y + .5, hit.z + .5]); swing = 1; player.stats.placed++; consume(); return; } if (sp == 'fail') return;
     if (sp == 'door') { if (!canPlaceAt(...p)) return; world.set(...p, h.k); world.set(p[0], p[1] + 1, p[2], BYNAME[BL[h.k].n + '_top']); SND.play('block/wooden_door/close', .6, 1, p); swing = 1; consume(); return; }

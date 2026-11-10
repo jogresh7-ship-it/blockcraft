@@ -1,5 +1,6 @@
 'use strict';
-const CS = 16, WH = 128, SEA = 62, CV = CS * CS * WH;
+const CS = 16, SEA = 62; let WH = 128, CV = CS * CS * WH;
+function setWorldHeight(h) { WH = h || 128; CV = CS * CS * WH; } // map worlds can be taller than normal ones
 const lidx = (x, y, z) => x + CS * (z + CS * y);
 let WLOG, WATER_ID, LEAF;
 // biome colours: grass, ferns and leaves use their biome's own green (or yellow/brown), like Minecraft's colour maps

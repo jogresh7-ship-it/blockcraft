@@ -17,7 +17,8 @@ function netMyState() { const P = player; return { t: 'p', id: NET.myId, name: p
   arm: P.armor.map(s => s ? keyName(s.k) : 0), off: P.offhand ? P.offhand.k : 0, eat: typeof eatT != 'undefined' && eatT > 0 ? 1 : 0, dead: P.dead ? 1 : 0 }; }
 // ---- hosting ----
 async function netHost(fixed) {
-  if (NET.role) return NET.code;
+  if (NET.role == 'host' && (!fixed || NET.code == fixed) && (fixed || !NET.server)) return NET.code;
+  if (NET.role) { netStop(); NET.server = null; NET.bot = false; } // still connected to a public server: leave it first, so friends get YOUR world
   NET.status = 'Starting...'; await netLoadLib();
   const code = fixed || netCode(); NET.role = 'host'; NET.code = code; NET.myId = 'host';
   return new Promise((res, rej) => {
@@ -37,7 +38,7 @@ function netHostData(id, c, d) {
   if (d.t == 'hello') {
     if (d.v !== 1) { netSend(c, { t: 'kick', why: 'Different game version - update the page' }); return; }
     NET.conns.set(id, c); const m = world.meta;
-    netSend(c, { t: 'welcome', id, meta: { name: m.name, seed: m.seed, gen: m.gen, flat: m.flat, created: m.created, diff: m.diff, cheats: m.cheats, mode: m.mode }, edits: m.dimEdits ? m.dimEdits.overworld : world.edits, state: world.state, time: m.time, rain: m.rain, players: [...NET.avatars.values()].map(a => a.last).concat(NET.bot ? [] : [netMyState()]) });
+    netSend(c, { t: 'welcome', id, meta: { name: m.name, seed: m.seed, gen: m.gen, flat: m.flat, map: m.map, created: m.created, diff: m.diff, cheats: m.cheats, mode: m.mode }, edits: m.dimEdits ? m.dimEdits.overworld : world.edits, state: world.state, time: m.time, rain: m.rain, players: [...NET.avatars.values()].map(a => a.last).concat(NET.bot ? [] : [netMyState()]) });
     chat('§e' + (d.name || 'A player') + ' joined the game'); SND.play('random/pop', .5);
     return;
   }
@@ -58,7 +59,7 @@ async function netJoin(code) {
       const c = peer.connect(peerId(code), { reliable: true }); NET.host = c;
       c.on('open', () => netSend(c, { t: 'hello', v: 1, name: netName() }));
       c.on('data', d => { if (d && d.t == 'welcome' && !done) { done = true; res(d); } netClientData(d); });
-      c.on('close', () => { if (NET.role == 'client') { NET.role = null; if (world && world.meta.remote) { chat('§cDisconnected from the host'); S.netLost = 1; if (NET.server) { const n = NET.server; chat('§7Reconnecting to ' + n + '...'); setTimeout(() => { if (world && world.meta.remote) { quitWorld && quitWorld(); } netServer(n); }, 2500); } } } });
+      c.on('close', () => { if (NET.role == 'client') { NET.role = null; if (world && world.meta.remote) { chat('§cDisconnected from the host'); S.netLost = 1; if (NET.server) { const n = NET.server; chat('§7Reconnecting to ' + n + '...'); setTimeout(() => { if (world && world.meta.remote) { netAdopt(n); quitWorld && quitWorld(); } netServer(n); }, 2500); } } } });
     });
   });
 }
@@ -78,6 +79,10 @@ function netClientData(d) {
   else if (d.t == 'bye') { const a = NET.avatars.get(d.id); if (a) chat('§e' + a.name + ' left the game'); NET.avatars.delete(d.id); }
   else if (d.t == 'mobs' && world && typeof mobs != 'undefined') netMobs(d.list);
 }
+// the host left: keep the server going. This player's copy of the world becomes the server's world, then the first player to
+// reconnect becomes the new host (everyone else joins them), so a server never needs someone to keep it running
+function netAdopt(n) { try { const id = 'srv_' + srvSlug(n).toLowerCase(), m = world.meta; Object.assign(m, { id, remote: 0, server: 1, name: n + ' Server' }); delete m.remote;
+  S.worlds = S.worlds.filter(w => w.id != id); const meta = Object.assign({}, m); delete meta.edits; delete meta.containers; delete meta.dimEdits; delete meta.state; S.worlds.push(meta); store.set('worlds', S.worlds); saveWorld(); } catch (e) { console.warn('adopt', e); } }
 function netStop() {
   NET.named = 0;
   try { for (const c of NET.conns.values()) c.close(); if (NET.host) NET.host.close(); if (NET.peer) NET.peer.destroy(); } catch (e) { }
@@ -155,7 +160,7 @@ function netDrawNames(PV, W, H) {
 }
 // ---- screens ----
 // ---------- Multiplayer screens, laid out like Minecraft's "Play Multiplayer" server list ----------
-const DEFAULT_SERVERS = [{ name: 'Blockcraft Survival', addr: 'Survival', motd: 'The official survival server' }, { name: 'Blockcraft Creative', addr: 'Creative', motd: 'Build anything, unlimited blocks' }, { name: 'Parkour', addr: 'Parkour', motd: 'Jump and run on a flat world' }];
+const DEFAULT_SERVERS = [{ name: 'Blockcraft Survival', addr: 'Survival', motd: 'The official survival server' }, { name: 'Blockcraft Creative', addr: 'Creative', motd: 'Build anything, unlimited blocks' }, { name: 'Parkour', addr: 'Parkour', motd: 'Spiral Parkour Challenge - climb to the top!' }];
 function mpServers() { let l = store.get('servers', null); if (!l) { l = DEFAULT_SERVERS.slice(); store.set('servers', l); } return l; }
 const isCode = a => /^[A-Z0-9]{6}$/.test(a) && !/^(SURVIV|CREATI|PARKOU)/.test(a);
 function mpJoin(sv) { S.mp = S.mp || {}; if (isCode(sv.addr.toUpperCase())) { S.mp.busy = 1; S.mp.msg = '§7Connecting to ' + sv.name + '...'; netJoin(sv.addr.toUpperCase()).then(w => { S.mp.busy = 0; netEnter(w); }).catch(e => { S.mp.busy = 0; S.mp.msg = '§c' + e.message; }); } else netServer(sv.addr); }
@@ -235,8 +240,9 @@ async function netServer(name, bot) {
   // nobody is hosting it: this browser becomes the server (its world is saved here)
   S.mp.msg = '§7Starting ' + name + '...'; NET.server = name; NET.bot = !!bot;
   const id = 'srv_' + slug.toLowerCase(); let meta = S.worlds.find(w => w.id == id);
-  const creative = /CREATIVE/.test(slug);
-  if (!meta) { let h = 7; for (const c of slug) h = Math.imul(h ^ c.charCodeAt(0), 16777619); meta = { id, name: name + ' Server', seed: h >>> 0, mode: creative ? 'creative' : 'survival', diff: 2, cheats: creative, flat: /PARKOUR|FLAT/.test(slug), created: Date.now(), last: Date.now(), gen: 3, server: 1 }; S.worlds.push(meta); store.set('worlds', S.worlds); }
+  const creative = /CREATIVE/.test(slug), map = /PARKOUR/.test(slug) && window.MAPS && MAPS.spiral ? 'spiral' : null;
+  if (meta && map && meta.map != map) { S.worlds = S.worlds.filter(w => w.id != id); store.set('worlds', S.worlds); store.del('world_' + id); meta = null; } // old flat parkour world -> the new map
+  if (!meta) { let h = 7; for (const c of slug) h = Math.imul(h ^ c.charCodeAt(0), 16777619); meta = { id, name: name + ' Server', seed: h >>> 0, mode: creative ? 'creative' : 'survival', diff: 2, cheats: creative, flat: !map && /PARKOUR|FLAT/.test(slug), map, created: Date.now(), last: Date.now(), gen: 3, server: 1 }; S.worlds.push(meta); store.set('worlds', S.worlds); }
   openWorld(meta, !store.get('world_' + id, null));
   for (let i = 0; i < 240 && S.screen != 'game' && S.screen != null; i++) await new Promise(r => setTimeout(r, 250));
   try { await netHost(code); NET.server = name; S.mp.busy = 0; S.mp.msg = ''; if (bot) botMode(name); }
