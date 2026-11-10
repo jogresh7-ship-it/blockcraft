@@ -27,6 +27,8 @@ const PACKS = ['vanilla', 'faithful64', 'barebones'].filter(id => PACK_FILES[id]
 const loadScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src + ' - keep the "packs" folder next to Blockcraft.html')); document.head.appendChild(s); });
 async function ensurePackData(id) { if (window.EMBED_PACKS && EMBED_PACKS[id] && EMBED_PACKS[id].length == PACK_FILES[id].length) return; for (const f of PACK_FILES[id]) await loadScript(f); }
 const PS = { active: store.get('pack2', 'none'), custom: null, customName: '' };
+// the offline version ships the Vanilla pack: use it by default (also for players who never picked a pack)
+if (window.PACK_FILES && PACK_FILES.vanilla && !store.get('vanillaDefault', 0)) { store.set('vanillaDefault', 1); if (PS.active == 'none') { PS.active = 'vanilla'; store.set('pack2', 'vanilla'); } }
 function snapshotOriginals() { for (const k in IMG) if (IMG[k]) ORIG[k] = IMG[k]; ORIG.font_pack = ORIG.font; }
 function setFont() { if (ORIG.font_improved) ORIG.font = ORIG.font_improved; IMG.font = ORIG.font; fontCache.clear(); initGUI(ui); titleCanvas = null; }
 function processImage(src, pack) {
