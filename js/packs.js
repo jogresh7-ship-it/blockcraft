@@ -65,6 +65,9 @@ async function buildFromZip(zip, setP) {
     const tc = tintFor(src); if (tc) tintTile(x, y, tc); if (/_red$/.test(n)) tintTile(x, y, [255, 40, 30]);
     if (n == 'grass_block_side_tinted') { const ob = await zip.get(T + 'block/grass_block_side_overlay.png'); if (ob) { const oi = await blobImg(ob); const t = document.createElement('canvas'); t.width = t.height = TS; const tg = t.getContext('2d'); tg.imageSmoothingEnabled = false; tg.drawImage(oi, 0, 0, oi.width, oi.width, 0, 0, TS, TS); tg.globalCompositeOperation = 'multiply'; tg.fillStyle = 'rgb(124,189,107)'; tg.fillRect(0, 0, TS, TS); tg.globalCompositeOperation = 'destination-in'; tg.drawImage(oi, 0, 0, oi.width, oi.width, 0, 0, TS, TS); ag.drawImage(t, x, y); } }
   }
+  // block-entity textures (chests, heads, decorated pot, conduit) live in their own atlas regions
+  for (const [i, path, lw, lh] of Object.values(REG.entityTiles || {})) { const b = await zip.get(T + path); const img = b && await blobImg(b); if (!img) continue;
+    const x = (i % REG.cols) * TS, y = Math.floor(i / REG.cols) * TS, w = lw / 16 * TS, h = lh / 16 * TS; ag.clearRect(x, y, w, h); ag.drawImage(img, 0, 0, img.width, img.height, x, y, w, h); }
   out.blocks = at;
   // items
   const it = document.createElement('canvas'); it.width = REG.icols * TS; it.height = REG.irows * TS; const ig = it.getContext('2d'); ig.imageSmoothingEnabled = false; ig.drawImage(ORIG.items, 0, 0, it.width, it.height);

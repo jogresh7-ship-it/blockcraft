@@ -484,7 +484,14 @@ class World {
       { n: [0, 1, 0], c: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], f: 0, s: 1 }, { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], f: 1, s: .5 },
       { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], f: 3, s: .8 }, { n: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], f: 2, s: .8 }];
     const aoT = [0.45, 0.65, 0.82, 1];
-    const bgrp = new Array(256); if (this.dim == 'overworld' || !this.dim) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) bgrp[x + z * 16] = BIO_GROUP[this.biome(x0 + x, z0 + z)];
+    const bgrp = new Array(256); if (this.dim == 'overworld' || !this.dim) {
+      // soft biome borders: sample biomes on a coarse grid around the chunk and let each column pick from its neighbourhood with
+      // distance-weighted odds, so one biome's grass and leaves fade into the next over ~10 blocks instead of switching at a line
+      const R = 5, G = new Map(); const gb = (cx, cz) => { const k = cx + ',' + cz; let v = G.get(k); if (v === undefined) { v = BIO_GROUP[this.biome(cx * 2, cz * 2)] || 0; G.set(k, v); } return v; };
+      for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) { const wx = x0 + x, wz = z0 + z, w = {}; let tot = 0;
+        for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { const d2 = dx * dx + dz * dz; if (d2 > R * R) continue; const g = gb(Math.floor(wx / 2) + dx, Math.floor(wz / 2) + dz), wt = 1 / (1 + d2); w[g] = (w[g] || 0) + wt; tot += wt; }
+        let h = Math.imul(wx * 73856093 ^ wz * 19349663, 0x27d4eb2d); h ^= h >>> 15; let r = ((h >>> 0) % 10000) / 10000 * tot, pick = 0;
+        for (const g in w) { r -= w[g]; if (r <= 0) { pick = g; break; } } bgrp[x + z * 16] = pick == 0 ? undefined : pick; } }
     const TV = (t, lx, lz) => { const g = bgrp[lx + lz * 16]; if (!g) return t; const v = TVMAP[t]; return v ? v[g] ?? t : t; };
     for (let y = 0; y < WH; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       let b = d[lidx(x, y, z)]; if (!b) continue; let sh = SHAPE[b]; const wx = x0 + x, wz = z0 + z;
@@ -516,7 +523,9 @@ class World {
           const cull = (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)];
           if (BL[b].rails) { const sh = railShape(this, b, st, wx, y, wz, getB, x, z), r = BL[b].rails[sh + (st.on ? '|on' : '')] || BL[b].rails[sh] || BL[b].rails.north_south; emitMM(out[0], BL[b].rmods[r[0]], wx, y, wz, [0, 1, 0], ll, [r[1], r[2]], cull); continue; }
           const sc = BL[b].stv ? stairShape(this, b, st, wx, y, wz, getB, x, z) : null;
+          const lid = !sc && BL[b].chestlike && LIDS[wx + ',' + y + ',' + wz];
           if (sc) emitMM(out[0], sc[2] == 1 ? BL[b].mmi : BL[b].mmu, wx, y, wz, [0, 1, 0], ll, [sc[0], sc[1]], cull); else
+          if (lid && lid.s) emitMM(out[0], lidModel(b, lid.s), wx, y, wz, f || [0, 1, 0], ll, st.fr || BL[b].mr || null, cull); else
           emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : st.open && BL[b].mmo ? BL[b].mmo : st.hang && BL[b].mmh ? BL[b].mmh : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, /piston/.test(BL[b].n) ? null : st.fr || BL[b].mr || null, cull);
           if (!WLOG[b]) continue; b = WATER_ID; sh = 3;
         }
@@ -540,7 +549,7 @@ class World {
         else if (sh == 4) { if (FLUID[nb] == 2 || OPAQUE[nb]) continue; }
         else if (sh == 5) { if (F.n[1] && OPAQUE[nb]) continue; }
         else { if (OPAQUE[nb]) continue; if (nb == b && !LEAF[b]) continue; if (ALPHA[b] == 0 && SHAPE[nb] == 3 && false) continue; }
-        const tex = sh >= 3 && sh <= 4 ? 0 : TV(TEX[b * 4 + F.f], x, z);
+        let tex = sh >= 3 && sh <= 4 ? 0 : TV(TEX[b * 4 + F.f], x, z); if (tex == BARREL_TOP && LIDS[wx + ',' + y + ',' + wz]?.o) tex = REG.tiles.barrel_top_open;
         const uv = sh == 3 || sh == 4 ? [0, 0, 1, 1] : tileUV(tex);
         const lc = getL(nx, ny, nz);
         const C = [], U = [], LL = [];
@@ -640,6 +649,13 @@ function elemRot(p, r) {
   else { [x, y] = [x * c - y * sn, x * sn + y * c]; x *= k; y *= k; }
   return [x + ox, y + oy, z + oz];
 }
+// ---- opening lids (chests, ender chests, copper chests) ----
+const LIDS = {}, LIDCACHE = {}; let BARREL_TOP = -1; setTimeout(function f() { if (typeof REG != 'undefined' && REG) BARREL_TOP = REG.tiles.barrel_top; else setTimeout(f, 200); }, 0);
+function lidModel(b, s) { const k = b + ':' + s; if (LIDCACHE[k]) return LIDCACHE[k]; return LIDCACHE[k] = BL[b].mm.map((e, i) => i == 0 ? e : Object.assign({}, e, { r: [8, 10, 15, 'x', s * 18, 0] })); }
+function lidOpen(x, y, z, on) { const k = x + ',' + y + ',' + z; const l = LIDS[k] || (LIDS[k] = { a: 0, s: 0 }); l.o = on; }
+function lidTick(dt) { for (const k in LIDS) { const l = LIDS[k]; l.a = Math.max(0, Math.min(1, l.a + (l.o ? dt : -dt) * 4)); const e = l.a < .5 ? 2 * l.a * l.a : 1 - (2 - 2 * l.a) ** 2 / 2, s = Math.round(e * 5);
+  if (s != l.s) { l.s = s; const [x, , z] = k.split(',').map(Number); const c = world.chunk(Math.floor(x / 16), Math.floor(z / 16)); if (c) c.dirty = true; }
+  if (!l.o && l.a == 0) { delete LIDS[k]; } } }
 function emitMM(out, els, wx, y, wz, facing, ll, rot, cull) {
   const [rx, ry] = rot || facingRot(facing);
   for (const e of els) for (const d in e.faces) {

@@ -371,7 +371,7 @@ function returnGrid(grid) { for (let i = 0; i < grid.length; i++) if (grid[i]) {
 function closeContainer() {
   if (S.screen == 'inventory' && player.craft2) returnGrid(player.craft2);
   if (S.screen == 'crafting' && S.grid3) returnGrid(S.grid3);
-  if (S.screen == 'chest') SND.play('chestclosed', .5, 1, S.cpos);
+  if (S.screen == 'chest') { SND.play(S.cpos && BL[world.get(...S.cpos)]?.n == 'barrel' ? 'block/barrel/close' : 'chestclosed', .5, 1, S.cpos); if (S.cpos) lidOpen(S.cpos[0], S.cpos[1], S.cpos[2], 0); }
   if (carried) { const l = giveItem(carried.k, carried.c, carried.dmg); if (l) dropItem(carried.k, l); carried = null; }
   go('game');
 }
@@ -419,7 +419,7 @@ function scrCommandBlock() {
   if (button('Cancel', UW / 2 + 2, UH - 40, 100, 20)) { focus = null; go('game'); }
 }
 function runCommandBlock(cmd, x, y, z) {
-  if (!cmd) return '';
+  cmd = String(cmd || '').trim().replace(/^\//, ''); if (!cmd) return '';
   let out = '';
   const oc = world.meta.cheats; world.meta.cheats = true; const oldChat = chat; chat = m => { out = String(m).replace(/§./g, ''); if (cmd.startsWith('say ')) oldChat('[@] ' + cmd.slice(4)); };
   // ~ coordinates are relative to the command block
@@ -532,9 +532,15 @@ function scrChat() {
   if (typed) S.chat.s += typed;
   cx2.fillStyle = 'rgba(0,0,0,.5)'; cx2.fillRect(2, UH - 14, UW - 4, 12);
   text(S.chat.s + ((performance.now() / 300 | 0) % 2 ? '_' : ''), 4, UH - 12, '#FFFFFF');
-  if (S.chat.s[0] == '/' && S.chat.s.indexOf(' ') < 0) { const opts = CMDS.filter(c => c.startsWith(S.chat.s.slice(1))); if (opts.length) { cx2.fillStyle = 'rgba(0,0,0,.8)'; cx2.fillRect(4, UH - 16 - opts.length * 12, 100, opts.length * 12); opts.forEach((o, i) => text('/' + o, 6, UH - 26 - i * 12 + 0, i ? '#AAAAAA' : '#FFFF55')); } }
+  if (S.chat.s[0] == '/') { const parts = S.chat.s.slice(1).split(' '), last = parts[parts.length - 1]; let pool, hint = '';
+    if (parts.length == 1) pool = CMDS; else { const g = CMD_ARGS[parts[0]]; const p = g && g[parts.length - 2]; pool = typeof p == 'function' ? p() : p; if (!pool && g) hint = ''; }
+    const opts = (pool || []).filter(c => c.startsWith(last)).slice(0, 10);
+    if (parts.length > 1 && CMD_ARGS[parts[0]] && !last && opts.length) text('§7What do you want? ' + opts.join(', '), 4, UH - 26 - opts.length * 12 - 12, '#FFFF55');
+    if (opts.length) { if (keysPressed.includes('Tab')) S.chat.s = '/' + [...parts.slice(0, -1), opts[0]].join(' ') + ' '; cx2.fillStyle = 'rgba(0,0,0,.8)'; cx2.fillRect(4, UH - 16 - opts.length * 12, 120, opts.length * 12); opts.forEach((o, i) => { text((parts.length == 1 ? '/' : '') + o, 6, UH - 26 - i * 12, i ? '#AAAAAA' : '#FFFF55'); if (mouse.click && hover(4, UH - 28 - i * 12, 120, 12)) S.chat.s = '/' + [...parts.slice(0, -1), o].join(' ') + ' '; }); } }
 }
 const CMDS = ['nether', 'gamemode', 'time', 'weather', 'tp', 'give', 'kill', 'summon', 'seed', 'clear', 'effect', 'difficulty', 'spawnpoint', 'help', 'say', 'xp', 'fill', 'setblock'];
+const CMD_ARGS = { weather: [['clear', 'rain', 'thunder']], time: [['set', 'add'], ['day', 'noon', 'night', 'midnight', '0', '6000', '12000', '18000']], gamemode: [['survival', 'creative', 'spectator', 'adventure']], difficulty: [['peaceful', 'easy', 'normal', 'hard']],
+  summon: [() => Object.keys(MOBDEF)], give: [() => ['@s'], () => Object.keys(typeof BYNAME == 'object' ? BYNAME : {})], effect: [['give', 'clear'], ['@s'], ['speed', 'jump_boost', 'night_vision', 'regeneration', 'strength', 'invisibility', 'slow_falling', 'fire_resistance', 'water_breathing']], kill: [['@s', '@e']], clear: [['@s']], tp: [['~', '@s']] };
 function runCommand(s) {
   const a = s.split(/\s+/), c = a[0]; const ok = world.meta.cheats || world.meta.mode == 'creative';
   if (MODS.cmds[c]) { try { MODS.cmds[c].fn(a.slice(1)); } catch (e) { chat('§c' + e.message); } return; }

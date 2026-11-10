@@ -13,11 +13,27 @@ const api = {
   spawn: (t, x, y, z) => MOBDEF[t] ? spawnMob(t, x, y, z) : null, sound: (p, v, pi) => SND.play(p, v, pi), settings: { timeScale: 1, keepInventory: false, noFallDamage: false, fullbright: false, jumpBoost: 1, dropMultiplier: 1, instantMine: false },
 };
 function modEmit(ev, ...a) { let r; for (const f of MODS.handlers[ev] || []) { try { const v = f(...a); if (v !== undefined) r = v; } catch (e) { console.warn('mod error', e); } } return r; }
-const BUILTIN_MODS = {};
+const BUILTIN_MODS = {
+  mobhealth: ['Mob Health Bars', 'Shows hearts and a health % bar above every mob so you know how close it is to dying', `
+const HEART = ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'];
+function heart(c, x, y, f) { for (let r = 0; r < 6; r++) for (let q = 0; q < 7; q++) if (HEART[r][q] == '#') { c.fillStyle = q / 7 < f ? (r == 1 && q == 1 ? '#FF9A9A' : '#E0201E') : '#3A1010'; c.fillRect(x + q, y + r, 1, 1); } }
+api.on('hud', (c, W, H) => {
+  const PV = NET.PV; if (!PV || api.screen != 'game') return; const p = api.player;
+  for (const m of api.mobs) { const d = MOBDEF[m.type]; if (!d || d.cart || m.dead || !(m.hp > 0)) continue;
+    const dist = Math.hypot(m.x - p.x, m.y - p.y, m.z - p.z); if (dist > 24) continue;
+    const q = [m.x, m.y + (m.h || 1) + .45, m.z], o = [0, 0, 0, 0]; for (let i = 0; i < 4; i++) o[i] = PV[i] * q[0] + PV[4 + i] * q[1] + PV[8 + i] * q[2] + PV[12 + i];
+    if (o[3] <= .1) continue; const sx = Math.round((o[0] / o[3] * .5 + .5) * W), sy = Math.round((1 - (o[1] / o[3] * .5 + .5)) * H); if (sx < -40 || sx > W + 40 || sy < -20 || sy > H + 20) continue;
+    const max = d.hp * (m.size || 1) * (m.size || 1), hp = Math.max(0, Math.min(max, m.hp)), pct = hp / max, hearts = Math.ceil(max / 2), shown = Math.min(hearts, 10);
+    const bw = 40, label = Math.ceil(hp) + '/' + max + ' (' + Math.round(pct * 100) + '%)', tw = api.textW(label);
+    c.globalAlpha = Math.max(.35, 1 - dist / 30); c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(sx - Math.max(bw, tw, shown * 8) / 2 - 2, sy - 22, Math.max(bw, tw, shown * 8) + 4, 23);
+    for (let i = 0; i < shown; i++) heart(c, sx - shown * 4 + i * 8, sy - 20, Math.max(0, Math.min(1, pct * shown - i)));
+    c.fillStyle = '#300'; c.fillRect(sx - bw / 2, sy - 12, bw, 3); c.fillStyle = pct > .5 ? '#3FD13F' : pct > .25 ? '#F2C12E' : '#E0301E'; c.fillRect(sx - bw / 2, sy - 12, Math.round(bw * pct), 3);
+    api.text(label, Math.round(sx - tw / 2), sy - 8, '#FFFFFF', true); c.globalAlpha = 1; }
+});` ] };
 const MODPACKS = {};
 const MODCFG = Object.assign({ enabled: [], imported: {}, pack: 'vanilla' }, store.get('mods', {}));
 const saveMods = () => store.set('mods', MODCFG);
-MODCFG.enabled = MODCFG.enabled.filter(id => MODCFG.imported[id]); if (!MODCFG.imported[MODCFG.pack]) MODCFG.pack = 'none';
+MODCFG.enabled = MODCFG.enabled.filter(id => MODCFG.imported[id] || BUILTIN_MODS[id]); if (!MODCFG.imported[MODCFG.pack]) MODCFG.pack = 'none';
 function loadMods() {
   for (const id of MODCFG.enabled) {
     const src = BUILTIN_MODS[id] ? BUILTIN_MODS[id][2] : MODCFG.imported[id]?.code; if (!src) continue;

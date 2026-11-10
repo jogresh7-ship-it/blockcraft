@@ -682,7 +682,7 @@ function useItem(hit, tm, h) {
     if ((/_cushion$/.test(n) && hit.n[1] == 1) || (/_wool_slab$|_wool_stairs$/.test(tb) && !h)) { player.sit = [hit.x + .5, hit.y + (/slab|stairs/.test(tb) ? .5 : 1), hit.z + .5]; chat('§7Sitting - jump or sneak to stand up'); return; }
     if (tb == 'crafting_table') { S.grid3 = Array(9).fill(null); go('crafting'); return; }
     if (/^(furnace|furnace_lit|smoker|blast_furnace)$/.test(tb)) { S.cont = world.containers[key] || (world.containers[key] = { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 1, cook: 0 }); S.contName = prettyName(hit.b); go('furnace'); return; }
-    if (/^(chest|barrel)$/.test(tb) || /shulker_box$|_chest$/.test(tb)) { const ck = tb == 'ender_chest' ? 'ender' : key; S.cont = world.containers[ck] || (world.containers[ck] = { type: 'chest', slots: Array(27).fill(null) }); S.contName = prettyName(hit.b); S.cpos = [hit.x, hit.y, hit.z]; SND.play('chestopen', .5); go('chest'); return; }
+    if (/^(chest|barrel)$/.test(tb) || /shulker_box$|_chest$/.test(tb)) { const ck = tb == 'ender_chest' ? 'ender' : key; S.cont = world.containers[ck] || (world.containers[ck] = { type: 'chest', slots: Array(27).fill(null) }); S.contName = prettyName(hit.b); S.cpos = [hit.x, hit.y, hit.z]; if (BL[hit.b].chestlike || tb == 'barrel') lidOpen(hit.x, hit.y, hit.z, 1); SND.play(tb == 'barrel' ? 'block/barrel/open' : 'chestopen', .5); go('chest'); return; }
     if (tb == 'tnt' && /flint_and_steel|fire_charge/.test(n)) { world.set(hit.x, hit.y, hit.z, 0); tnts.push({ x: hit.x + .5, y: hit.y, z: hit.z + .5, vx: 0, vy: 3, vz: 0, r: .49, h: .98, fuse: 4 }); SND.play('fuse'); wear(h, 1); return; }
     if (tb == 'note_block') { SND.play('note/harp', 1, Math.pow(2, ((world.N.hash(hit.x, hit.y, hit.z) * 24 | 0) - 12) / 12)); return; }
     if (tb == 'jukebox') { chat('§7Insert a music disc... (not available)'); return; }
@@ -856,7 +856,7 @@ function spawnEatParticles(k) {
 }
 // ---------------- world tick ----------------
 function updateWorld(dt) {
-  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); netTick(dt);
+  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); lidTick(dt); netTick(dt);
   if (world.dim == 'nether') m.rain = false;
   m.weatherT -= dt; if (m.weatherT <= 0 && world.dim != 'nether') { m.rain = !m.rain && Math.random() < .5; m.thunder = m.rain && Math.random() < .3; m.weatherT = m.rain ? 300 + Math.random() * 400 : 600 + Math.random() * 1200; SND.setRain(m.rain); }
   if (m.thunder && Math.random() < dt / 20) { S.flash = .3; setTimeout(() => SND.play('thunder', .7), 600); }
@@ -1079,8 +1079,8 @@ function renderEntities(sk) {
       const tx = p.tex == 'ghast' && m.shootT > 0 ? 'ghast_shooting' : p.tex == 'wolf' && m.tamed ? 'wolf_tame' : p.tex == 'wolf' && m.provoked ? 'wolf_angry' : p.tex;
       const txs = m.skinTex && (p.tex || 'steve') == MOBDEF.player.tex ? m.skinTex : null;
       if (p.trans) { gl.enable(gl.BLEND); drawMesh(p.mesh, tx, { model: M, alpha: .75, alphaTest: .05 }); gl.disable(gl.BLEND); continue; }
-      if (p.hand && (m.holdK || D0.hold)) { const [im, it] = itemMesh(m.holdK || itemKey(D0.hold)); const HM = M4.chain(M, M4.trans(0, -p.box[1] / 2 - 1, -1), M4.rx(-Math.PI / 2), M4.ry(Math.PI / 2), M4.rz((m.holdK ? keyName(m.holdK) == 'bow' : D0.hold == 'item:bow') ? -Math.PI / 4 : Math.PI / 4 * 3), M4.scale(10, 10, 10)); drawMesh(im, it, { model: HM, alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] }); }
-      if (p.offhand && m.offK) { const [im, it] = itemMesh(m.offK); const HM = M4.chain(M, M4.trans(0, -p.box[1] / 2 - 1, -1), M4.rx(-Math.PI / 2), M4.ry(Math.PI / 2), M4.rz(Math.PI / 4 * 3), M4.scale(10, 10, 10)); drawMesh(im, it, { model: HM, alphaTest: .1 }); }
+      if (p.hand && (m.holdK || D0.hold)) { const k = m.holdK || itemKey(D0.hold), [im, it] = itemMesh(k); drawMesh(im, it, { model: M4.chain(M, ...handMats(p, 1), ...dispMats(heldDisplay(k, 'tp'))), alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] }); }
+      if (p.offhand && m.offK) { const [im, it] = itemMesh(m.offK), d = heldDisplay(m.offK, 'tp'); drawMesh(im, it, { model: M4.chain(M, ...handMats(p, -1), ...dispMats([[d[0][0], -d[0][1], -d[0][2]], d[1], d[2]])), alphaTest: .1 }); }
       drawMesh(p.mesh, txs || tx, { model: M, tint: m.hurtT > 0 ? [1, 0, 0, .4] : fl ? [1, 1, 1, .6] : [0, 0, 0, 0], alphaTest: .1, full: p.glow ? 1 : 0 });
       if (m.armorN && !p.inf) drawArmor(m, p, M);
       if (m.kind && p === parts[0]) { const bn = { chest: 'chest', hopper: 'hopper', tnt: 'tnt', furnace: 'furnace', command_block: 'command_block' }[m.kind]; if (bn && itemKey(bn)) { const [im, it] = itemMesh(itemKey(bn)); drawMesh(im, it, { model: M4.chain(base, M4.trans(0, 9, 0), M4.scale(11, 11, 11)), alphaTest: .1 }); } } // armour you wear shows on the model
@@ -1126,20 +1126,34 @@ function renderRain(eye) {
   }
   drawMesh(dynMesh('rain', arr), snowy ? 'snowfall' : 'rain', { alphaTest: .05, alpha: .7 });
 }
+// item display transforms from the vanilla block/block.json, item/generated.json and item/handheld.json models
+const HANDHELD_RE = /(_sword|_pickaxe|_axe|_shovel|_hoe|^stick|_rod|^bone|^trident|^mace|^bamboo|^debug_stick|_spear)$/;
+function heldDisplay(k, ctx) { const isBlock = k < ITEM_BASE && (SHAPE[k] == 1 || SHAPE[k] == 5), n = keyName(k).replace(/^item:/, ''), hand = HANDHELD_RE.test(n);
+  if (ctx == 'fp') return isBlock ? [[0, 45, 0], [0, 0, 0], .4] : [[0, -90, 25], [1.13, 3.2, 1.13], .68];
+  return isBlock ? [[75, 45, 0], [0, 2.5, 0], .375] : hand ? [[0, -90, 55], [0, 4, .5], .85] : [[0, 0, 0], [0, 3, 1], .55]; }
+// ItemInHandLayer: from the arm's pivot into Java model space (ours = Java rotated 180° about z, pixel units), then the vanilla hand offset
+function handMats(p, side) { const pv = p.pivot ? [p.pivot[0] - p.pos[0], p.pivot[1] - p.pos[1], p.pivot[2] - p.pos[2]] : [0, p.box[1] / 2 - 2, 0], D = Math.PI / 180;
+  return [M4.trans(pv[0], pv[1], pv[2]), M4.rz(Math.PI), M4.scale(16, 16, 16), M4.rx(-90 * D), M4.ry(180 * D), M4.trans(side / 16, .125, -.625)]; }
+function dispMats([r, t, s]) { const D = Math.PI / 180; return [M4.trans(t[0] / 16, t[1] / 16, t[2] / 16), M4.rx(r[0] * D), M4.ry(r[1] * D), M4.rz(r[2] * D), M4.scale(s, s, s)]; }
 function renderHand(proj, sk, dt) {
   gl.clear(gl.DEPTH_BUFFER_BIT); const u = PROG.u, P = player;
   gl.uniformMatrix4fv(u.uPV, false, M4.persp(70 * Math.PI / 180, glc.width / glc.height, .01, 10)); gl.uniform3f(u.uCam, 0, 0, 0); gl.uniform1f(u.uFogN, 100); gl.uniform1f(u.uFogF, 200);
   const L = lightAt(P.x, P.y + 1.6, P.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
   const h = held(); const sw = swing > 0 ? Math.sin((1 - swing) * Math.PI) : 0, eat = eatT > 0 ? Math.sin(eatT * 20) * .03 : 0;
   P.hb = lerp(P.hb || 0, P.bob || 0, 1); const bob = opts.bob ? Math.sin(P.bob * Math.PI) * .03 * (P.bobA || 0) : 0, bobY = opts.bob ? -Math.abs(Math.cos(P.bob * Math.PI)) * .04 * (P.bobA || 0) : 0;
+  // Java ItemInHandRenderer, right hand: same arm/item transforms, swing curves and item display transforms
+  const D = Math.PI / 180, sp = swing > 0 ? 1 - swing : 0, sq = Math.sqrt(sp), PI = Math.PI;
   if (h) {
-    const [mesh, tex] = itemMesh(h.k), isBlock = h.k < ITEM_BASE && (SHAPE[h.k] == 1 || SHAPE[h.k] == 5);
-    let M = M4.chain(M4.trans(.56 + bob - sw * .3, -.52 + bobY + sw * .2 - (eatT > 0 ? -.15 : 0) + eat, -.72 - sw * .2 - (eatT > 0 ? -.2 : 0)), M4.ry(isBlock ? .78 + sw * .6 : -.2 + sw * .8), M4.rx(-sw * .8 + (isBlock ? 0 : .1)), M4.rz(isBlock ? 0 : .35));
-    M = M4.mul(M, M4.scale(isBlock ? .4 : .55, isBlock ? .4 : .55, isBlock ? .4 : .55));
+    const [mesh, tex] = itemMesh(h.k), disp = heldDisplay(h.k, 'fp');
+    let M = M4.chain(M4.trans(-.4 * Math.sin(sq * PI) + bob, .2 * Math.sin(sq * PI * 2) + bobY + eat + (eatT > 0 ? .1 : 0), -.2 * Math.sin(sp * PI)),
+      M4.trans(.56, -.52, -.72), M4.ry((45 + Math.sin(sp * sp * PI) * -20) * D), M4.rz(Math.sin(sq * PI) * -20 * D), M4.rx(Math.sin(sq * PI) * -80 * D), M4.ry(-45 * D));
+    M = M4.chain(M, ...dispMats(disp));
     drawMesh(mesh, tex, { model: M, alphaTest: .1 });
   } else if (IMG.steve) {
     if (!dyn.arm) { const arr = []; boxVerts(arr, [4, 12, 4], [40, 16], 64, 64); dyn.arm = mkMesh(new Float32Array(arr)); }
-    const M = M4.chain(M4.trans(.6 + bob - sw * .2, -.65 + bobY + sw * .15, -.75 - sw * .2), M4.ry(.3 - sw * .3), M4.rx(1.3 - sw * .9), M4.rz(-.2), M4.scale(1 / 16, 1 / 16, 1 / 16), M4.trans(0, -2, 0));
+    const hh = -.3 * Math.sin(sq * PI), ii = .4 * Math.sin(sq * PI * 2), jj = -.4 * Math.sin(sp * PI), k = Math.sin(sp * sp * PI), l = Math.sin(sq * PI);
+    const M = M4.chain(M4.trans(hh + .64 + bob, ii - .6 + bobY, jj - .72), M4.ry(45 * D), M4.ry(l * 70 * D), M4.rz(k * -20 * D), M4.trans(-1, 3.6, 3.5), M4.rz(120 * D), M4.rx(200 * D), M4.ry(-135 * D), M4.trans(5.6, 0, 0),
+      M4.trans(-5 / 16, 2 / 16, 0), M4.trans(-1 / 16, 4 / 16, 0), M4.scale(1 / 16, -1 / 16, 1 / 16));
     drawMesh(dyn.arm, 'steve', { model: M, alphaTest: .1 });
   }
 }
