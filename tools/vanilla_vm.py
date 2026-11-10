@@ -6,6 +6,7 @@ reg = json.load(open('/home/claude/blockcraft/registry.json')); T = 'assets/mine
 want = set()
 for n in reg['tiles']: want.add(T + 'block/' + n.replace('_red', '').replace('redstone_line0', 'redstone_dust_line0').replace('redstone_line1', 'redstone_dust_line1').replace('grass_block_side_tinted', 'grass_block_side') + '.png')
 want |= {T + 'block/grass_block_side_overlay.png', T + 'block/water_still.png', T + 'block/lava_still.png', T + 'gui/title/minecraft.png', T + 'gui/title/edition.png'}
+want.add('assets/minecraft/texts/splashes.txt')
 for v in reg.get('entityTiles', {}).values(): want.add(T + v[1])
 for n in reg['items']: want.add(T + 'item/' + n + '.png')
 for k, v in reg['guimap'].items(): want.add(T + v)

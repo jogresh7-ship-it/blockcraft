@@ -93,6 +93,7 @@ async function buildFromZip(zip, setP) {
   for (const k in map) { const b = await zip.get(T + map[k]); if (!b) continue; const img = await blobImg(b); if (!img) continue; const ref = ORIG[k], keep = /^(entity|environment)\//.test(map[k]) || k.startsWith('panorama') || !ref; const c = document.createElement('canvas'); c.width = keep ? img.width : ref.width; c.height = keep ? img.height : ref.height; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, c.width, c.height); out[k] = c; }
   for (const [k, p] of [['water', 'block/water_still.png'], ['lava', 'block/lava_still.png']]) { const b = await zip.get(T + p); if (!b) continue; const img = await blobImg(b); if (!img) continue; const fr = Math.max(1, Math.round(img.height / img.width)); const c = document.createElement('canvas'); c.width = TS; c.height = TS * fr; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, TS, TS * fr); if (k == 'water') { g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgb(63,118,228)'; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'destination-in'; g.drawImage(img, 0, 0, TS, TS * fr); } out[k] = c; }
   for (const [k, p] of [['title_logo', 'gui/title/minecraft.png'], ['title_edition', 'gui/title/edition.png']]) { const b = await zip.get(T + p); if (b) { const im = await blobImg(b); if (im) out[k] = im; } }
+  { const sb = await zip.get('assets/minecraft/texts/splashes.txt'); if (sb) { const l = (await sb.text()).split('\n').map(t => t.trim()).filter(t => t && t.length < 60); if (l.length) out.splashes = l; } } // the pack's own title-screen splash texts
   const pm = await zip.get('pack.png') || await zip.get([...zip.idx.keys()].find(k => /(^|\/)pack\.png$/.test(k)) || ''); if (pm) out.pack = await blobImg(pm);
   return out;
 }
@@ -111,6 +112,7 @@ async function applyPack(id, setP) {
   else if (P && P.id != 'faithful' && !P.zip) { const keys = Object.keys(ORIG).filter(k => !/^font_/.test(k)); let i = 0; for (const k of keys) { if (k == 'font') { IMG[k] = P.scale ? ORIG[k] : processImage(ORIG[k], P); continue; } IMG[k] = processImage(ORIG[k], k.startsWith('panorama') ? Object.assign({}, P, { scale: 0 }) : P); if (++i % 25 == 0) { setP && setP(i / keys.length); await new Promise(r => setTimeout(r)); } } }
   IMG.font = ORIG.font; // the custom font is always used
   const ov = IMG.animOv; delete IMG.animOv; setupAnims(ov || null);
+  if (IMG.splashes) { const l = IMG.splashes; delete IMG.splashes; if (S.screen == 'title' || S.screen == 'loading') S.splash = l[Math.random() * l.length | 0]; }
   PS.active = id; store.set('pack2', id); uploadAll();
 }
 async function importPackZip(file) { return importPacks([file]); }
