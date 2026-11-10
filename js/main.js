@@ -58,7 +58,7 @@ function loadingTick() {
 function saveWorld() {
   if (!world || world.meta.remote) return true; // a friend's world is saved by the host
   const m = world.meta; m.last = Date.now();
-  const data = { ib: 4096, player: Object.assign({}, player, { craft2: [null, null, null, null] }), time: m.time, rain: m.rain, weatherT: m.weatherT, dimEdits: m.dimEdits, dim: world.dim, state: m.state, containers: world.containers, mobs: mobs.slice(0, 60).map(o => ({ type: o.type, x: o.x, y: o.y, z: o.z, yaw: o.yaw, hp: o.hp, sheared: o.sheared, wool: o.wool })) };
+  const data = { ib: 4096, player: Object.assign({}, player, { craft2: [null, null, null, null] }), time: m.time, rain: m.rain, weatherT: m.weatherT, dimEdits: m.dimEdits, dim: world.dim, state: m.state, containers: world.containers, mobs: mobs.slice(0, 60).map(o => ({ type: o.type, x: o.x, y: o.y, z: o.z, yaw: o.yaw, hp: o.hp, sheared: o.sheared, wool: o.wool, kind: o.kind, cont: o.cont, persist: o.persist })) };
   const ok = store.set('world_' + m.id, data);
   const meta = Object.assign({}, m); delete meta.edits; delete meta.containers; delete meta.dimEdits; delete meta.state;
   S.iconCache = {}; S.worlds = S.worlds.map(w => w.id == m.id ? meta : w); store.set('worlds', S.worlds);
@@ -337,6 +337,7 @@ function cartMove(m, dt) {
   const n = BL[rb].n;
   if (n == 'powered_rail') { if (st.on) { sp = Math.min(8, sp + 10 * dt); if (sp < .2) { sp = 1; out = exits[0]; } } else sp *= Math.pow(.02, dt); }
   if (sh.startsWith('ascending')) { const upD = parts[0]; sp += (out == upD ? -9 : 9) * dt * .4; if (sp < 0) { sp = -sp; out = { north: 'south', south: 'north', east: 'west', west: 'east' }[out]; } }
+  if (m.kind == 'furnace' && m.fuel > 0) { m.fuel -= dt; sp = Math.max(sp, 4); if (Math.random() < dt * 6) spark('big_smoke', m.x, m.y + 1, m.z, { vy: 1, life: 2, s: .2, extra: { fr: 3 } }); }
   sp *= Math.pow(.97, dt * 20); if (sp < .02) sp = 0;
   const d = RDIR[out]; m.vx = d[0] * sp; m.vz = d[1] * sp;
   if (d[0]) m.z += (bz + .5 - m.z) * Math.min(1, dt * 12); else m.x += (bx + .5 - m.x) * Math.min(1, dt * 12);
@@ -437,6 +438,8 @@ function hurtMob(m, dmg, kx, kz, quiet) {
   const d = MOBDEF[m.type];
   if (d.neutral) for (const o of mobs) if (o.type == m.type && Math.hypot(o.x - m.x, o.z - m.z) < 16 && !o.tamed) o.provoked = true;
   if (m.hp <= 0) {
+    if (m.cont) for (const st of m.cont.slots) if (st) dropItem(st.k, st.c, m.x, m.y + .5, m.z); // chest minecarts spill what they hold
+    if (m.kind && MOBDEF[m.type].cart) dropItem(itemKey(m.kind == 'chest' ? 'chest' : m.kind == 'hopper' ? 'hopper' : m.kind == 'tnt' ? 'tnt' : m.kind == 'furnace' ? 'furnace' : 'command_block'), 1, m.x, m.y + .5, m.z);
     if (d.slime && m.size > 1) for (let i = 0; i < 2 + (Math.random() * 3 | 0); i++) { const s = spawnMob('slime', m.x + (Math.random() - .5), m.y + .5, m.z + (Math.random() - .5)); s.size = m.size / 2; s.r = MOBDEF.slime.w / 2 * s.size; s.h = MOBDEF.slime.h * s.size; s.hp = 4 * s.size * s.size; }
     m.dead = true; SND.play(d.death, 1, 1, [m.x, m.y, m.z]); player.stats.kills++; player.score++; award('kill'); earn(d.hostile ? 5 : 2, d.hostile ? 'Defeated a ' + m.type.replace(/_/g, ' ') : ''); addXp(MOBDEF[m.type].hostile ? 5 : 1 + (Math.random() * 3 | 0));
     for (const [n, a, b, cond] of d.drop) { if (cond == 'wool' && m.sheared) continue; const c = a + Math.floor(Math.random() * (b - a + 1)); if (c > 0) dropItem(itemKey(n), c * api.settings.dropMultiplier, m.x, m.y + .5, m.z); }
@@ -635,8 +638,12 @@ function canPlaceAt(x, y, z) { const b = world.get(x, y, z); return !b || SHAPE[
 function useItem(hit, tm, h) {
   const n = h ? keyName(h.k) : '';
   const consume = () => { if (player.mode == 'survival') { h.c--; if (!h.c) player.inv[player.sel] = null; } };
-  if (tm && MOBDEF[tm.type].cart) { player.ride = tm; return; } // get in the minecart
-  if (/minecart$/.test(n) && hit && BL[hit.b].rails) { consume(); const m = spawnMob('minecart', hit.x + .5, hit.y + .07, hit.z + .5); m.vx = m.vz = 0; m.persist = 1; return; }
+  if (tm && MOBDEF[tm.type].cart) { // chest / hopper minecarts open like a chest; plain ones you ride
+    if (tm.kind == 'chest' || tm.kind == 'hopper') { S.cont = tm.cont || (tm.cont = { type: 'chest', slots: Array(tm.kind == 'hopper' ? 5 : 27).fill(null) }); S.contName = tm.kind == 'hopper' ? 'Minecart with Hopper' : 'Minecart with Chest'; S.cpos = [tm.x, tm.y, tm.z]; SND.play('chestopen', .5, 1, S.cpos); go('chest'); return; }
+    if (tm.kind == 'tnt') { tm.dead = true; tnts.push({ x: tm.x, y: tm.y, z: tm.z, vx: 0, vy: 2, vz: 0, r: .49, h: .98, fuse: 2 }); SND.play('fuse', 1, 1, [tm.x, tm.y, tm.z]); return; }
+    if (tm.kind == 'furnace') { const f = fwd(); tm.vx = f[0] * 4; tm.vz = f[2] * 4; tm.fuel = 30; return; }
+    player.ride = tm; return; }
+  if (/minecart$/.test(n) && hit && BL[hit.b].rails) { consume(); const m = spawnMob('minecart', hit.x + .5, hit.y + .07, hit.z + .5); m.vx = m.vz = 0; m.persist = 1; m.kind = n == 'minecart' ? null : n.replace('_minecart', ''); return; }
   if (tm) { // shear sheep
     if (n == 'bone' && tm.type == 'wolf' && !tm.tamed) { consume(); if (Math.random() < .35) { tm.tamed = true; tm.provoked = false; for (let i = 0; i < 7; i++) spark('heart', tm.x + (Math.random() - .5), tm.y + 1 + Math.random() * .5, tm.z + (Math.random() - .5), { vy: .8, spread: .4, life: 1.2, s: .1 }); chat('§aWolf tamed!'); } return; }
     if (n == 'shears' && tm.type == 'sheep' && !tm.sheared) { tm.sheared = true; SND.play('mob/sheep/shear', 1); dropItem(itemKey('white_wool'), 1 + (Math.random() * 3 | 0), tm.x, tm.y + 1, tm.z); wear(h, 1); }
@@ -1075,7 +1082,8 @@ function renderEntities(sk) {
       if (p.hand && (m.holdK || D0.hold)) { const [im, it] = itemMesh(m.holdK || itemKey(D0.hold)); const HM = M4.chain(M, M4.trans(0, -p.box[1] / 2 - 1, -1), M4.rx(-Math.PI / 2), M4.ry(Math.PI / 2), M4.rz((m.holdK ? keyName(m.holdK) == 'bow' : D0.hold == 'item:bow') ? -Math.PI / 4 : Math.PI / 4 * 3), M4.scale(10, 10, 10)); drawMesh(im, it, { model: HM, alphaTest: .1, tint: m.hurtT > 0 ? [1, 0, 0, .4] : [0, 0, 0, 0] }); }
       if (p.offhand && m.offK) { const [im, it] = itemMesh(m.offK); const HM = M4.chain(M, M4.trans(0, -p.box[1] / 2 - 1, -1), M4.rx(-Math.PI / 2), M4.ry(Math.PI / 2), M4.rz(Math.PI / 4 * 3), M4.scale(10, 10, 10)); drawMesh(im, it, { model: HM, alphaTest: .1 }); }
       drawMesh(p.mesh, txs || tx, { model: M, tint: m.hurtT > 0 ? [1, 0, 0, .4] : fl ? [1, 1, 1, .6] : [0, 0, 0, 0], alphaTest: .1, full: p.glow ? 1 : 0 });
-      if (m.armorN && !p.inf) drawArmor(m, p, M); // armour you wear shows on the model
+      if (m.armorN && !p.inf) drawArmor(m, p, M);
+      if (m.kind && p === parts[0]) { const bn = { chest: 'chest', hopper: 'hopper', tnt: 'tnt', furnace: 'furnace', command_block: 'command_block' }[m.kind]; if (bn && itemKey(bn)) { const [im, it] = itemMesh(itemKey(bn)); drawMesh(im, it, { model: M4.chain(base, M4.trans(0, 9, 0), M4.scale(11, 11, 11)), alphaTest: .1 }); } } // armour you wear shows on the model
     }
   }
   for (const it of items) {
