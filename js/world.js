@@ -2,7 +2,7 @@
 const CS = 16, WH = 128, SEA = 62, CV = CS * CS * WH;
 const lidx = (x, y, z) => x + CS * (z + CS * y);
 let WLOG, WATER_ID, LEAF;
-function initWorldTables() { WLOG = new Uint8Array(NB); LEAF = new Uint8Array(NB); WATER_ID = BYNAME.water; BL.forEach((b, i) => { if (/^(seagrass|kelp|kelp_plant|tall_seagrass|sea_pickle)$|coral/.test(b.n) && SHAPE[i] == 2) WLOG[i] = 1; if (b.n.endsWith('leaves')) LEAF[i] = 1; }); }
+function initWorldTables() { WLOG = new Uint8Array(NB); LEAF = new Uint8Array(NB); WATER_ID = BYNAME.water; BL.forEach((b, i) => { if (/^(seagrass|kelp|kelp_plant|tall_seagrass|tall_seagrass_top|sea_pickle)$|coral(?!_block)/.test(b.n) && !/^dead_/.test(b.n) && SHAPE[i] != 1) WLOG[i] = 1; if (b.n.endsWith('leaves')) LEAF[i] = 1; }); }
 const B = n => BYNAME[n] || 0;
 
 class World {
@@ -399,7 +399,7 @@ class World {
     const sky = this.dim != 'nether';
     for (let x = 0; x < 16 && sky; x++) for (let z = 0; z < 16; z++) {
       // sunlight falls straight down; each leaf block it passes through dims it by one (shade under trees), water by one too
-      let s = 15; for (let y = WH - 1; y >= 0; y--) { const b = d[lidx(x, y, z)]; if (OPAQUE[b]) break; if (LEAF[b] || FLUID[b] == 1) s = Math.max(0, s - 1); L[lidx(x, y, z)] = s << 4; }
+      let s = 15; for (let y = WH - 1; y >= 0; y--) { const b = d[lidx(x, y, z)]; if (OPAQUE[b]) break; if (LEAF[b] || FLUID[b] == 1 || WLOG[b]) s = Math.max(0, s - 1); L[lidx(x, y, z)] = s << 4; }
     }
     // seed the spread from every lit cell that borders a darker one (overhangs, under branches, cave mouths, tree shade)
     for (let i = 0; i < CV && sky; i++) {
@@ -462,7 +462,7 @@ class World {
       let b = d[lidx(x, y, z)]; if (!b) continue; let sh = SHAPE[b]; const wx = x0 + x, wz = z0 + z;
       if (sh == 2) { // cross
         const l = getL(x, y, z), uv = tileUV(TEX[b * 4]), ll = [1, lv(l >> 4), EMIT[b] ? 1 : lv(l & 15)];
-        const o = out[0], j = (this.N.hash(wx, y, wz) - .5) * .3;
+        const o = out[0], j = (this.N.hash(wx, 0, wz) - .5) * .3;
         const U = [[uv[0], uv[3]], [uv[2], uv[3]], [uv[2], uv[1]], [uv[0], uv[1]]];
         pushQuad(o, [[wx + .15 + j, y, wz + .15], [wx + .85 + j, y, wz + .85], [wx + .85 + j, y + 1, wz + .85], [wx + .15 + j, y + 1, wz + .15]], U, ll);
         pushQuad(o, [[wx + .85 + j, y, wz + .15], [wx + .15 + j, y, wz + .85], [wx + .15 + j, y + 1, wz + .85], [wx + .85 + j, y + 1, wz + .15]], U, ll);
@@ -487,10 +487,10 @@ class World {
           if (!f && /piston_head/.test(BL[b].n)) for (const d of [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) { const ps = this.state[(wx - d[0]) + ',' + (y - d[1]) + ',' + (wz - d[2])]; if (ps && ps.f && ps.f[0] == d[0] && ps.f[1] == d[1] && ps.f[2] == d[2]) { f = d; break; } }
           const cull = (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)];
           emitMM(out[0], st.ext && BL[b].mmx ? BL[b].mmx : st.open && BL[b].mmo ? BL[b].mmo : st.hang && BL[b].mmh ? BL[b].mmh : BL[b].mm, wx, y, wz, f || [0, 1, 0], ll, /piston/.test(BL[b].n) ? null : st.fr || BL[b].mr || null, cull);
-          continue;
+          if (!WLOG[b]) continue; b = WATER_ID; sh = 3;
         }
-        if (BL[b].mp) { emitMP(out[0], b, mpConn(b, getB, wx - x0, y, wz - z0), wx, y, wz, ll, (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)]); continue; }
-        for (const [BB, TT, FF] of (BL[b].bx || [[BL[b].bb, TEX[b * 4]]])) {
+        if (sh != 3 && BL[b].mp) { emitMP(out[0], b, mpConn(b, getB, wx - x0, y, wz - z0), wx, y, wz, ll, (dx, dy, dz) => OPAQUE[getB(x + dx, y + dy, z + dz)]); continue; }
+        for (const [BB, TT, FF] of (sh == 3 ? [] : BL[b].bx || [[BL[b].bb, TEX[b * 4]]])) {
         const uv = tileUV(TT), uvS = BL[b].sidev ? tileUV(TEX[b * 4 + 2]) : uv;
         const bb = BB.map(v => v / 16), X0 = wx + bb[0], Y0 = y + bb[1], Z0 = wz + bb[2], X1 = wx + bb[3], Y1 = y + bb[4], Z1 = wz + bb[5];
         let fi = 0; // with a vanilla model (FF), each face has its own texture/uv, and missing faces are skipped
@@ -500,7 +500,7 @@ class World {
         Q([[X0, Y0, Z1], [X1, Y0, Z1], [X1, Y1, Z1], [X0, Y1, Z1]], bb[0], 1 - bb[4], bb[3], 1 - bb[1], .8); Q([[X1, Y0, Z0], [X0, Y0, Z0], [X0, Y1, Z0], [X1, Y1, Z0]], bb[0], 1 - bb[4], bb[3], 1 - bb[1], .8);
         Q([[X1, Y0, Z1], [X1, Y0, Z0], [X1, Y1, Z0], [X1, Y1, Z1]], bb[2], 1 - bb[4], bb[5], 1 - bb[1], .6); Q([[X0, Y0, Z0], [X0, Y0, Z1], [X0, Y1, Z1], [X0, Y1, Z0]], bb[2], 1 - bb[4], bb[5], 1 - bb[1], .6);
         }
-        continue;
+        if (sh != 3) { if (!WLOG[b]) continue; b = WATER_ID; sh = 3; }
       }
       let above = getB(x, y + 1, z); if (WLOG[above]) above = WATER_ID;
       for (const F of FACES) {
@@ -612,7 +612,11 @@ function elemRot(p, r) {
 function emitMM(out, els, wx, y, wz, facing, ll, rot, cull) {
   const [rx, ry] = rot || facingRot(facing);
   for (const e of els) for (const d in e.faces) {
-    const [t, u0, v0, u1, v1, r] = e.faces[d], T = tileUV(t), C = MMF[d](e.f, e.t).map(p => rotPt(elemRot(p, e.r), rx, ry));
+    const [t, u0, v0, u1, v1, r] = e.faces[d], T = tileUV(t);
+    // paper-thin parts (plant planes, flower faces): both faces sit in one plane and flicker against each other -> pull them apart a hair
+    let ef = e.f, et = e.t; const ai = d == 'east' || d == 'west' ? 0 : d == 'up' || d == 'down' ? 1 : 2;
+    if (Math.abs(e.t[ai] - e.f[ai]) < 1e-3) { const o = (d == 'east' || d == 'up' || d == 'south' ? 1 : -1) * .04; ef = e.f.slice(); et = e.t.slice(); ef[ai] += o; et[ai] += o; }
+    const C = MMF[d](ef, et).map(p => rotPt(elemRot(p, e.r), rx, ry));
     if (cull) { // a face lying on the block's edge against an opaque neighbour is hidden anyway - and would flicker against it
       const ax = C.every(p => Math.abs(p[0]) < 1e-3) ? [-1, 0, 0] : C.every(p => Math.abs(p[0] - 16) < 1e-3) ? [1, 0, 0] : C.every(p => Math.abs(p[1]) < 1e-3) ? [0, -1, 0] : C.every(p => Math.abs(p[1] - 16) < 1e-3) ? [0, 1, 0] : C.every(p => Math.abs(p[2]) < 1e-3) ? [0, 0, -1] : C.every(p => Math.abs(p[2] - 16) < 1e-3) ? [0, 0, 1] : null;
       if (ax && cull(ax[0], ax[1], ax[2])) continue;

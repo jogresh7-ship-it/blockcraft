@@ -411,8 +411,8 @@ function scrCommandBlock() {
   text('§7e.g. say Hello, time set day, summon zombie, setblock ~ ~1 ~ stone', x, 80, '#808080', false);
   const st = world.state[S.cmdKey] || {}; if (st.out) text('Previous Output: ' + st.out, x, 94, '#A0A0A0', false);
   const done = () => { (world.state[S.cmdKey] = world.state[S.cmdKey] || {}).cmd = S.cmdEdit.cmd.replace(/^\//, ''); world.dirty = true; };
-  if (button('Done', UW / 2 - 102, UH - 40, 100, 20)) { done(); focus = null; go(null); }
-  if (button('Cancel', UW / 2 + 2, UH - 40, 100, 20)) { focus = null; go(null); }
+  if (button('Done', UW / 2 - 102, UH - 40, 100, 20)) { done(); focus = null; go('game'); }
+  if (button('Cancel', UW / 2 + 2, UH - 40, 100, 20)) { focus = null; go('game'); }
 }
 function runCommandBlock(cmd, x, y, z) {
   if (!cmd) return '';
