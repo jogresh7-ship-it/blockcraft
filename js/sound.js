@@ -26,6 +26,14 @@ const SND = {
     const idx = new Map(); for (const k in map) idx.set(k, { b64: map[k] });
     this.idx = idx; this.cache.clear(); this.variantCache = new Map(); this.packName = 'Built-in sounds'; this.embedded = true; return idx.size;
   },
+  resolve(path) { // a mob sound name that is not in the pack: find the real file (mob/x/... vs entity/x/..., idle vs ambient, hit vs hurt)
+    this.resCache = this.resCache || new Map(); if (this.resCache.has(path)) return this.resCache.get(path);
+    const m = /^(?:mob|entity)\/([a-z_]+)\/(?:[a-z_]+\/)?([a-z_]+?)\d*$/.exec(path); let out = null;
+    if (m && this.idx) { const nm = m[1], kind = m[2], syn = /ambient|idle|say|living|loop/.test(kind) ? ['ambient', 'idle', 'say', 'living', 'loop'] : /hurt|hit/.test(kind) ? ['hurt', 'hit'] : /death|die/.test(kind) ? ['death', 'die'] : /step/.test(kind) ? ['step', 'walk'] : [kind];
+      const names = [nm, nm.replace(/_/g, ''), nm.replace(/_/g, '-')], keys = [...this.idx.keys()];
+      for (const n2 of names) { for (const sy of syn) { const k = keys.find(k => (k.startsWith('mob/' + n2 + '/') || k.startsWith('entity/' + n2 + '/')) && k.slice(k.lastIndexOf('/') + 1).replace(/\d+$/, '') == sy) || keys.find(k => (k.startsWith('mob/' + n2 + '/') || k.startsWith('entity/' + n2 + '/')) && k.includes(sy)); if (k) { out = k.replace(/\d+$/, ''); break; } } if (out) break; } }
+    this.resCache.set(path, out); return out;
+  },
   variants(path) {
     if (!this.idx) return []; let v = this.variantCache.get(path); if (v) return v;
     v = []; if (this.idx.has(path)) v.push(path);
@@ -54,7 +62,7 @@ const SND = {
     if (!this.idx || !this.ensure()) return;
     let path, cat = 'blocks'; const a = this.ALIAS[name];
     if (a) [path, cat] = a; else { path = name; cat = name.startsWith('mob/') ? 'mobs' : name.startsWith('ambient') ? 'ambient' : name == 'ui_click' ? 'ui' : 'blocks'; }
-    const v = this.variants(path); if (!v.length) return;
+    let v = this.variants(path); if (!v.length && /^(mob|entity)\//.test(path)) { const r = this.resolve(path); if (r) v = this.variants(r); } if (!v.length) return;
     const ab = await this.decode(v[Math.floor(Math.random() * v.length)]); if (!ab) return;
     let g = vol * this.vol.master * (this.vol[cat] ?? 1);
     let pan = 0;

@@ -731,7 +731,11 @@ function useItem(hit, tm, h) {
     if (tb == 'tnt' && /flint_and_steel|fire_charge/.test(n)) { world.set(hit.x, hit.y, hit.z, 0); tnts.push({ x: hit.x + .5, y: hit.y, z: hit.z + .5, vx: 0, vy: 3, vz: 0, r: .49, h: .98, fuse: 4 }); SND.play('fuse'); wear(h, 1); return; }
     if (tb == 'note_block') { SND.play('note/harp', 1, Math.pow(2, ((world.N.hash(hit.x, hit.y, hit.z) * 24 | 0) - 12) / 12)); return; }
     if (typeof useCrop == 'function' && useCrop(hit.x, hit.y, hit.z)) { swing = 1; return; }
-    if (tb == 'jukebox') { chat('§7Insert a music disc... (not available)'); return; }
+    if (tb == 'jukebox') { const st = world.state[key] || (world.state[key] = {}); // put a disc in, take it out
+      if (st.disc) { dropItem(st.disc, 1, hit.x + .5, hit.y + 1.1, hit.z + .5); st.disc = null; try { S.juke && S.juke.stop(); } catch (e) { } S.juke = null; S.jukeAt = null; return; }
+      const hn = h ? keyName(h.k) : ''; const md = /music_disc_(.+)$/.exec(hn);
+      if (md) { st.disc = h.k; if (player.mode != 'creative') { h.c--; if (!h.c) player.inv[player.sel] = null; } chat('§dNow Playing: C418 - ' + md[1]); try { S.juke && S.juke.stop(); } catch (e) { } S.juke = null; S.jukeAt = [hit.x + .5, hit.y + .5, hit.z + .5]; SND.play('records/' + md[1], 1, 1, S.jukeAt).then(src => { S.juke = src; }); swing = 1; return; }
+      return; }
   }
   if (!h) return;
   const p = [hit.x + hit.n[0], hit.y + hit.n[1], hit.z + hit.n[2]];
@@ -1116,6 +1120,7 @@ function renderEntities(sk) {
     const sw = Math.sin(m.walk) * .7 * Math.min(1, Math.hypot(m.vx, m.vz));
     // poses blend smoothly instead of snapping (water -> standing, sneaking, sitting, gliding)
     const st = m === pobj ? P : m, now = performance.now(); st.pk = st.pk || { sneak: 0, sit: 0, swim: 0, glide: 0, t: now };
+    if (m === pobj || (m.type == 'player' && m !== pobj)) { const v = Math.hypot(m.vx || 0, m.vz || 0); let tgt = 0; if (v > .6) { let d = Math.atan2(-(m.vx || 0), -(m.vz || 0)) - m.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) > Math.PI / 2) d = Math.atan2(Math.sin(d + Math.PI), Math.cos(d + Math.PI)); tgt = clamp(d, -.9, .9); } st.bodyOff = (st.bodyOff || 0) + (tgt - (st.bodyOff || 0)) * .2; base = M4.chain(base, M4.ry(st.bodyOff)); } // strafing: the body turns toward where you walk, the head keeps looking ahead
     const pk = st.pk, bdt = Math.min(.1, (now - pk.t) / 1000); pk.t = now;
     for (const [k, on] of [['sneak', m.sneak], ['sit', m.sitting], ['swim', m.swim], ['glide', m.glide]]) pk[k] += ((on ? 1 : 0) - pk[k]) * Math.min(1, bdt * 7);
     const flat = Math.max(pk.swim, pk.glide);
@@ -1152,6 +1157,7 @@ function renderEntities(sk) {
       if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
       let pvv = pv, off = null;
       if (D0.anim && p.bn && D0.anim.f[p.bn]) { const F = D0.anim.f[p.bn], n = F.length, sp = D0.anim.sp ? D0.anim.sp : D0.water && m.inW ? 1.4 : Math.min(1.2, .25 + Math.hypot(m.vx || 0, m.vz || 0)), x = ((t * sp / D0.anim.dur) % 1) * n, i = Math.floor(x) % n, k = x - Math.floor(x), j = (i + 1) % n; ax += F[i][0] + (F[j][0] - F[i][0]) * k; ay += F[i][1] + (F[j][1] - F[i][1]) * k; rzv += F[i][2] + (F[j][2] - F[i][2]) * k; pvv = p.bp; } // clip-driven mobs (axolotl swim)
+      if (m.type == 'shulker' && p.bn == 'lid') { off = [0, (m.peekV || 0) * 8, 0]; ay += (m.peekV || 0) * 1.2; } /* the shulker's shell opens to peek and shoot */
       if (p.mlayer !== undefined) off = [0, (4 - p.mlayer) * (m.sq || 0) * 1.7, 0]; // magma cube slices spread as it bounces
       if (m.type == 'player' && window.PANIM && pk.sneak < .02 && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
         const key = p.head ? 'head' : p.arm !== undefined ? (p.pos[0] > 0 ? 'rarm' : 'larm') : p.leg !== undefined ? (p.pos[0] > 0 ? 'rleg' : 'lleg') : 'body';
@@ -1164,6 +1170,8 @@ function renderEntities(sk) {
         if (key == 'rarm' || key == 'larm' || key == 'rleg' || key == 'lleg') { R[0] *= 1 + rk * .7; if (key[1] == 'a') R[2] *= 1 + rk; }
         if (key == 'body') R[0] -= rk * .2; if (p.head) R[0] -= rk * .1;
         if (p.head) { ax = clamp(m.lookP || 0, -.8, .8) + R[0]; ay += R[1]; rzv = R[2]; } else { ax = R[0]; ay += R[1]; rzv = R[2]; }
+        if (p.head) ay -= st.bodyOff || 0;
+        const air = m === pobj ? !player.ground && !player.fly : m.air; if (air) { if (key == 'rleg') ax = -.55; if (key == 'lleg') ax = .35; if (key == 'rarm' || key == 'larm') { ax -= .35; rzv += key == 'rarm' ? .35 : -.35; } } // jumping: one leg forward, arms out
         if (key == 'body') pvv = [0, 24, 0];
         off = [T0[0], T0[1], T0[2]];
         if (p.arm !== undefined && m.atkT > 0) ax += Math.sin(m.atkT * Math.PI) * .9;

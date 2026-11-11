@@ -93,6 +93,7 @@ function specialAttack(m, D, dt, t) {
 const _mobLife2 = mobLife;
 mobLife = function (m, D, dt) {
   _mobLife2(m, D, dt); if (m.dead) return;
+  if (m.type == 'shulker') { const want = m.peek > 0 ? 1 : m.target ? .35 : (Math.sin(performance.now() / 3000 + m.x) > .7 ? .3 : 0), o = m.peekV || 0; m.peekV = o + (want - o) * Math.min(1, dt * 4); if (o < .15 && m.peekV >= .15) SND.play('entity/shulker/open', .8, 1, [m.x, m.y, m.z]); if (o >= .15 && m.peekV < .15) SND.play('entity/shulker/close', .8, 1, [m.x, m.y, m.z]); }
   if (D.special) { const t = m.target || (m.mt && !m.mt.dead ? m.mt : null); if (t) specialAttack(m, D, dt, t); }
   // land animals keep to land: they turn back from water, lava and big drops (unless they swim)
   if (!D.water && !D.fly && !D.swim && !D.lavaWalk && m.mv > 0 && m.ground && !m.target) {
