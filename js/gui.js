@@ -81,7 +81,7 @@ function brButton(label, x, y, w, h, enabled, hv, primary) {
   textC(label, x + w / 2, y + (h - 8) / 2 - 1, enabled ? '#FFFFFF' : '#8A8A8A');
 }
 function button(label, x, y, w = 200, h = 20, enabled = true) {
-  const hv = enabled && hover(x, y, w, h);
+  const hv = enabled && hover(x, y, w, h); if (hv) S.btnHover = 1;
   if (S.bedrock) { brButton(label, x, y, w, h, enabled, hv, BR_PRIMARY.test(label)); if (hv && mouse.click && !clickUsed) { clickUsed = true; SND.play('ui_click', .5); return true; } return false; }
   nine(enabled ? (hv ? 'widget_button_highlighted' : 'widget_button') : 'widget_button_disabled', x, y, w, h, 20, 4, 20, 4);
   textC(label, x + w / 2, y + (h - 8) / 2, enabled ? (hv ? '#FFFFA0' : '#FFFFFF') : '#A0A0A0');

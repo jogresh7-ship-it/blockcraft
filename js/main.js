@@ -13,6 +13,7 @@ function newPlayer(meta) {
     stats: { time: 0, mined: 0, placed: 0, walk: 0, fly: 0, jumps: 0, kills: 0, dmg: 0, deaths: 0, crafted: 0, smelted: 0, eaten: 0 }, adv: {}, spawn: null, score: 0, hurtT: 0, regenT: 0, starveT: 0 };
 }
 function openWorld(meta, fresh) {
+  if (!meta.remote && !String(meta.id).startsWith('srv_') && NET.role) { netStop(); NET.server = null; NET.bot = false; } // a normal world is never online
   S.loadTitle = fresh ? 'Generating world' : 'Loading world'; S.loadSub = 'Building terrain'; S.loadP = 0; go('loading');
   const data = meta.remote ? NET.joinData : store.get('world_' + meta.id, null);
   if (data && !data.ib) { // saves from before there were 1000+ blocks stored items as 1000 + n
@@ -480,6 +481,7 @@ function hurtMob(m, dmg, kx, kz, quiet) {
   } else SND.play(d.hurt, 1, 1.2, [m.x, m.y, m.z]);
 }
 function naturalSpawn(c) {
+  if (world.meta.showcase) return;
   if (NET.role == 'client') return; // the host's mobs are streamed in
   if (mobs.length > 40 || world.meta.flat && Math.random() < .5) return;
   const H = world.N.hash(c.cx, 1234, c.cz); if (H > .12) return;
@@ -869,6 +871,7 @@ function updateArrows(dt) {
   arrows = arrows.filter(a => a.life > 0);
 }
 function hostileSpawn(dt) {
+  if (world.meta.showcase) return;
   if (world.meta.diff == 0 || player.mode == 'spectator') return;
   S.spawnT = (S.spawnT ?? 2) - dt; if (S.spawnT > 0) return; S.spawnT = 1.5;
   const host = mobs.filter(m => MOBDEF[m.type].hostile).length, night = world.dim == 'nether' || skyState().day < .45;
@@ -1102,9 +1105,10 @@ function drawArmor(m, p, M) {
 }
 function lightAt(x, y, z) { const c = world.chunk(Math.floor(x) >> 4, Math.floor(z) >> 4); if (!c || !c.L || y < 0 || y >= WH) return [1, 0]; const l = c.L[lidx(Math.floor(x) & 15, Math.floor(y), Math.floor(z) & 15)]; return [Math.pow(.82, 15 - (l >> 4)), Math.pow(.82, 15 - (l & 15))]; }
 function renderEntities(sk) {
-  const u = PROG.u, t = performance.now() / 1000;
+  const u = PROG.u, T0 = performance.now() / 1000; let t = T0;
   const P = player, pobj = P.view && P.mode != 'spectator' ? { type: 'player', x: P.x, y: P.y, z: P.z, yaw: P.yaw, walk: (P.bob || 0) * Math.PI, vx: P.vx, vz: P.vz, target: 1, lookP: P.pitch, hurtT: P.hurtT > 0 ? P.hurtT : 0, holdK: held() && held().k, sneak: (keys.ShiftLeft || keys.ShiftRight) && !P.fly, swingT: typeof swing != 'undefined' ? swing : 0, armorN: P.armor.map(s => s && keyName(s.k)), offK: P.offhand && P.offhand.k, sprinting: P.sprint, sitting: !!P.sit, swim: P.swimPose, glide: P.glide, crawl: P.crawlPose } : null;
   for (const m of [...mobs, ...netAvatarsFor(), ...(pobj ? [pobj] : [])]) {
+    t = m.statue ? 0 : T0; // showcase statues hold still
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
     const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; let parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
     if ((D0.fly && !D0.boss && m.type != 'bat' && m.type != 'vex' && m.type != 'allay') || (D0.water && m.inW)) { m.tilt = (m.tilt || 0) + (clamp((m.vy || 0) * .09, -.7, .7) - (m.tilt || 0)) * .15; const hc = (D0.h || 1) * 8; base = M4.chain(base, M4.trans(0, hc, 0), M4.rx(m.tilt), M4.trans(0, -hc, 0)); } // flyers and swimmers pitch with their climb or dive
@@ -1320,7 +1324,7 @@ function drawHUD(dt) {
   if (debug) {
     const t = P.target, f = fwd(), dir = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east (Towards positive X)' : 'west (Towards negative X)') : (f[2] > 0 ? 'south (Towards positive Z)' : 'north (Towards negative Z)');
     const L = lightAt(P.x, P.y, P.z);
-    const left = [`Blockcraft 1.0 (Faithful 32x)`, `${fps} fps  C: ${[...world.chunks.values()].filter(c => c.meshes).length} loaded`, `E: ${mobs.length} mobs, ${items.length} items, ${particles.length} particles`, '',
+    const left = [`Blockcraft 1.2 (Faithful 32x)`, `${fps} fps  C: ${[...world.chunks.values()].filter(c => c.meshes).length} loaded`, `E: ${mobs.length} mobs, ${items.length} items, ${particles.length} particles`, '',
       `XYZ: ${P.x.toFixed(3)} / ${P.y.toFixed(5)} / ${P.z.toFixed(3)}`, `Block: ${Math.floor(P.x)} ${Math.floor(P.y)} ${Math.floor(P.z)}`, `Chunk: ${Math.floor(P.x) & 15} ${Math.floor(P.y)} ${Math.floor(P.z) & 15} in ${Math.floor(P.x) >> 4} ${Math.floor(P.y) >> 4} ${Math.floor(P.z) >> 4}`,
       `Facing: ${dir} (${(((-P.yaw * 180 / Math.PI) % 360 + 540) % 360 - 180).toFixed(1)} / ${(-P.pitch * 180 / Math.PI).toFixed(1)})`, `Light: ${Math.round(Math.log(L[0]) / Math.log(.82) * -1 + 15)} sky, ${Math.round(Math.log(L[1] || 1e-9) / Math.log(.82) * -1 + 15)} block`,
       `Biome: minecraft:${world.biome(Math.floor(P.x), Math.floor(P.z))}`, `Local Difficulty: ${DIFFS[world.meta.diff]} // Day ${Math.floor((world.meta.day || 0))}`, `Time: ${world.meta.time | 0}${world.meta.rain ? ' (raining)' : ''}`, `Seed: ${world.seed}`];
@@ -1331,7 +1335,7 @@ function drawHUD(dt) {
     right.forEach((s, i) => { if (!s) return; s = s.replace('§n', ''); const w = textW(s); cx2.fillStyle = 'rgba(80,80,80,.56)'; cx2.fillRect(UW - w - 3, 1 + i * 9, w + 2, 9); text(s, UW - w - 2, 2 + i * 9, '#E0E0E0', false); });
   } else if (opts.fps) text(fps + ' fps', 2, 2, '#FFFFFF');
   if (NET.PV && S.screen == 'game') netDrawNames(NET.PV);
-  drawBotOverlay();
+  drawBotOverlay(); if (typeof showcaseInfo == 'function') showcaseInfo();
   if (S.sleepT > 0) { S.sleepT -= 1 / 60; const a = Math.min(1, Math.min(S.sleepT, 2.5 - S.sleepT) * 1.5); cx2.fillStyle = 'rgba(8,8,20,' + a + ')'; cx2.fillRect(0, 0, UW, UH); if (a > .6) textC('Good morning!', UW / 2, UH / 2 - 4, '#FFFFFF'); }
   if (!debug) drawItemHud();
   if (!debug) modEmit('hud', cx2, UW, UH, dt); // mods can draw on the HUD
@@ -1447,7 +1451,7 @@ function frame(now) {
       if (S.tip) tooltip(S.tip, mouse.x, mouse.y);
       drawPadCursor(); drawPadHints();
     } finally { if (fk < 1) { [GS, UW, UH] = sv; mouse.x = sv[3]; mouse.y = sv[4]; cx2.setTransform(GS, 0, 0, GS, 0, 0); } }
-    ui.style.cursor = (S.screen == 'game' || S.screen == 'chat') ? 'none' : 'default';
+    { const cur = (S.screen == 'game' || S.screen == 'chat') ? 'none' : S.btnHover || S.tip ? 'hand' : 'sword'; if (cur != S.curShown) { S.curShown = cur; ui.style.cursor = cur == 'none' ? 'none' : cur == 'hand' ? 'url(data:image/png;base64,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) 6 1, pointer' : 'url(data:image/png;base64,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) 1 1, default'; } S.btnHover = 0; } // the sword is the mouse pointer; the gauntlet points at buttons
   } catch (e) { console.error(e); cx2.setTransform(1, 0, 0, 1, 0, 0); cx2.fillStyle = '#f55'; cx2.font = '14px monospace'; cx2.fillText('Error: ' + e.message, 10, 20); }
   mouse.click = mouse.rclick = mouse.mclick = false; mouse.wheel = 0; typed = ''; keysPressed = [];
 }

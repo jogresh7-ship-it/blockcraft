@@ -6,7 +6,7 @@ const store = {
   del(k) { try { localStorage.removeItem('blockcraft_' + k); } catch (e) { } },
 };
 // ---- full reset (Nov 2026): every saved world, setting, imported pack and mod is wiped once for every player ----
-const DATA_VERSION = 2;
+const DATA_VERSION = 3; // 3: everything reset for 1.2
 try { if (+localStorage.getItem('blockcraft_dataVersion') !== DATA_VERSION) {
   for (const k of Object.keys(localStorage)) if (k.startsWith('blockcraft_')) localStorage.removeItem(k);
   localStorage.setItem('blockcraft_dataVersion', String(DATA_VERSION)); window.DATA_RESET = 1;
@@ -85,7 +85,7 @@ function scrTitle() {
     if (iconButton('note_block', bx + 204, by + 84, 'Music & Sounds')) go('sound');
     if (S.quitMsg && performance.now() - S.quitMsg < 2500) textC('§7Close this browser tab to quit', UW / 2, by + 110, '#FFFFFF');
   }
-  text('Blockcraft ' + (S.bedrock ? 'Bedrock' : 'Java') + ' Edition 1.0', 2, UH - 10, '#FFFFFF');
+  text('Blockcraft ' + (S.bedrock ? 'Bedrock' : 'Java') + ' Edition 1.2', 2, UH - 10, '#FFFFFF');
   const c = PS.active == 'custom' ? PS.customName : ((PACKS.find(p => p.id == PS.active) || {}).name || REG.baseName || 'Default'); const msg = S.pmsg || ('Pack: ' + c); text(msg, UW - textW(msg) - 2, UH - 10, '#FFFFFF');
   if (SND.loadingSounds) { const s = 'Loading sounds... ' + SND.loadingSounds; text(s, 2, UH - 20, '#A0A0A0'); }
 }
@@ -106,7 +106,7 @@ function scrWorlds() {
   tiledBg('menu_background', .55); header(S.bedrock ? 'Play' : 'Select World');
   if (S.bedrock) { const tw = Math.min(150, UW / 2 - 12); if (button('Worlds', UW / 2 - tw - 2, 32, tw, 20, false)) { } if (button('Friends (Multiplayer)', UW / 2 + 2, 32, tw, 20)) go('multiplayer'); }
   const top = S.bedrock ? 56 : 32, bottom = UH - 64; listFrame(top, bottom);
-  const W = S.worlds.slice().sort((a, b) => b.last - a.last);
+  const W = S.worlds.filter(w => !String(w.id).startsWith('srv_') && !w.server).sort((a, b) => b.last - a.last); // public server worlds are not your worlds
   if (mouse.wheel && hover(0, top, UW, bottom - top)) S.scroll = clamp(S.scroll + mouse.wheel * 18, 0, Math.max(0, W.length * 36 - (bottom - top) + 8));
   cx2.save(); cx2.beginPath(); cx2.rect(0, top, UW, bottom - top); cx2.clip();
   W.forEach((w, i) => {
@@ -164,7 +164,7 @@ function scrCreate() {
     if (button('Difficulty: ' + (c.mode == 'hardcore' ? 'Hard' : DIFFS[c.diff]), x, y + 90, 210, 20, c.mode != 'hardcore')) c.diff = (c.diff + 1) % 4;
     if (button('Allow Commands: ' + (c.cheats || c.mode == 'creative' ? 'ON' : 'OFF'), x, y + 114, 210, 20, c.mode != 'hardcore')) c.cheats = !c.cheats;
   } else if (c.tab == 1) {
-    if (button('World Type: ' + (c.map == 'grecos' ? 'Grecos' : c.map ? 'Spiral Parkour' : c.flat ? 'Superflat' : 'Default'), x, y, 210)) { if (c.map == 'spiral') { c.map = 'grecos'; if (!(window.MAPS && MAPS.grecos)) { c.mapLoading = 1; loadScript('maps/grecos.js').then(() => c.mapLoading = 0, () => { c.map = null; c.mapLoading = 0; }); } } else if (c.map) { c.map = null; c.flat = false; } else if (c.flat) { c.flat = false; c.map = window.MAPS && MAPS.spiral ? 'spiral' : null; } else c.flat = true; }
+    if (button('World Type: ' + (c.showcase ? 'Showcase' : c.map == 'grecos' ? 'Grecos' : c.map ? 'Spiral Parkour' : c.flat ? 'Superflat' : 'Default'), x, y, 210)) { if (c.showcase) { c.showcase = false; c.flat = false; } else if (c.map == 'grecos') { c.map = null; c.flat = true; c.showcase = true; } else if (c.map == 'spiral') { c.map = 'grecos'; if (!(window.MAPS && MAPS.grecos)) { c.mapLoading = 1; loadScript('maps/grecos.js').then(() => c.mapLoading = 0, () => { c.map = null; c.mapLoading = 0; }); } } else if (c.map) { c.map = null; c.flat = false; } else if (c.flat) { c.flat = false; c.map = window.MAPS && MAPS.spiral ? 'spiral' : null; } else c.flat = true; }
     text('Seed for the World Generator', x, y + 30, '#A0A0A0'); textField('wseed', c, 'seed', x, y + 42, 210, 20, 'Leave blank for a random seed');
     if (button('Generate Structures: ON', x, y + 70, 210, 20, false)) { }
   } else {
@@ -179,7 +179,7 @@ function seedOf(s) { if (!s) return (Math.random() * 2 ** 31) | 0; if (/^-?\d+$/
 function createWorld(c) {
   const id = Date.now().toString(36);
   const meta = { id, name: c.name || 'New World', seed: seedOf(c.seed), mode: c.mode, diff: c.mode == 'hardcore' ? 3 : c.diff, cheats: c.cheats || c.mode == 'creative', flat: c.flat && !c.map, map: c.map || undefined, created: Date.now(), last: Date.now(), gen: 3 };
-  if (c.kit) meta.kit = c.kit; if (c.nether) meta.startNether = 1;
+  if (c.kit) meta.kit = c.kit; if (c.nether) meta.startNether = 1; if (c.showcase) { meta.showcase = 1; meta.flat = true; meta.map = undefined; }
   S.worlds.push(meta); store.set('worlds', S.worlds); openWorld(meta, true);
 }
 // ---------- options ----------

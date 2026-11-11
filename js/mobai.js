@@ -49,7 +49,7 @@ function golemCheck(x, y, z, id) {
 const _naturalSpawn = naturalSpawn;
 naturalSpawn = function (c) {
   _naturalSpawn(c);
-  if (NET.role == 'client' || mobs.length > 45 || world.dim == 'nether' || world.meta.map) return;
+  if (NET.role == 'client' || mobs.length > 45 || world.dim == 'nether' || world.meta.map || world.meta.showcase) return;
   const H = world.N.hash(c.cx, 4321, c.cz); if (H > .08) return;
   const x = c.cx * 16 + Math.floor(world.N.hash(c.cx, 7, c.cz) * 16), z = c.cz * 16 + Math.floor(world.N.hash(c.cx, 8, c.cz) * 16), y = world.topY(x, z), top = BL[world.get(x, y, z)]?.n, bio = world.biome(x, z);
   let t = null, n = 1;
