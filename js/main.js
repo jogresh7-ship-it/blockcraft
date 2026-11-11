@@ -225,12 +225,12 @@ MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, 
   MOBDEF.bat = { tex: 'mob_bat', tw: 32, w: .5, h: .9, hp: 6, fly: 1, flyH: 1, speed: 3, drop: [], sound: 'mob/bat/idle1', hurt: 'mob/bat/hurt1', death: 'mob/bat/death', step: null,
     parts: [MC([-1.5, 0, -1], [3, 5, 2], [0, 17, 0], [0, 0]), MC([-2, -3, -1], [4, 3, 2], [0, 17, 0], [0, 7], 0, { head: 1, pivot: [0, 7, 0] }),
       MC([-2.5, -4, 0], [3, 5, 0], [-1.5, 15, 0], [1, 15], 0, { head: 1, pivot: [0, 7, 0] }), MC([-.1, -3, 0], [3, 5, 0], [1.1, 14, 0], [8, 15], 0, { head: 1, pivot: [0, 7, 0] }),
-      MC([-2, -2, 0], [2, 7, 0], [-1.5, 17, 0], [12, 0], 0, { vw: -1, pivot: [-1.5, 7, 0] }), MC([-6, -2, 0], [6, 8, 0], [-3.5, 17, 0], [16, 0], 0, { vw: -1.6, pivot: [-1.5, 7, 0] }),
-      MC([0, -2, 0], [2, 7, 0], [1.5, 17, 0], [12, 7], 0, { vw: 1, pivot: [1.5, 7, 0] }), MC([0, -2, 0], [6, 8, 0], [3.5, 17, 0], [16, 8], 0, { vw: 1.6, pivot: [1.5, 7, 0] }), MC([-1.5, 0, 0], [3, 2, 0], [0, 22, 0], [16, 16])] };
+      MC([-2, -2, 0], [2, 7, 0], [-1.5, 17, 0], [12, 0], 0, { bw: -1, pivot: [-1.5, 7, 0] }), MC([-6, -2, 0], [6, 8, 0], [-3.5, 17, 0], [16, 0], 0, { bw: -1, pivot: [-1.5, 7, 0] }),
+      MC([0, -2, 0], [2, 7, 0], [1.5, 17, 0], [12, 7], 0, { bw: 1, pivot: [1.5, 7, 0] }), MC([0, -2, 0], [6, 8, 0], [3.5, 17, 0], [16, 8], 0, { bw: 1, pivot: [1.5, 7, 0] }), MC([-1.5, 0, 0], [3, 2, 0], [0, 22, 0], [16, 16])] };
   const WB = [0, 3, 0], WH0 = [0, -10, 0];
   MOBDEF.warden = { tex: 'mob_warden', w: .9, h: 2.9, hp: 500, hostile: 1, speed: 1.2, dmg: [0, 16, 30, 45], drop: [['sculk_catalyst', 1, 1]], sound: 'mob/warden/idle1', hurt: 'mob/warden/hurt1', death: 'mob/warden/death', step: 'mob/warden/step1', heavy: 1, noBurn: 1,
     parts: [MC([-9, -13, -4], [18, 21, 11], WB, [0, 0]), MC([-2, -11, -.1], [9, 21, 0], [-7, 1, -4], [90, 11]), MC([-7, -11, -.1], [9, 21, 0], [7, 1, -4], [90, 11]),
-      MC([-8, -16, -5], [16, 16, 10], WH0, [0, 32], 0, { head: 1, pivot: [0, 34, 0] }), MC([-16, -13, 0], [16, 16, 0], [-8, -22, 0], [52, 32], 0, { head: 1, pivot: [0, 34, 0], vw: -.4 }), MC([0, -13, 0], [16, 16, 0], [8, -22, 0], [58, 0], 0, { head: 1, pivot: [0, 34, 0], vw: .4 }),
+      MC([-8, -16, -5], [16, 16, 10], WH0, [0, 32], 0, { head: 1, pivot: [0, 34, 0] }), MC([-16, -13, 0], [16, 16, 0], [-5.8, -23, 0], [52, 32], 0, { head: 1, pivot: [0, 34, 0] }), MC([0, -13, 0], [16, 16, 0], [5.8, -23, 0], [58, 0], 0, { head: 1, pivot: [0, 34, 0] }),
       MC([-4, 0, -4], [8, 28, 8], [-13, -10, 1], [44, 50], 0, { arm: 0, pivot: [-13, 34, 1] }), MC([-4, 0, -4], [8, 28, 8], [13, -10, 1], [0, 58], 0, { arm: 1, pivot: [13, 34, 1] }),
       MC([-3.1, 0, -3], [6, 13, 6], [-5.9, 11, 0], [76, 48], 0, { leg: 0, pivot: [-5.9, 13, 0] }), MC([-2.9, 0, -3], [6, 13, 6], [5.9, 11, 0], [76, 76], 0, { leg: 1, pivot: [5.9, 13, 0] })] };
   const GH = [1, 14, 0], GHP = { head: 1, pivot: [1, 10, 0] };
@@ -1120,6 +1120,7 @@ function renderEntities(sk) {
       if (p.wing) rzv += p.wing * (m.ground === false || m.vy < -1 ? .6 + Math.sin(t * 28) * .6 : 0); // chickens flap while falling
       if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
       if (p.vw) ay += p.vw * (.5 + Math.sin(t * 18) * .35); // vex wings flutter
+      if (p.bw) ay += p.bw * Math.cos(t * 13) * Math.PI * .25; // bat wings beat forward and back around the shoulder (Java BatModel), never past the body
       if (p.dwing) rzv += Math.sign(p.dwing) * Math.sin(t * 2.2) * .5; // dragon wing beats
       if (p.dleg !== undefined) ax -= (p.dleg ? 1.15 : .9) + Math.sin(t * 2.2 + p.dleg) * .08; // dragon legs hang back while it flies
       if (p.dtail !== undefined) ay += Math.sin(t * 1.5 - p.dtail * .35) * .04 * p.dtail;
