@@ -1143,6 +1143,16 @@ function renderEntities(sk) {
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
       if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
       let pvv = pv, off = null;
+      if (m.type == 'player' && window.PANIM && pk.sneak < .02 && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
+        const key = p.head ? 'head' : p.arm !== undefined ? (p.pos[0] > 0 ? 'rarm' : 'larm') : p.leg !== undefined ? (p.pos[0] > 0 ? 'rleg' : 'lleg') : 'body';
+        const spd = Math.min(1, Math.hypot(m.vx || 0, m.vz || 0) / 3.5), fr = (A, ph) => { const F = PANIM[A].f[key]; if (!F) return null; const n = (F.r || F.t).length, x = ((ph % 1) + 1) % 1 * n, i = Math.floor(x), k = x - i, j = (i + 1) % n, L = (u, v) => u && [u[i][0] + (u[j][0] - u[i][0]) * k, u[i][1] + (u[j][1] - u[i][1]) * k, u[i][2] + (u[j][2] - u[i][2]) * k]; return [L(F.r), L(F.t)]; };
+        const I = fr('idle', t / PANIM.idle.dur), W = fr('walk', (m.walk || 0) / (Math.PI * 2)), mix = (a, b) => a && b ? a.map((v, q) => v + (b[q] - v) * spd) : a || b;
+        const R = mix(I && I[0], W && W[0]) || [0, 0, 0], T0 = mix(I && I[1], W && W[1]) || [0, 0, 0];
+        if (p.head) { ax = clamp(m.lookP || 0, -.8, .8) + R[0]; ay += R[1]; rzv = R[2]; } else { ax = R[0]; ay += R[1]; rzv = R[2]; }
+        if (key == 'body') pvv = [0, 24, 0];
+        off = [T0[0], T0[1], T0[2]];
+        if (p.arm !== undefined && m.atkT > 0) ax += Math.sin(m.atkT * Math.PI) * .9;
+      }
       if (m.type == 'player' || D0.humanPose) { // the player's pose: sneaking leans the body forward, arms forward, legs back
         const L = (a, b, k) => a + (b - a) * k;
         if (pk.sneak > .01) { const k = pk.sneak;
