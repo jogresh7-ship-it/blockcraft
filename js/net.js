@@ -83,6 +83,7 @@ function netClientData(d) {
   else if (d.t == 'b') netApplyBlocks(d);
   else if (d.t == 'chat') chat(d.msg);
   else if (d.t == 'hit' && d.to == NET.myId) netGotHit(d);
+  else if (d.t == 'bb' && typeof BB != 'undefined') Object.assign(BB, d);
   else if (d.t == 'time' && world) { world.meta.time = d.v; world.meta.rain = d.rain; }
   else if (d.t == 'bye') { const a = NET.avatars.get(d.id); if (a) chat('§e' + a.name + ' left the game'); NET.avatars.delete(d.id); }
   else if (d.t == 'mobs' && world && typeof mobs != 'undefined') netMobs(d.list);
@@ -168,10 +169,10 @@ function netDrawNames(PV, W, H) {
 }
 // ---- screens ----
 // ---------- Multiplayer screens, laid out like Minecraft's "Play Multiplayer" server list ----------
-const DEFAULT_SERVERS = [{ name: 'Blockcraft Survival', addr: 'Survival', motd: 'The official survival server' }, { name: 'Blockcraft Creative', addr: 'Creative', motd: 'Build anything, unlimited blocks' }, { name: 'Parkour', addr: 'Parkour', motd: 'Spiral Parkour Challenge - climb to the top!' }];
-function mpServers() { let l = store.get('servers', null); if (!l) { l = DEFAULT_SERVERS.slice(); store.set('servers', l); } return l; }
+const DEFAULT_SERVERS = [{ name: 'Fruit SMP', addr: 'FruitSMP', motd: '§aParkour §8| §eBuild Battle §8| §cSurvival' }]; // the one public server: a lobby with game modes
+function mpServers() { let l = store.get('servers', null); if (store.get('servers_v', 0) < 2) { l = null; store.set('servers_v', 2); } if (!l) { l = DEFAULT_SERVERS.slice(); store.set('servers', l); } return l; }
 const isCode = a => /^[A-Z0-9]{6}$/.test(a) && !/^(SURVIV|CREATI|PARKOU)/.test(a);
-function mpJoin(sv) { S.mp = S.mp || {}; if (isCode(sv.addr.toUpperCase())) { S.mp.busy = 1; S.mp.msg = '§7Connecting to ' + sv.name + '...'; netJoin(sv.addr.toUpperCase()).then(w => { S.mp.busy = 0; netEnter(w); }).catch(e => { S.mp.busy = 0; S.mp.msg = '§c' + e.message; }); } else netServer(sv.addr); }
+function mpJoin(sv) { S.mp = S.mp || {}; if (/^FRUIT ?SMP$/i.test(sv.addr)) { S.fruit = {}; go('fruit'); return; } if (isCode(sv.addr.toUpperCase())) { S.mp.busy = 1; S.mp.msg = '§7Connecting to ' + sv.name + '...'; netJoin(sv.addr.toUpperCase()).then(w => { S.mp.busy = 0; netEnter(w); }).catch(e => { S.mp.busy = 0; S.mp.msg = '§c' + e.message; }); } else netServer(sv.addr); }
 // ask a server how it is doing without joining it (players online, ping)
 const MP_STAT = {};
 async function mpProbe(sv) {
@@ -251,9 +252,9 @@ async function netServer(name, bot) {
   // nobody is hosting it: this browser becomes the server (its world is saved here)
   S.mp.msg = '§7Starting ' + name + '...'; NET.server = name; NET.bot = !!bot;
   const id = 'srv_' + slug.toLowerCase(); let meta = S.worlds.find(w => w.id == id);
-  const creative = /CREATIVE/.test(slug), map = /PARKOUR/.test(slug) && window.MAPS && MAPS.spiral ? 'spiral' : null;
+  const creative = /CREATIVE|BUILD/.test(slug), map = /PARKOUR/.test(slug) && window.MAPS && MAPS.spiral ? 'spiral' : null;
   if (meta && map && meta.map != map) { S.worlds = S.worlds.filter(w => w.id != id); store.set('worlds', S.worlds); store.del('world_' + id); meta = null; } // old flat parkour world -> the new map
-  if (!meta) { let h = 7; for (const c of slug) h = Math.imul(h ^ c.charCodeAt(0), 16777619); meta = { id, name: name + ' Server', seed: h >>> 0, mode: creative ? 'creative' : 'survival', diff: 2, cheats: creative, flat: !map && /PARKOUR|FLAT/.test(slug), map, created: Date.now(), last: Date.now(), gen: 3, server: 1 }; S.worlds.push(meta); store.set('worlds', S.worlds); }
+  if (!meta) { let h = 7; for (const c of slug) h = Math.imul(h ^ c.charCodeAt(0), 16777619); meta = { id, name: name + ' Server', seed: h >>> 0, mode: creative ? 'creative' : 'survival', diff: 2, cheats: creative, flat: !map && /PARKOUR|FLAT|BUILD/.test(slug), map, created: Date.now(), last: Date.now(), gen: 3, server: 1 }; S.worlds.push(meta); store.set('worlds', S.worlds); }
   openWorld(meta, !store.get('world_' + id, null));
   for (let i = 0; i < 240 && S.screen != 'game' && S.screen != null; i++) await new Promise(r => setTimeout(r, 250));
   try { await netHost(code); NET.server = name; S.mp.busy = 0; S.mp.msg = ''; if (bot) botMode(name); }

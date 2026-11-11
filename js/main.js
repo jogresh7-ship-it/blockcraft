@@ -1436,7 +1436,7 @@ function frame(now) {
     cx2.setTransform(1, 0, 0, 1, 0, 0); cx2.clearRect(0, 0, ui.width, ui.height); cx2.setTransform(GS, 0, 0, GS, 0, 0); cx2.imageSmoothingEnabled = false;
     S.tip = null; clickUsed = false;
     if (world && player && S.screen != 'loading') drawHUD(dt);
-    const scr = { title: scrTitle, worlds: scrWorlds, create: scrCreate, editworld: scrEditWorld, confirmdel: scrConfirmDel, options: scrOptions, video: scrVideo, sound: scrSound, controls: scrControls, credits: scrCredits, skins: scrSkins, mods: scrMods, packs: scrPacks, pause: scrPause, stats: scrStats, advancements: scrAdvancements, death: scrDeath, loading: scrLoading, inventory: scrInventory, crafting: scrCrafting, chest: scrChest, cmdblock: scrCommandBlock, furnace: scrFurnace, chat: scrChat, multiplayer: scrMultiplayer, mpadd: scrMpAdd, mpdirect: scrMpDirect }[S.screen];
+    const scr = { title: scrTitle, worlds: scrWorlds, create: scrCreate, editworld: scrEditWorld, confirmdel: scrConfirmDel, options: scrOptions, video: scrVideo, sound: scrSound, controls: scrControls, credits: scrCredits, skins: scrSkins, mods: scrMods, packs: scrPacks, pause: scrPause, stats: scrStats, advancements: scrAdvancements, death: scrDeath, loading: scrLoading, inventory: scrInventory, crafting: scrCrafting, chest: scrChest, cmdblock: scrCommandBlock, furnace: scrFurnace, chat: scrChat, multiplayer: scrMultiplayer, mpadd: scrMpAdd, mpdirect: scrMpDirect, fruit: scrFruit }[S.screen];
     drawTouchHUD();
     // menus were laid out for at least 250x380 GUI units; on short phone screens shrink the whole menu to fit (taps are mapped too)
     const fitH = { title: 0, chat: 0, loading: 0, inventory: 262, chest: 230 }[S.screen] ?? 250, fk = fitH ? Math.min(1, UH / fitH, UW / 380) : 1;
