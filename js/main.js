@@ -1151,7 +1151,7 @@ function renderEntities(sk) {
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
       if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
       let pvv = pv, off = null;
-      if (D0.anim && p.bn && D0.anim.f[p.bn]) { const F = D0.anim.f[p.bn], n = F.length, sp = D0.water && m.inW ? 1.4 : Math.min(1.2, .25 + Math.hypot(m.vx || 0, m.vz || 0)), x = ((t * sp / D0.anim.dur) % 1) * n, i = Math.floor(x) % n, k = x - Math.floor(x), j = (i + 1) % n; ax += F[i][0] + (F[j][0] - F[i][0]) * k; ay += F[i][1] + (F[j][1] - F[i][1]) * k; rzv += F[i][2] + (F[j][2] - F[i][2]) * k; pvv = p.bp; } // clip-driven mobs (axolotl swim)
+      if (D0.anim && p.bn && D0.anim.f[p.bn]) { const F = D0.anim.f[p.bn], n = F.length, sp = D0.anim.sp ? D0.anim.sp : D0.water && m.inW ? 1.4 : Math.min(1.2, .25 + Math.hypot(m.vx || 0, m.vz || 0)), x = ((t * sp / D0.anim.dur) % 1) * n, i = Math.floor(x) % n, k = x - Math.floor(x), j = (i + 1) % n; ax += F[i][0] + (F[j][0] - F[i][0]) * k; ay += F[i][1] + (F[j][1] - F[i][1]) * k; rzv += F[i][2] + (F[j][2] - F[i][2]) * k; pvv = p.bp; } // clip-driven mobs (axolotl swim)
       if (p.mlayer !== undefined) off = [0, (4 - p.mlayer) * (m.sq || 0) * 1.7, 0]; // magma cube slices spread as it bounces
       if (m.type == 'player' && window.PANIM && pk.sneak < .02 && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
         const key = p.head ? 'head' : p.arm !== undefined ? (p.pos[0] > 0 ? 'rarm' : 'larm') : p.leg !== undefined ? (p.pos[0] > 0 ? 'rleg' : 'lleg') : 'body';

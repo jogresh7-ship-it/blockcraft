@@ -25,7 +25,7 @@ WASD to move, Space to jump, mouse to look, left click to break, right click to 
 - Block, item and GUI textures are derived from [Faithful](https://faithfulpack.net) (see `FAITHFUL-LICENSE.txt`).
 - Controller prompt icons are from [Kenney](https://kenney.nl) (CC0).
 - The player's idle and walking animation comes from "Minecraft Idle and Walking animation" by [Osk1](https://sketchfab.com/Osk1) (CC-BY 4.0).
-- The axolotl swim cycle is sampled from "Minecraft Axolotl" by [None_Yaroslav](https://sketchfab.com/None_Yaroslav) (CC-BY 4.0).
+- The axolotl swim cycle and the bee wing beat are sampled from "Minecraft Axolotl" and "Minecraft Bee" by [None_Yaroslav](https://sketchfab.com/None_Yaroslav) (CC-BY 4.0).
 - Newer mob shapes are converted from Mojang's public bedrock-samples geometry; their textures are from Faithful.
 - Mojang textures and sounds are **not** included. For sound, load a Minecraft sound pack `.zip` under Options > Music & Sounds. You can also import a resource pack from the Resource Packs screen.
 - `tools/` holds the Python scripts used to build the texture atlas and convert block models.
