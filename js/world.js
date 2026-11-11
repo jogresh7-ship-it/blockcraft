@@ -619,15 +619,20 @@ class World {
   }
   collides(px, py, pz, r, h) {
     for (let x = Math.floor(px - r); x <= Math.floor(px + r); x++) for (let y = Math.floor(py); y <= Math.floor(py + h - 0.001); y++) for (let z = Math.floor(pz - r); z <= Math.floor(pz + r); z++)
-      { const b = this.getOr(x, y, z, 1); if (SOLID[b]) return true; if (SBOX[b]) { let bb = BL[b].bb; if (BL[b].mmo || BL[b].fy) { const st = this.state[x + ',' + y + ',' + z]; if (st && st.open) continue; if (st && st.fd) bb = rotBB(bb, st.fd); } if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) return true; } }
+      { const b = this.getOr(x, y, z, 1); if (SOLID[b]) return true; if (SBOX[b]) { const bs = this.boxes(b, x, y, z); if (!bs) continue; for (const bb of bs) if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) return true; } }
     return false;
   }
+  // the collision boxes of a block (pixels 0-16): stairs are a half slab plus a raised half on the side they face, so you can walk up them
+  boxes(b, x, y, z) { const B0 = BL[b], st = (B0.mmo || B0.fy) ? this.state[x + ',' + y + ',' + z] : null; if (st && st.open) return null;
+    if (/_stairs$/.test(B0.n)) { const fd = st && st.fd || 'east', top = st && st.top, half = { east: [8, 0, 16, 16], west: [0, 0, 8, 16], north: [0, 0, 16, 8], south: [0, 8, 16, 16] }[fd] || [8, 0, 16, 16];
+      return top ? [[0, 8, 0, 16, 16, 16], [half[0], 0, half[1], half[2], 8, half[3]]] : [[0, 0, 0, 16, 8, 16], [half[0], 8, half[1], half[2], 16, half[3]]]; }
+    let bb = B0.bb; if (st && st.fd) bb = rotBB(bb, st.fd); return [bb]; }
   // highest top of the solid boxes a body at (px,py,pz) overlaps - where it should stand after landing
   floorTop(px, py, pz, r, h) { let top = null;
     for (let x = Math.floor(px - r); x <= Math.floor(px + r); x++) for (let y = Math.floor(py); y <= Math.floor(py + h - 0.001); y++) for (let z = Math.floor(pz - r); z <= Math.floor(pz + r); z++) {
       const b = this.getOr(x, y, z, 1); let t = null;
-      if (SOLID[b]) t = y + 1; else if (SBOX[b]) { let bb = BL[b].bb; if (BL[b].mmo || BL[b].fy) { const st = this.state[x + ',' + y + ',' + z]; if (st && st.open) continue; if (st && st.fd) bb = rotBB(bb, st.fd); }
-        if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) t = y + bb[4] / 16; }
+      if (SOLID[b]) t = y + 1; else if (SBOX[b]) { const bs = this.boxes(b, x, y, z); if (!bs) continue;
+        for (const bb of bs) if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16 && (t === null || y + bb[4] / 16 > t)) t = y + bb[4] / 16; }
       if (t !== null && (top === null || t > top)) top = t; }
     return top; }
   topY(x, z) { for (let y = WH - 1; y > 0; y--) { const b = this.get(x, y, z); if (SOLID[b] || SHAPE[b] == 3) return y; } return 0; }

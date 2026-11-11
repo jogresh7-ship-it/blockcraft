@@ -1169,11 +1169,12 @@ function renderRain(eye) {
     if (x * x + z * z > R * R) continue; const wx = Math.floor(eye[0]) + x, wz = Math.floor(eye[2]) + z;
     const top = world.topY(wx, wz) + 1, y0 = Math.max(top, Math.floor(eye[1]) - 10), y1 = Math.floor(eye[1]) + 12; if (y1 <= y0) continue;
     const h = world.N.hash(wx, 0, wz), off = (t * (snowy ? .4 : 3) + h) % 1, rnd = Math.floor(h * 4) / 4;
-    const a = h * Math.PI, dx = Math.cos(a) * .5, dz = Math.sin(a) * .5, cx = wx + .5, cz = wz + .5;
+    const cx = wx + .5, cz = wz + .5, ex = cx - eye[0], ez = cz - eye[2], el = Math.hypot(ex, ez) || 1, dx = -ez / el * .5, dz = ex / el * .5; // like Java: each column's sheet faces you
     const v0 = off + y0 / 8 * (snowy ? .3 : 1), v1 = off + y1 / 8 * (snowy ? .3 : 1);
     pushQuad(arr, [[cx - dx, y0, cz - dz], [cx + dx, y0, cz + dz], [cx + dx, y1, cz + dz], [cx - dx, y1, cz - dz]], [[rnd, -v0], [rnd + .25, -v0], [rnd + .25, -v1], [rnd, -v1]], [1, 1, 0]);
   }
-  drawMesh(dynMesh('rain', arr), snowy ? 'snowfall' : 'rain', { alphaTest: .05, alpha: .7 });
+  gl.enable(gl.BLEND); gl.depthMask(false); drawMesh(dynMesh('rain', arr), snowy ? 'snowfall' : 'rain', { alphaTest: .02, alpha: snowy ? .8 : .55 }); gl.depthMask(true); gl.disable(gl.BLEND);
+  if (!snowy) for (let i = 0; i < 6; i++) { const x = Math.floor(eye[0] + (Math.random() - .5) * 16), z = Math.floor(eye[2] + (Math.random() - .5) * 16), y = world.topY(x, z) + 1; if (Math.abs(y - eye[1]) < 12) spark(PTEX.map.splash ? 'splash' : 'generic', x + Math.random(), y + .05, z + Math.random(), { vy: 1.2, spread: .8, g: 6, life: .35, s: .05 }); } // drops splashing on the ground
 }
 // item display transforms from the vanilla block/block.json, item/generated.json and item/handheld.json models
 const HANDHELD_RE = /(_sword|_pickaxe|_axe|_shovel|_hoe|^stick|_rod|^bone|^trident|^mace|^bamboo|^debug_stick|_spear)$/;
