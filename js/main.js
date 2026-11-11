@@ -1120,7 +1120,7 @@ function renderEntities(sk) {
     const sw = Math.sin(m.walk) * .7 * Math.min(1, Math.hypot(m.vx, m.vz));
     // poses blend smoothly instead of snapping (water -> standing, sneaking, sitting, gliding)
     const st = m === pobj ? P : m, now = performance.now(); st.pk = st.pk || { sneak: 0, sit: 0, swim: 0, glide: 0, t: now };
-    if (m === pobj || (m.type == 'player' && m !== pobj)) { const v = Math.hypot(m.vx || 0, m.vz || 0); let tgt = 0; if (v > .6) { let d = Math.atan2(-(m.vx || 0), -(m.vz || 0)) - m.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) > Math.PI / 2) d = Math.atan2(Math.sin(d + Math.PI), Math.cos(d + Math.PI)); tgt = clamp(d, -.9, .9); } st.bodyOff = (st.bodyOff || 0) + (tgt - (st.bodyOff || 0)) * .2; base = M4.chain(base, M4.ry(st.bodyOff)); } // strafing: the body turns toward where you walk, the head keeps looking ahead
+    if (m === pobj || (m.type == 'player' && m !== pobj)) { const v = Math.hypot(m.vx || 0, m.vz || 0); let tgt = 0; if (v > .6) { let d = Math.atan2(-(m.vx || 0), -(m.vz || 0)) - m.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) > Math.PI / 2) d = Math.atan2(Math.sin(d + Math.PI), Math.cos(d + Math.PI)); tgt = clamp(d, -1.15, 1.15); } st.bodyOff = (st.bodyOff || 0) + (tgt - (st.bodyOff || 0)) * .2; base = M4.chain(base, M4.ry(st.bodyOff)); } // strafing: the body turns toward where you walk, the head keeps looking ahead
     const pk = st.pk, bdt = Math.min(.1, (now - pk.t) / 1000); pk.t = now;
     for (const [k, on] of [['sneak', m.sneak], ['sit', m.sitting], ['swim', m.swim], ['glide', m.glide]]) pk[k] += ((on ? 1 : 0) - pk[k]) * Math.min(1, bdt * 7);
     const flat = Math.max(pk.swim, pk.glide);
@@ -1159,7 +1159,7 @@ function renderEntities(sk) {
       if (D0.anim && p.bn && D0.anim.f[p.bn]) { const F = D0.anim.f[p.bn], n = F.length, sp = D0.anim.sp ? D0.anim.sp : D0.water && m.inW ? 1.4 : Math.min(1.2, .25 + Math.hypot(m.vx || 0, m.vz || 0)), x = ((t * sp / D0.anim.dur) % 1) * n, i = Math.floor(x) % n, k = x - Math.floor(x), j = (i + 1) % n; ax += F[i][0] + (F[j][0] - F[i][0]) * k; ay += F[i][1] + (F[j][1] - F[i][1]) * k; rzv += F[i][2] + (F[j][2] - F[i][2]) * k; pvv = p.bp; } // clip-driven mobs (axolotl swim)
       if (m.type == 'shulker' && p.bn == 'lid') { off = [0, (m.peekV || 0) * 8, 0]; ay += (m.peekV || 0) * 1.2; } /* the shulker's shell opens to peek and shoot */
       if (p.mlayer !== undefined) off = [0, (4 - p.mlayer) * (m.sq || 0) * 1.7, 0]; // magma cube slices spread as it bounces
-      if (m.type == 'player' && window.PANIM && pk.sneak < .02 && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
+      if (m.type == 'player' && window.PANIM && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
         const key = p.head ? 'head' : p.arm !== undefined ? (p.pos[0] > 0 ? 'rarm' : 'larm') : p.leg !== undefined ? (p.pos[0] > 0 ? 'rleg' : 'lleg') : 'body';
         const v = Math.hypot(m.vx || 0, m.vz || 0), spd = Math.min(1, v / 2.5), run = m.sprinting || v > 4.8 ? 1 : 0;
         if (p === parts[0]) { const nw = t, dt0 = Math.min(.1, nw - (st.paT ?? nw)); st.paT = nw; st.paPh = ((st.paPh || 0) + dt0 * Math.min(v, 7) / 4.3 / 1.45) % 1; st.paRun = (st.paRun || 0) + (run - (st.paRun || 0)) * Math.min(1, dt0 * 6); } // one stride every ~1.45s at walking speed
@@ -1171,7 +1171,25 @@ function renderEntities(sk) {
         if (key == 'body') R[0] -= rk * .2; if (p.head) R[0] -= rk * .1;
         if (p.head) { ax = clamp(m.lookP || 0, -.8, .8) + R[0]; ay += R[1]; rzv = R[2]; } else { ax = R[0]; ay += R[1]; rzv = R[2]; }
         if (p.head) ay -= st.bodyOff || 0;
-        const air = m === pobj ? !player.ground && !player.fly : m.air; if (air) { if (key == 'rleg') ax = -.55; if (key == 'lleg') ax = .35; if (key == 'rarm' || key == 'larm') { ax -= .35; rzv += key == 'rarm' ? .35 : -.35; } } // jumping: one leg forward, arms out
+        { // poses that blend on top of the walk cycle: crouch-walk, jump (rising), falling, flying
+          const Lp = (a, b, k) => a + (b - a) * k, fly = m === pobj ? !!player.fly && player.mode != 'spectator' : !!m.flying, gr = m === pobj ? player.ground : !m.air, vy = m === pobj ? player.vy : (m.vy || 0);
+          const tA = fly ? 0 : gr ? 0 : vy > 0 ? 1 : 0, tF = fly || gr ? 0 : vy <= 0 ? Math.min(1, -vy / 6) : 0, tL = fly ? 1 : 0;
+          if (p === parts[0]) { st.kUp = Lp(st.kUp || 0, tA, .18); st.kDn = Lp(st.kDn || 0, tF, .14); st.kFly = Lp(st.kFly || 0, tL, .1); }
+          const up = st.kUp || 0, dn = st.kDn || 0, fl = st.kFly || 0, sn = pk.sneak || 0, side = key[0] == 'r' ? 1 : -1;
+          if (sn > .01 && (key == 'rleg' || key == 'lleg')) ax = ax * (1 - .45 * sn) + .12 * sn; // crouch-walk: shorter, bent steps
+          if (sn > .01 && (key == 'rarm' || key == 'larm')) { ax = ax * (1 - .5 * sn) - .25 * sn; rzv += side * .12 * sn; }
+          if (sn > .01 && p.head) ax += .25 * sn;
+          if (up > .01) { if (key == 'rleg') ax = Lp(ax, -.85, up); if (key == 'lleg') ax = Lp(ax, .4, up); if (key[1] == 'a') { ax = Lp(ax, -.55, up); rzv += side * .45 * up; } if (key == 'body') ax = Lp(ax, -.12, up); }
+          if (dn > .01) { const fl2 = Math.sin(t * 13) * .35; // falling: arms thrown up, legs kicking
+            if (key[1] == 'a') { ax = Lp(ax, -2.5 + (key == 'rarm' ? fl2 : -fl2) * .6, dn); rzv += side * .55 * dn; }
+            if (key == 'rleg' || key == 'lleg') { ax = Lp(ax, (key == 'rleg' ? fl2 : -fl2) + .15, dn); rzv += side * .18 * dn; }
+            if (p.head) ax -= .3 * dn; }
+          if (fl > .01) { const sp2 = Math.min(1, Math.hypot(m.vx || 0, m.vz || 0) / 8), bob = Math.sin(t * 2.2) * .06; // flying: lean into the flight, arms back and out, legs trailing together
+            if (key == 'body') ax = Lp(ax, -.35 * sp2 + bob, fl);
+            if (key[1] == 'a') { ax = Lp(ax, .55 * sp2 + .15 + bob, fl); rzv += side * (.25 + .2 * sp2) * fl; }
+            if (key == 'rleg' || key == 'lleg') { ax = Lp(ax, .25 * sp2 + bob * 2 + (key == 'rleg' ? .05 : -.05), fl); rzv += side * .04 * fl; }
+            if (p.head) ax = Lp(ax, ax + .3 * sp2, fl); }
+        }
         if (key == 'body') pvv = [0, 24, 0];
         off = [T0[0], T0[1], T0[2]];
         if (p.arm !== undefined && m.atkT > 0) ax += Math.sin(m.atkT * Math.PI) * .9;
