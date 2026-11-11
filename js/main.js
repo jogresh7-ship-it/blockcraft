@@ -1159,42 +1159,23 @@ function renderEntities(sk) {
       if (D0.anim && p.bn && D0.anim.f[p.bn]) { const F = D0.anim.f[p.bn], n = F.length, sp = D0.anim.sp ? D0.anim.sp : D0.water && m.inW ? 1.4 : Math.min(1.2, .25 + Math.hypot(m.vx || 0, m.vz || 0)), x = ((t * sp / D0.anim.dur) % 1) * n, i = Math.floor(x) % n, k = x - Math.floor(x), j = (i + 1) % n; ax += F[i][0] + (F[j][0] - F[i][0]) * k; ay += F[i][1] + (F[j][1] - F[i][1]) * k; rzv += F[i][2] + (F[j][2] - F[i][2]) * k; pvv = p.bp; } // clip-driven mobs (axolotl swim)
       if (m.type == 'shulker' && p.bn == 'lid') { off = [0, (m.peekV || 0) * 8, 0]; ay += (m.peekV || 0) * 1.2; } /* the shulker's shell opens to peek and shoot */
       if (p.mlayer !== undefined) off = [0, (4 - p.mlayer) * (m.sq || 0) * 1.7, 0]; // magma cube slices spread as it bounces
-      if (m.type == 'player' && window.PANIM && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
+      if (m.type == 'player' && window.PANIM && pk.sneak < .02 && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
         const key = p.head ? 'head' : p.arm !== undefined ? (p.pos[0] > 0 ? 'rarm' : 'larm') : p.leg !== undefined ? (p.pos[0] > 0 ? 'rleg' : 'lleg') : 'body';
         const v = Math.hypot(m.vx || 0, m.vz || 0), spd = Math.min(1, v / 2.5), run = m.sprinting || v > 4.8 ? 1 : 0;
         if (p === parts[0]) { const nw = t, dt0 = Math.min(.1, nw - (st.paT ?? nw)); st.paT = nw; st.paPh = (((st.paPh || 0) + dt0 * Math.min(v, 7) / 4.3 / 1.45) % 1 + 1) % 1; /* walking backwards plays the cycle in reverse */ st.paRun = (st.paRun || 0) + (run - (st.paRun || 0)) * Math.min(1, dt0 * 6); } // one stride every ~1.45s at walking speed
         const fr = (A, ph) => { const F = PANIM[A].f[key]; if (!F) return null; const n = (F.r || F.t).length, x = ((ph % 1) + 1) % 1 * n, i = Math.floor(x), k = x - i, j = (i + 1) % n, L = (u, v) => u && [u[i][0] + (u[j][0] - u[i][0]) * k, u[i][1] + (u[j][1] - u[i][1]) * k, u[i][2] + (u[j][2] - u[i][2]) * k]; return [L(F.r), L(F.t)]; };
         const I = fr('idle', t / PANIM.idle.dur), W = fr('walk', st.paPh || 0), mix = (a, b) => a && b ? a.map((v, q) => v + (b[q] - v) * spd) : a || b;
         const R = mix(I && I[0], W && W[0]) || [0, 0, 0], T0 = mix(I && I[1], W && W[1]) || [0, 0, 0];
-        { const vv = Math.hypot(m.vx || 0, m.vz || 0), fF = vv > .6 ? (st.lf || 0) / vv : 1, fS = vv > .6 ? (st.ls || 0) / vv : 0; // forward/back = swing, sideways = side-step
-          if (key == 'rleg' || key == 'lleg') { const w = R[0]; R[0] = w * fF; R[2] += Math.abs(w) * -fS * .85; } /* each leg in turn steps out toward the side you move */
-          if (key == 'rarm' || key == 'larm') { const w = R[0]; R[0] = w * (Math.abs(fF) * .7 + .3) * Math.sign(fF || 1); R[2] += Math.abs(w) * fS * .2; }
-          if (key == 'body') R[2] += -fS * .06 * Math.min(1, vv / 4); }
         const rk = st.paRun || 0; // running: the same cycle with bigger swings and a forward lean
         if (key == 'rarm' || key == 'larm' || key == 'rleg' || key == 'lleg') { R[0] *= 1 + rk * .7; if (key[1] == 'a') R[2] *= 1 + rk; }
         if (key == 'body') R[0] -= rk * .2; if (p.head) R[0] -= rk * .1;
         if (p.head) { ax = clamp(m.lookP || 0, -.8, .8) + R[0]; ay += R[1]; rzv = R[2]; } else { ax = R[0]; ay += R[1]; rzv = R[2]; }
         if (p.head) ay -= st.bodyOff || 0;
-        { // poses that blend on top of the walk cycle: crouch-walk, jump (rising), falling, flying
-          const Lp = (a, b, k) => a + (b - a) * k, fly = m === pobj ? !!player.fly && player.mode != 'spectator' : !!m.flying, gr = m === pobj ? player.ground : !m.air, vy = m === pobj ? player.vy : (m.vy || 0);
-          const tA = fly ? 0 : gr ? 0 : vy > 0 ? 1 : 0, tF = fly || gr ? 0 : vy <= 0 ? Math.min(1, -vy / 6) : 0, tL = fly ? 1 : 0;
-          if (p === parts[0]) { st.kUp = Lp(st.kUp || 0, tA, .18); st.kDn = Lp(st.kDn || 0, tF, .14); st.kFly = Lp(st.kFly || 0, tL, .1); }
-          const up = st.kUp || 0, dn = st.kDn || 0, fl = st.kFly || 0, sn = pk.sneak || 0, side = key[0] == 'r' ? 1 : -1;
-          if (sn > .01 && (key == 'rleg' || key == 'lleg')) ax = ax * (1 - .45 * sn) + .12 * sn; // crouch-walk: shorter, bent steps
-          if (sn > .01 && (key == 'rarm' || key == 'larm')) { ax = ax * (1 - .5 * sn) - .25 * sn; rzv += side * .12 * sn; }
-          if (sn > .01 && p.head) ax += .25 * sn;
-          if (up > .01) { if (key == 'rleg') ax = Lp(ax, -.85, up); if (key == 'lleg') ax = Lp(ax, .4, up); if (key[1] == 'a') { ax = Lp(ax, -.55, up); rzv += side * .45 * up; } if (key == 'body') ax = Lp(ax, -.12, up); }
-          if (dn > .01) { const fl2 = Math.sin(t * 13) * .35; // falling: arms thrown up, legs kicking
-            if (key[1] == 'a') { ax = Lp(ax, -2.5 + (key == 'rarm' ? fl2 : -fl2) * .6, dn); rzv += side * .55 * dn; }
-            if (key == 'rleg' || key == 'lleg') { ax = Lp(ax, (key == 'rleg' ? fl2 : -fl2) + .15, dn); rzv += side * .18 * dn; }
-            if (p.head) ax -= .3 * dn; }
-          if (sn < .01 && !fl && st.back && key == 'body') ax += .12; if (st.back && p.head) ax -= .05; // walking backwards leans back a little
-          if (fl > .01) { const f8 = clamp((st.lf || 0) / 8, -1, 1), s8 = clamp((st.ls || 0) / 8, -1, 1), sp2 = Math.max(0, f8), bk = Math.max(0, -f8), bob = Math.sin(t * 2.2) * .06; // flying: lean forward, lean back, bank left/right
-            if (p === parts[0]) st.bank = (st.bank || 0) + (-s8 * .35 * fl - (st.bank || 0)) * .12;
-            if (key == 'body') { ax = Lp(ax, -.35 * sp2 + .3 * bk + bob, fl); rzv += st.bank || 0; }
-            if (key[1] == 'a') { ax = Lp(ax, .55 * sp2 - .45 * bk + .15 + bob, fl); rzv += side * (.25 + .2 * sp2 + .15 * Math.max(0, side * s8)) * fl + (st.bank || 0); }
-            if (key == 'rleg' || key == 'lleg') { ax = Lp(ax, .25 * sp2 - .35 * bk + bob * 2 + (key == 'rleg' ? .05 : -.05), fl); rzv += side * .04 * fl + (st.bank || 0) * .6; }
-            if (p.head) ax = Lp(ax, ax + .3 * sp2, fl); }
+        { // jumping: knee up, other leg back, arms out (blends in and out)
+          const Lp = (a, b, k) => a + (b - a) * k, gr = m === pobj ? player.ground || player.fly : !m.air;
+          if (p === parts[0]) st.kUp = Lp(st.kUp || 0, gr ? 0 : 1, .2);
+          const up = st.kUp || 0, side = key[0] == 'r' ? 1 : -1;
+          if (up > .01) { if (key == 'rleg') ax = Lp(ax, -.85, up); if (key == 'lleg') ax = Lp(ax, .4, up); if (key[1] == 'a') { ax = Lp(ax, -.55, up); rzv += side * .45 * up; } }
         }
         if (key == 'body') pvv = [0, 24, 0];
         off = [T0[0], T0[1], T0[2]];
