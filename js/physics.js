@@ -110,7 +110,7 @@ function stepUp(e, dt, ox, oz) {
   for (const s of [.5625, .6]) {
     if (!world.collides(tx, e.y + s, tz, e.r, e.h) && world.collides(tx, e.y, tz, e.r, e.h)) {
       let y = e.y + s; while (y > e.y && !world.collides(tx, y - .0625, tz, e.r, e.h)) y -= .0625;
-      e.x = tx; e.z = tz; e.y = y; return true;
+      if (e === player) e.stepOff = (e.stepOff || 0) - (y - e.y); e.x = tx; e.z = tz; e.y = y; return true;
     }
   }
   return false;

@@ -622,6 +622,14 @@ class World {
       { const b = this.getOr(x, y, z, 1); if (SOLID[b]) return true; if (SBOX[b]) { let bb = BL[b].bb; if (BL[b].mmo || BL[b].fy) { const st = this.state[x + ',' + y + ',' + z]; if (st && st.open) continue; if (st && st.fd) bb = rotBB(bb, st.fd); } if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) return true; } }
     return false;
   }
+  // highest top of the solid boxes a body at (px,py,pz) overlaps - where it should stand after landing
+  floorTop(px, py, pz, r, h) { let top = null;
+    for (let x = Math.floor(px - r); x <= Math.floor(px + r); x++) for (let y = Math.floor(py); y <= Math.floor(py + h - 0.001); y++) for (let z = Math.floor(pz - r); z <= Math.floor(pz + r); z++) {
+      const b = this.getOr(x, y, z, 1); let t = null;
+      if (SOLID[b]) t = y + 1; else if (SBOX[b]) { let bb = BL[b].bb; if (BL[b].mmo || BL[b].fy) { const st = this.state[x + ',' + y + ',' + z]; if (st && st.open) continue; if (st && st.fd) bb = rotBB(bb, st.fd); }
+        if (px + r > x + bb[0] / 16 && px - r < x + bb[3] / 16 && py + h > y + bb[1] / 16 && py < y + bb[4] / 16 && pz + r > z + bb[2] / 16 && pz - r < z + bb[5] / 16) t = y + bb[4] / 16; }
+      if (t !== null && (top === null || t > top)) top = t; }
+    return top; }
   topY(x, z) { for (let y = WH - 1; y > 0; y--) { const b = this.get(x, y, z); if (SOLID[b] || SHAPE[b] == 3) return y; } return 0; }
 }
 
@@ -633,7 +641,7 @@ function moveBody(w, e, dt) {
     for (let i = 0; i < steps; i++) {
       const o = { x: e.x, y: e.y, z: e.z }; o[ax] += s;
       if (w.collides(o.x, o.y, o.z, r, h)) {
-        if (ax == 'y') { if (s < 0) e.y = Math.floor(e.y + s) + 1; } return true;
+        if (ax == 'y' && s < 0) { const t = w.floorTop(o.x, o.y, o.z, r, h); if (t !== null && t <= e.y + .001) e.y = t; } return true; // land exactly on the surface (slabs, snow, beds, paths...), not on the next whole block
       }
       e[ax] = o[ax];
     }

@@ -939,7 +939,8 @@ function render(dt) {
   // bobbing
   const spd = Math.hypot(P.vx, P.vz); P.bob = (P.bob || 0) + (P.ground ? spd * dt * 1.6 : 0); const bobA = opts.bob && P.ground && !P.fly ? Math.min(1, spd / 4.3) : 0; P.bobA = lerp(P.bobA || 0, bobA, Math.min(1, dt * 8));
   const bx = Math.sin(P.bob * Math.PI) * .05 * P.bobA, by = -Math.abs(Math.cos(P.bob * Math.PI)) * .08 * P.bobA;
-  let eye = [P.x, P.y + P.eyeH, P.z]; const realEye = eye.slice();
+  P.stepOff = (P.stepOff || 0) * Math.max(0, 1 - dt * 14); if (Math.abs(P.stepOff) < .002) P.stepOff = 0; // camera glides up steps instead of jumping
+  let eye = [P.x, P.y + P.eyeH + P.stepOff, P.z]; const realEye = eye.slice();
   let camYaw = P.yaw, camPitch = P.pitch;
   if (P.view) { const f = fwd(), dir = P.view == 1 ? -1 : 1; let d = 4; for (let t = .3; t <= 4; t += .1) { const b = world.get(Math.floor(eye[0] + f[0] * t * dir), Math.floor(eye[1] + f[1] * t * dir), Math.floor(eye[2] + f[2] * t * dir)); if (OPAQUE[b]) { d = Math.max(.3, t - .3); break; } } eye = eye.map((v, i) => v + f[i] * d * dir); if (P.view == 2) { camYaw = P.yaw + Math.PI; camPitch = -P.pitch; } }
   const proj = camMatrices(underwater ? .9 : 1);
