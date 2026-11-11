@@ -316,7 +316,7 @@ function updateMobs(dt) {
         m.mv = D.ranged ? (dist > 10 ? 1 : dist < 5 ? -0.6 : 0) : D.creeper && m.fuse > 0 ? 0 : 1; m.speedMul = D.speed / 1.1;
         m.atkCd = (m.atkCd || 0) - dt; if (m.atkT > 0) m.atkT -= dt * 3;
         if (D.dmg && !D.ranged && dist < (D.boss ? 6 : D.heavy ? 2.6 : 1.6) && Math.abs(dy) < (D.boss ? 5 : 1.5) && m.atkCd <= 0) { m.atkCd = 1; m.atkT = 1; hurtPlayer(D.dmg[world.meta.diff], 'was slain by ' + m.type[0].toUpperCase() + m.type.slice(1), false, [m.x, m.y, m.z]); }
-        if (D.ranged && dist < 16 && m.atkCd <= 0) { m.atkCd = 2 + Math.random(); shootArrow(m, player); }
+        if (D.ranged && !D.special && dist < 16 && m.atkCd <= 0) { m.atkCd = 2 + Math.random(); shootArrow(m, player); }
         if (D.ghast) { m.mv = dist > 20 ? .6 : 0; if (m.shootT > 0) { m.shootT -= dt; if (m.shootT <= 0) shootFireball(m, player); } else if (m.atkCd <= 0) { m.atkCd = 3 + Math.random() * 2; m.shootT = .5; SND.play('mob/ghast/charge', 1, 1, [m.x, m.y, m.z]); } }
         if (D.slime && m.ground && m.atkCd <= 0) { m.atkCd = 1 + Math.random(); m.vy = 7; m.kx = -Math.sin(m.yaw) * 2; m.kz = -Math.cos(m.yaw) * 2; SND.play(m.size > 1 ? 'mob/slime/big' : 'mob/slime/small', .5, 1, [m.x, m.y, m.z]); }
         if (D.teleport && dist > 12 && Math.random() < dt * .3) tpMob(m, player.x, player.z, 4);
@@ -455,7 +455,7 @@ function mobVsMob(m, D, dt) {
   m.yawT = Math.atan2(-dx, -dz); m.mv = dist > 1.2 ? 1.3 : 0; m.wt = 1; m.speedMul = (D.speed || 1.1) / 1.1;
   m.atkCd = (m.atkCd || 0) - dt; if (m.atkT > 0) m.atkT -= dt * 3;
   const reach = (D.w || .6) / 2 + (MOBDEF[o.type].w || .6) / 2 + .8;
-  if (D.ranged && dist < 14 && m.atkCd <= 0) { m.atkCd = 2; hurtMob(o, 3, dx / (dist || 1) * .3, dz / (dist || 1) * .3); return; }
+  if (D.ranged && !D.special && dist < 14 && m.atkCd <= 0) { m.atkCd = 2; hurtMob(o, 3, dx / (dist || 1) * .3, dz / (dist || 1) * .3); return; }
   if (dist < reach && Math.abs(o.y - m.y) < 1.5 && m.atkCd <= 0) {
     m.atkCd = m.type == 'iron_golem' ? 1.2 : 1; m.atkT = 1;
     const dmg = m.type == 'iron_golem' ? 10 : m.type == 'wolf' ? 4 : D.dmg ? (D.dmg[2] || 3) : 2;
@@ -860,7 +860,7 @@ function updateArrows(dt) {
     if (a.onHit && (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] || FLUID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] && a.wet)) { a.life = 0; a.onHit(null, a.x, a.y, a.z); continue; }
     if (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))]) { a.stuck = true; if (a.pick) a.life = 60; a.life = Math.min(a.life, 20); SND.play('random/bowhit', .5, 1, [nx, ny, nz]); continue; }
     a.x = nx; a.y = ny; a.z = nz;
-    if (Math.abs(a.x - player.x) < .4 && a.y > player.y && a.y < player.y + 1.8 && Math.abs(a.z - player.z) < .4 && player.mode == 'survival' && !a.fire && !a.byPlayer) { a.life = 0; if (shieldBlocks([a.x - a.vx, a.y, a.z - a.vz])) continue; hurtPlayer([0, 2, 3, 4][world.meta.diff] + (Math.random() * 2 | 0), 'was shot by Skeleton', false, [a.x - a.vx, a.y, a.z - a.vz]); }
+    if (Math.abs(a.x - player.x) < .4 + (a.big || 0) && a.y > player.y - (a.big || 0) && a.y < player.y + 1.8 && Math.abs(a.z - player.z) < .4 + (a.big || 0) && player.mode == 'survival' && !a.fire && !a.byPlayer) { a.life = 0; if (a.onPlayer) { a.onPlayer(a); continue; } if (shieldBlocks([a.x - a.vx, a.y, a.z - a.vz])) continue; hurtPlayer([0, 2, 3, 4][world.meta.diff] + (Math.random() * 2 | 0), 'was shot by Skeleton', false, [a.x - a.vx, a.y, a.z - a.vz]); }
   }
   arrows = arrows.filter(a => a.life > 0);
 }
@@ -1103,6 +1103,8 @@ function renderEntities(sk) {
   for (const m of [...mobs, ...netAvatarsFor(), ...(pobj ? [pobj] : [])]) {
     const L = lightAt(m.x, m.y + .5, m.z); gl.uniform1f(u.uDay, Math.max(sk.day * L[0], L[1]));
     const D0 = MOBDEF[m.type], sc = (D0.scale || 1) * (m.size || 1) / 16; let parts = getModel(m.type), base = M4.chain(M4.trans(m.x, m.y + (D0.fly ? Math.sin(t + m.x) * .1 : 0), m.z), M4.ry(m.yaw), D0.slime ? M4.scale(sc * (1 - (m.sq || 0) * .4), sc * (1 + (m.sq || 0)), sc * (1 - (m.sq || 0) * .4)) : M4.scale(sc, sc, sc));
+    if ((D0.fly && !D0.boss && m.type != 'bat' && m.type != 'vex' && m.type != 'allay') || (D0.water && m.inW)) { m.tilt = (m.tilt || 0) + (clamp((m.vy || 0) * .09, -.7, .7) - (m.tilt || 0)) * .15; const hc = (D0.h || 1) * 8; base = M4.chain(base, M4.trans(0, hc, 0), M4.rx(m.tilt), M4.trans(0, -hc, 0)); } // flyers and swimmers pitch with their climb or dive
+    if (D0.water && m.inW === false && m.ground && m.type != 'axolotl') base = M4.chain(base, M4.trans(0, 2, 0), M4.rz(Math.PI / 2 * .9), M4.trans(0, -2, 0)); // fish flop on their side on land
     const sw = Math.sin(m.walk) * .7 * Math.min(1, Math.hypot(m.vx, m.vz));
     // poses blend smoothly instead of snapping (water -> standing, sneaking, sitting, gliding)
     const st = m === pobj ? P : m, now = performance.now(); st.pk = st.pk || { sneak: 0, sit: 0, swim: 0, glide: 0, t: now };
