@@ -1145,9 +1145,14 @@ function renderEntities(sk) {
       let pvv = pv, off = null;
       if (m.type == 'player' && window.PANIM && pk.sneak < .02 && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
         const key = p.head ? 'head' : p.arm !== undefined ? (p.pos[0] > 0 ? 'rarm' : 'larm') : p.leg !== undefined ? (p.pos[0] > 0 ? 'rleg' : 'lleg') : 'body';
-        const spd = Math.min(1, Math.hypot(m.vx || 0, m.vz || 0) / 3.5), fr = (A, ph) => { const F = PANIM[A].f[key]; if (!F) return null; const n = (F.r || F.t).length, x = ((ph % 1) + 1) % 1 * n, i = Math.floor(x), k = x - i, j = (i + 1) % n, L = (u, v) => u && [u[i][0] + (u[j][0] - u[i][0]) * k, u[i][1] + (u[j][1] - u[i][1]) * k, u[i][2] + (u[j][2] - u[i][2]) * k]; return [L(F.r), L(F.t)]; };
-        const I = fr('idle', t / PANIM.idle.dur), W = fr('walk', (m.walk || 0) / (Math.PI * 2)), mix = (a, b) => a && b ? a.map((v, q) => v + (b[q] - v) * spd) : a || b;
+        const v = Math.hypot(m.vx || 0, m.vz || 0), spd = Math.min(1, v / 2.5), run = m.sprinting || v > 4.8 ? 1 : 0;
+        if (p === parts[0]) { const nw = t, dt0 = Math.min(.1, nw - (st.paT ?? nw)); st.paT = nw; st.paPh = ((st.paPh || 0) + dt0 * Math.min(v, 7) / 4.3 / 1.45) % 1; st.paRun = (st.paRun || 0) + (run - (st.paRun || 0)) * Math.min(1, dt0 * 6); } // one stride every ~1.45s at walking speed
+        const fr = (A, ph) => { const F = PANIM[A].f[key]; if (!F) return null; const n = (F.r || F.t).length, x = ((ph % 1) + 1) % 1 * n, i = Math.floor(x), k = x - i, j = (i + 1) % n, L = (u, v) => u && [u[i][0] + (u[j][0] - u[i][0]) * k, u[i][1] + (u[j][1] - u[i][1]) * k, u[i][2] + (u[j][2] - u[i][2]) * k]; return [L(F.r), L(F.t)]; };
+        const I = fr('idle', t / PANIM.idle.dur), W = fr('walk', st.paPh || 0), mix = (a, b) => a && b ? a.map((v, q) => v + (b[q] - v) * spd) : a || b;
         const R = mix(I && I[0], W && W[0]) || [0, 0, 0], T0 = mix(I && I[1], W && W[1]) || [0, 0, 0];
+        const rk = st.paRun || 0; // running: the same cycle with bigger swings and a forward lean
+        if (key == 'rarm' || key == 'larm' || key == 'rleg' || key == 'lleg') { R[0] *= 1 + rk * .7; if (key[1] == 'a') R[2] *= 1 + rk; }
+        if (key == 'body') R[0] -= rk * .2; if (p.head) R[0] -= rk * .1;
         if (p.head) { ax = clamp(m.lookP || 0, -.8, .8) + R[0]; ay += R[1]; rzv = R[2]; } else { ax = R[0]; ay += R[1]; rzv = R[2]; }
         if (key == 'body') pvv = [0, 24, 0];
         off = [T0[0], T0[1], T0[2]];
