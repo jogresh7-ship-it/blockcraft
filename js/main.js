@@ -217,6 +217,29 @@ MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, 
     parts: [MC([-2.5, -5, -2.5], [5, 5, 5], V, [0, 0], 0, { head: 1, pivot: [0, 6.5, 0] }), MC([-1.5, 0, -1], [3, 4, 2], V, [0, 10]), MC([-1.5, 1, -1], [3, 5, 2], V, [0, 16], 0, { inf: -.2 }),
       MC([-1.25, -.5, -1], [2, 4, 2], VA(-1.75), [23, 0], 0, { arm: 0, hand: 1, pivot: [-2, 6.25, 0], inf: -.1 }), MC([-.75, -.5, -1], [2, 4, 2], VA(1.75), [23, 6], 0, { arm: 1, pivot: [2, 6.25, 0], inf: -.1 }),
       MC([0, 0, 0], [0, 5, 8], [-.5, 18.5, 1], [16, 14], 0, { vw: -1, pivot: [-.5, 5.5, 1] }), MC([0, 0, 0], [0, 5, 8], [.5, 18.5, 1], [16, 14], 0, { vw: 1, pivot: [.5, 5.5, 1] })] };
+  // ---- allay, bat, warden, goat (Java AllayModel / BatModel / WardenModel / GoatModel geometry on the vanilla textures) ----
+  MOBDEF.allay = { tex: 'mob_allay', w: .35, h: .6, hp: 20, fly: 1, flyH: 1, speed: 2, drop: [], sound: 'mob/allay/idle_without_item1', hurt: 'mob/allay/hurt1', death: 'mob/allay/death1', step: null, glow: 1,
+    parts: [MC([-2.5, -5, -2.5], [5, 5, 5], [0, 19.51, 0], [0, 0], 0, { head: 1, pivot: [0, 4.5, 0] }), MC([-1.5, 0, -1], [3, 4, 2], [0, 19.5, 0], [0, 10]), MC([-1.5, 0, -1], [3, 5, 2], [0, 19.5, 0], [0, 16], 0, { inf: -.2 }),
+      MC([-.75, -.5, -1], [1, 4, 2], [-1.75, 20, 0], [23, 0], 0, { arm: 0, hand: 1, pivot: [-1.75, 4, 0], inf: -.01 }), MC([-.25, -.5, -1], [1, 4, 2], [1.75, 20, 0], [23, 6], 0, { arm: 1, pivot: [1.75, 4, 0], inf: -.01 }),
+      MC([0, 1, 0], [0, 5, 8], [-.5, 19.5, .6], [16, 14], 0, { vw: -1, pivot: [-.5, 4.5, .6] }), MC([0, 1, 0], [0, 5, 8], [.5, 19.5, .6], [16, 14], 0, { vw: 1, pivot: [.5, 4.5, .6] })] };
+  MOBDEF.bat = { tex: 'mob_bat', tw: 32, w: .5, h: .9, hp: 6, fly: 1, flyH: 1, speed: 3, drop: [], sound: 'mob/bat/idle1', hurt: 'mob/bat/hurt1', death: 'mob/bat/death', step: null,
+    parts: [MC([-1.5, 0, -1], [3, 5, 2], [0, 17, 0], [0, 0]), MC([-2, -3, -1], [4, 3, 2], [0, 17, 0], [0, 7], 0, { head: 1, pivot: [0, 7, 0] }),
+      MC([-2.5, -4, 0], [3, 5, 0], [-1.5, 15, 0], [1, 15], 0, { head: 1, pivot: [0, 7, 0] }), MC([-.1, -3, 0], [3, 5, 0], [1.1, 14, 0], [8, 15], 0, { head: 1, pivot: [0, 7, 0] }),
+      MC([-2, -2, 0], [2, 7, 0], [-1.5, 17, 0], [12, 0], 0, { vw: -1, pivot: [-1.5, 7, 0] }), MC([-6, -2, 0], [6, 8, 0], [-3.5, 17, 0], [16, 0], 0, { vw: -1.6, pivot: [-1.5, 7, 0] }),
+      MC([0, -2, 0], [2, 7, 0], [1.5, 17, 0], [12, 7], 0, { vw: 1, pivot: [1.5, 7, 0] }), MC([0, -2, 0], [6, 8, 0], [3.5, 17, 0], [16, 8], 0, { vw: 1.6, pivot: [1.5, 7, 0] }), MC([-1.5, 0, 0], [3, 2, 0], [0, 22, 0], [16, 16])] };
+  const WB = [0, 3, 0], WH0 = [0, -10, 0];
+  MOBDEF.warden = { tex: 'mob_warden', w: .9, h: 2.9, hp: 500, hostile: 1, speed: 1.2, dmg: [0, 16, 30, 45], drop: [['sculk_catalyst', 1, 1]], sound: 'mob/warden/idle1', hurt: 'mob/warden/hurt1', death: 'mob/warden/death', step: 'mob/warden/step1', heavy: 1, noBurn: 1,
+    parts: [MC([-9, -13, -4], [18, 21, 11], WB, [0, 0]), MC([-2, -11, -.1], [9, 21, 0], [-7, 1, -4], [90, 11]), MC([-7, -11, -.1], [9, 21, 0], [7, 1, -4], [90, 11]),
+      MC([-8, -16, -5], [16, 16, 10], WH0, [0, 32], 0, { head: 1, pivot: [0, 34, 0] }), MC([-16, -13, 0], [16, 16, 0], [-8, -22, 0], [52, 32], 0, { head: 1, pivot: [0, 34, 0], vw: -.4 }), MC([0, -13, 0], [16, 16, 0], [8, -22, 0], [58, 0], 0, { head: 1, pivot: [0, 34, 0], vw: .4 }),
+      MC([-4, 0, -4], [8, 28, 8], [-13, -10, 1], [44, 50], 0, { arm: 0, pivot: [-13, 34, 1] }), MC([-4, 0, -4], [8, 28, 8], [13, -10, 1], [0, 58], 0, { arm: 1, pivot: [13, 34, 1] }),
+      MC([-3.1, 0, -3], [6, 13, 6], [-5.9, 11, 0], [76, 48], 0, { leg: 0, pivot: [-5.9, 13, 0] }), MC([-2.9, 0, -3], [6, 13, 6], [5.9, 11, 0], [76, 76], 0, { leg: 1, pivot: [5.9, 13, 0] })] };
+  const GH = [1, 14, 0], GHP = { head: 1, pivot: [1, 10, 0] };
+  MOBDEF.goat = { tex: 'mob_goat', w: .9, h: 1.3, hp: 10, speed: 1.3, drop: [], sound: 'mob/goat/idle1', hurt: 'mob/goat/hurt1', death: 'mob/goat/death1', step: 'mob/goat/step1', breed: 'wheat', jumpy: 1,
+    parts: [MC([-4, -17, -7], [9, 11, 16], [0, 24, 0], [1, 1]), MC([-5, -18, -8], [11, 14, 11], [0, 24, 0], [0, 28]),
+      MC([-.01, -16, 10], [2, 7, 2], [1, 20, -2], [12, 55], .9599, GHP), MC([-2.99, -16, 10], [2, 7, 2], [1, 20, -2], [12, 55], .9599, GHP), MC([-3, -4, -8], [5, 7, 10], [1, 15.96, -11.1], [34, 46], .9599, GHP),
+      MC([-6, -11, -10], [3, 2, 1], GH, [2, 61], .9599, GHP), MC([2, -11, -10], [3, 2, 1], GH, [50, 61], .9599, GHP),
+      MC([0, 4, 0], [3, 6, 3], [1, 14, 4], [36, 29], 0, { leg: 0, pivot: [2.5, 10, 5.5] }), MC([0, 4, 0], [3, 6, 3], [-3, 14, 4], [49, 29], 0, { leg: 1, pivot: [-1.5, 10, 5.5] }),
+      MC([0, 0, 0], [3, 10, 3], [-3, 14, -6], [49, 2], 0, { leg: 0, pivot: [-1.5, 10, -4.5] }), MC([0, 0, 0], [3, 10, 3], [1, 14, -6], [35, 2], 0, { leg: 1, pivot: [2.5, 10, -4.5] })] };
   const RN = [0, -7, 5.5], RH = [0, 9, -11.5];
   MOBDEF.ravager = { tex: 'mob_ravager', w: 1.95, h: 2.2, hp: 100, hostile: 1, speed: 1.3, dmg: [0, 7, 12, 18], drop: [['item:saddle', 1, 1]], sound: 'mob/ravager/idle', hurt: 'mob/ravager/hurt', death: 'mob/ravager/death', step: 'mob/ravager/step', heavy: 1,
     parts: [MC([-7, -10, -7], [14, 16, 20], [0, 1, 2], [0, 55], Math.PI / 2), MC([-6, 6, -7], [12, 13, 18], [0, 1, 2], [0, 91], Math.PI / 2),
@@ -271,7 +294,7 @@ function getModel(type) {
   if (MODELS[type]) return MODELS[type];
   const def = MOBDEF[type]; const parts = def.parts.map(p => {
     if (!IMG[p.tex || def.tex]) return null;
-    const im = IMG[p.tex || def.tex], ref = ORIG[p.tex || def.tex] || im; const tw = ref.width / 2, th = tw * im.height / im.width; if ((th <= 32 || legacySkin(im)) && p.uv[1] >= 32) { const alt = { '32,48': [40, 16], '16,48': [0, 16] }[p.uv.join(',')]; if (!alt) return null; p = Object.assign({}, p, { uv: alt }); } const arr = []; boxVerts(arr, p.box, p.uv, tw, th, p.inf || 0);
+    const im = IMG[p.tex || def.tex], ref = ORIG[p.tex || def.tex] || im; const tw = def.tw || ref.width / 2, th = def.tw ? def.tw * im.height / im.width : tw * im.height / im.width; if ((th <= 32 || legacySkin(im)) && p.uv[1] >= 32) { const alt = { '32,48': [40, 16], '16,48': [0, 16] }[p.uv.join(',')]; if (!alt) return null; p = Object.assign({}, p, { uv: alt }); } const arr = []; boxVerts(arr, p.box, p.uv, tw, th, p.inf || 0);
     return Object.assign({}, p, { mesh: mkMesh(new Float32Array(arr)), tex: p.tex || def.tex });
   });
   return MODELS[type] = parts.filter(Boolean);
@@ -458,7 +481,7 @@ function naturalSpawn(c) {
   if (mobs.length > 40 || world.meta.flat && Math.random() < .5) return;
   const H = world.N.hash(c.cx, 1234, c.cz); if (H > .12) return;
   if (world.dim == 'nether') return;
-  const bio = world.biome(c.cx * 16 + 8, c.cz * 16 + 8), types = /snowy|frozen/.test(bio) ? ['polar_bear', 'sheep'] : /taiga|forest/.test(bio) ? ['pig', 'cow', 'sheep', 'wolf', 'chicken'] : /plains|savanna|meadow/.test(bio) ? ['pig', 'cow', 'sheep', 'chicken', 'horse', 'donkey'] : ['pig', 'cow', 'sheep', 'chicken'], t = types[Math.floor(world.N.hash(c.cx, 99, c.cz) * types.length)], n = t == 'wolf' || t == 'polar_bear' || t == 'horse' || t == 'donkey' ? 2 + Math.floor(H * 10) : 2 + Math.floor(H * 20);
+  const bio = world.biome(c.cx * 16 + 8, c.cz * 16 + 8), types = /mountain|peak|slope/.test(bio) ? ['goat', 'sheep'] : /snowy|frozen/.test(bio) ? ['polar_bear', 'sheep', 'goat'] : /taiga|forest/.test(bio) ? ['pig', 'cow', 'sheep', 'wolf', 'chicken'] : /plains|savanna|meadow/.test(bio) ? ['pig', 'cow', 'sheep', 'chicken', 'horse', 'donkey'] : ['pig', 'cow', 'sheep', 'chicken'], t = types[Math.floor(world.N.hash(c.cx, 99, c.cz) * types.length)], n = t == 'wolf' || t == 'polar_bear' || t == 'horse' || t == 'donkey' ? 2 + Math.floor(H * 10) : 2 + Math.floor(H * 20);
   for (let i = 0; i < n; i++) {
     const lx = Math.floor(world.N.hash(c.cx, i, c.cz) * 16), lz = Math.floor(world.N.hash(c.cx, i + 50, c.cz) * 16), x = c.cx * 16 + lx, z = c.cz * 16 + lz;
     const y = world.topY(x, z); const b = world.get(x, y, z); if (b == B('grass_block') || b == B('snowy_grass_block')) { const m = spawnMob(t, x + .5, y + 1, z + .5); if (t == 'sheep') m.wool = 0; }
