@@ -8,7 +8,7 @@ Object.assign(PREY, {
   enderman: n => n == 'endermite', piglin: n => n == 'wither_skeleton', piglin_brute: n => n == 'wither_skeleton', wither_skeleton: n => /^piglin/.test(n),
   zoglin: n => MOBDEF[n] && !/zoglin|creeper|ghast/.test(n),
   wither: n => MOBDEF[n] && !MOBDEF[n].undead && !/wither|zombie|skeleton|husk|drowned|stray|bogged|phantom|zoglin|ghast|minecart|player/.test(n),
-  copper_golem: () => false, polar_bear: n => n == 'fox',
+  copper_golem: () => false, polar_bear: n => n == 'fox', fox: n => /^(chicken|rabbit|cod|salmon)$/.test(n),
   llama: n => n == 'wolf',
   dolphin: () => false,
 });
@@ -55,7 +55,7 @@ naturalSpawn = function (c) {
   let t = null, n = 1;
   if (top == 'water') { const k = world.N.hash(c.cx, 9, c.cz); t = /swamp/.test(bio) ? (k < .5 ? 'frog' : 'tadpole') : /beach/.test(bio) ? 'turtle' : k < .4 ? 'cod' : k < .65 ? 'salmon' : k < .8 ? 'squid' : k < .9 ? 'dolphin' : k < .95 ? 'pufferfish' : 'axolotl'; n = /cod|salmon|tadpole/.test(t) ? 4 : t == 'dolphin' ? 3 : 1; }
   else if (/^(grass_block|sand|red_sand|snow_block|snowy_grass_block|podzol)$/.test(top)) {
-    const L = /jungle/.test(bio) ? ['ocelot', 'parrot', 'panda', 'parrot'] : /bamboo/.test(bio) ? ['panda'] : /desert/.test(bio) ? ['rabbit', 'camel'] : /savanna/.test(bio) ? ['armadillo', 'llama', 'rabbit'] : /mountain|peak|meadow|windswept/.test(bio) ? ['llama', 'rabbit'] : /swamp/.test(bio) ? ['frog'] : /beach/.test(bio) ? ['turtle'] : /flower|cherry/.test(bio) ? ['bee', 'rabbit'] : /forest|birch|taiga|plains/.test(bio) ? ['rabbit', 'bee', 'cat'] : ['rabbit'];
+    const L = /jungle/.test(bio) ? ['ocelot', 'parrot', 'panda', 'parrot'] : /bamboo/.test(bio) ? ['panda'] : /desert/.test(bio) ? ['rabbit', 'camel'] : /savanna/.test(bio) ? ['armadillo', 'llama', 'rabbit'] : /mountain|peak|meadow|windswept/.test(bio) ? ['llama', 'rabbit'] : /swamp/.test(bio) ? ['frog'] : /beach/.test(bio) ? ['turtle'] : /flower|cherry/.test(bio) ? ['bee', 'rabbit'] : /taiga|snowy|grove/.test(bio) ? ['fox', 'fox', 'rabbit'] : /forest|birch|plains/.test(bio) ? ['rabbit', 'bee', 'cat'] : ['rabbit'];
     t = L[Math.floor(world.N.hash(c.cx, 11, c.cz) * L.length)]; n = t == 'rabbit' ? 3 : t == 'llama' ? 3 : t == 'bee' ? 2 : 1;
   }
   if (!t || !MOBDEF[t]) return;

@@ -25,7 +25,7 @@ def convert(D, key, H, yaw, outdir):
     skin = g.get('skins', [{}])[0] if g.get('skins') else {}; jn = [g['nodes'][j].get('name', '') for j in skin.get('joints', [])]
     texkeys = {}
     for mi, mat in enumerate(g.get('materials', [])):
-        t = mat.get('pbrMetallicRoughness', {}).get('baseColorTexture')
+        t = mat.get('pbrMetallicRoughness', {}).get('baseColorTexture') or mat.get('extensions', {}).get('KHR_materials_pbrSpecularGlossiness', {}).get('diffuseTexture')
         if t is None: continue
         img = g['images'][g['textures'][t['index']]['source']]['uri']; k = '%s_%d' % (key, mi)
         im = Image.open(D + '/' + img).convert('RGBA')
@@ -51,6 +51,7 @@ def convert(D, key, H, yaw, outdir):
                         JM[j] = mm(Wj, [[ib[c * 4 + r] for c in range(4)] for r in range(4)]) if ib else Wj
                     return JM[j]
                 P = [[sum(jm(J[k][0])[r][c] * (p[c] if c < 3 else 1) for c in range(4)) for r in range(3)] for k, p in enumerate(P)]
+            elif J: P = [[q[0], q[2], -q[1]] for q in ([sum(M[r][c] * (p[c] if c < 3 else 1) for c in range(4)) for r in range(3)] for p in P)]  # skinned Sketchfab exports lie on their back (z up): stand them up
             else: P = [[sum(M[r][c] * (p[c] if c < 3 else 1) for c in range(4)) for r in range(3)] for p in P]
             for t in range(0, len(I) - 2, 3):
                 a, b, c = I[t], I[t + 1], I[t + 2]
@@ -59,7 +60,7 @@ def convert(D, key, H, yaw, outdir):
                 groups.setdefault(gk, []).extend([P[a] + list(U[a]), P[b] + list(U[b]), P[c] + list(U[c])])
     pts = [v for tri in groups.values() for v in tri]
     mn = [min(v[i] for v in pts) for i in range(3)]; mx = [max(v[i] for v in pts) for i in range(3)]
-    s = H * 16 / (mx[1] - mn[1]); cx, cz = (mn[0] + mx[0]) / 2, (mn[2] + mx[2]) / 2; ca, sa = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+    s = H * 16 / (mx[1] - mn[1]) if H > 0 else -H * 16 / max(mx[i] - mn[i] for i in range(3)); cx, cz = (mn[0] + mx[0]) / 2, (mn[2] + mx[2]) / 2; ca, sa = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
     def X(v): x, y, z = (v[0] - cx) * s, (v[1] - mn[1]) * s, (v[2] - cz) * s; return [x * ca + z * sa, y, -x * sa + z * ca]
     parts = []
     for (bone, tk), vs in groups.items():
@@ -74,6 +75,7 @@ def convert(D, key, H, yaw, outdir):
         else: piv = ctr
         p['pos'] = [round(v, 3) for v in piv]
         if 'leg' in p or 'head' in p or 'wag' in p: p['pivot'] = p['pos']
+        p['bn'] = bone; p['bp'] = p['pos']
         p['tris'] = [round(q[i] - piv[i], 3) if i < 3 else round(q[i], 5) for q in Q for i in range(5)]
         p['box'] = [1, 1, 1]; p['uv'] = [0, 0]
         parts.append(p)

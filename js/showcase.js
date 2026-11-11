@@ -24,7 +24,7 @@ function blockInfo(id) {
 }
 function showcaseBuild() {
   const P = player, y = Math.floor(P.y); world.meta.showcaseBuilt = 2;
-  const types = Object.keys(MOBDEF).filter(t => (MOBDEF[t].parts || MOBDEF[t].tex) && !/^(player|minecart|boat|chest_boat|armor_stand|item_frame|ghost|tnt|falling_block)$/.test(t));
+  const types = Object.keys(MOBDEF).filter(t => (MOBDEF[t].parts || MOBDEF[t].tex) && !MOBDEF[t].hide && !/^(player|minecart|boat|chest_boat|armor_stand|item_frame|ghost|tnt|falling_block)$/.test(t));
   types.forEach((t, i) => { const x = Math.floor(P.x) - 30 + (i % 12) * 5, z = Math.floor(P.z) - 12 - Math.floor(i / 12) * 6, D = MOBDEF[t];
     world.set(x, y - 1, z, BYNAME.polished_andesite || BYNAME.stone);
     const m = spawnMob(t, x + .5, y + (D.fly ? 1 : 0), z + .5); if (!m) return; m.ghost = true; m.statue = 1; m.persist = 1; m.yaw = Math.PI; m.vx = m.vy = m.vz = 0; });

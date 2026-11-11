@@ -26,7 +26,7 @@ WASD to move, Space to jump, mouse to look, left click to break, right click to 
 - Controller prompt icons are from [Kenney](https://kenney.nl) (CC0).
 - The player's idle and walking animation comes from "Minecraft Idle and Walking animation" by [Osk1](https://sketchfab.com/Osk1) (CC-BY 4.0).
 - The axolotl swim cycle and the bee wing beat are sampled from "Minecraft Axolotl" and "Minecraft Bee" by [None_Yaroslav](https://sketchfab.com/None_Yaroslav) (CC-BY 4.0).
-- The ghast, slime, snow golem and wolf models are by [Vincent Yanez](https://sketchfab.com/vinceyanez), the phantom by [trmhtk2](https://sketchfab.com/trmhtk2) and the tadpole by [RilyGames](https://sketchfab.com/RilyGame), all CC-BY 4.0 on Sketchfab.
+- The ghast, slime, snow golem and wolf models are by [Vincent Yanez](https://sketchfab.com/vinceyanez), the phantom by [trmhtk2](https://sketchfab.com/trmhtk2) the tadpole and frog by [RilyGames](https://sketchfab.com/RilyGame), the fox by [kuzneciv](https://sketchfab.com/kuzneciv), the sniffer by [Minecraft_Master](https://sketchfab.com/porterjett13), the animated wither by [CanYuTsai](https://sketchfab.com/canyutsai1) and the arrow by [None_Yaroslav](https://sketchfab.com/None_Yaroslav), all CC-BY 4.0 on Sketchfab.
 - Newer mob shapes are converted from Mojang's public bedrock-samples geometry; their textures are from Faithful.
 - Mojang textures and sounds are **not** included. For sound, load a Minecraft sound pack `.zip` under Options > Music & Sounds. You can also import a resource pack from the Resource Packs screen.
 - `tools/` holds the Python scripts used to build the texture atlas and convert block models.
