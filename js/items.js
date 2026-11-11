@@ -273,7 +273,7 @@ function drawTitles(dt) {
 }
 // ---------- map triggers: command blocks that fire when you walk up to them (imported maps), once per visit ----------
 function mapTriggers(dt) {
-  if (!world.meta.map) return; const P = player; mapTriggers.near = mapTriggers.near || new Set();
+  if (!pkMap()) return; const P = player; mapTriggers.near = mapTriggers.near || new Set();
   for (const k in world.state) { const st = world.state[k]; if (!st.trig || !st.cmd) continue; const [x, y, z] = k.split(',').map(Number);
     const inside = Math.abs(P.x - x - .5) < 2.5 && Math.abs(P.z - z - .5) < 2.5 && P.y - y > -1 && P.y - y < 4;
     if (inside && !mapTriggers.near.has(k)) { mapTriggers.near.add(k); runCommandBlock(st.cmd, x, y, z); } else if (!inside) mapTriggers.near.delete(k); }
@@ -302,12 +302,13 @@ function dispense(x, y, z, dropper) {
 
 // ---------- parkour tools (map worlds): hotbar items to jump back to your checkpoint, restart, and a feather for slow falling ----------
 const PK_TOOLS = [['light_weighted_pressure_plate', 'Back to Checkpoint'], ['barrier', 'Restart Parkour'], ['feather', 'Feather (Slow Falling)']];
-function parkourKit() { const P = player; if (!world.meta.map) return; PK_TOOLS.forEach(([n], i) => { const k = itemKey(n) || itemKey('item:' + n); if (k) P.inv[6 + i] = { k, c: 1, pk: 1 }; }); }
+function pkMap() { return world.meta.map && !(window.MAPS && MAPS[world.meta.map] || {}).free; }
+function parkourKit() { const P = player; if (!pkMap()) return; PK_TOOLS.forEach(([n], i) => { const k = itemKey(n) || itemKey('item:' + n); if (k) P.inv[6 + i] = { k, c: 1, pk: 1 }; }); }
 function parkourUse(h) {
-  if (!world.meta.map || !h) return false; const P = player, n = keyName(h.k), MP = MAPS[world.meta.map]; P.cool = P.cool || {};
+  if (!pkMap() || !h) return false; const P = player, n = keyName(h.k), MP = MAPS[world.meta.map]; P.cool = P.cool || {};
   if (n == 'light_weighted_pressure_plate') { const sp = P.cp || MP.spawn; P.x = sp[0]; P.y = sp[1]; P.z = sp[2]; P.vx = P.vy = P.vz = 0; P.fallStart = P.y; SND.play('mob/endermen/portal', .5, 1.4); S.actionbar = { text: '§aBack to your checkpoint', t: 2 }; return true; }
   if (n == 'barrier') { const sp = MP.spawn; P.cp = null; P.spawn = sp.slice(); P.x = sp[0]; P.y = sp[1]; P.z = sp[2]; P.vx = P.vy = P.vz = 0; P.fallStart = P.y; P.yaw = Math.PI; clearEff(); SND.play('random/orb', .6, .6); S.title = { text: '§eParkour restarted', sub: 'Good luck!', t: 2.5 }; return true; }
   if (n == 'feather') { if (P.cool.feather > 0) { S.actionbar = { text: '§cFeather recharging: ' + Math.ceil(P.cool.feather) + 's', t: 1 }; return true; } P.cool.feather = 12; addEff('slow_falling', 6, 0); SND.play('mob/chicken/plop', .8, 1.5); for (let i = 0; i < 12; i++) spark('generic', P.x + (Math.random() - .5), P.y + Math.random() * 2, P.z + (Math.random() - .5), { life: .6 }); return true; }
   return false;
 }
-function parkourHint() { const h = held(); if (!world.meta.map || !h || !h.pk) return; const t = PK_TOOLS.find(([n]) => keyName(h.k) == n); if (t) textC('§eRight-click: ' + t[1], UW / 2, UH - 82, '#FFFFFF'); }
+function parkourHint() { const h = held(); if (!pkMap() || !h || !h.pk) return; const t = PK_TOOLS.find(([n]) => keyName(h.k) == n); if (t) textC('§eRight-click: ' + t[1], UW / 2, UH - 82, '#FFFFFF'); }

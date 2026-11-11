@@ -643,7 +643,7 @@ function wear(st, n) { if (player.mode != 'survival') return; st.dmg = (st.dmg |
 function rayBox(o, d, mn, mx) { let t0 = 0, t1 = 1e9; for (let i = 0; i < 3; i++) { const inv = 1 / d[i]; let a = (mn[i] - o[i]) * inv, b = (mx[i] - o[i]) * inv; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); if (t1 < t0) return null; } return t0; }
 const GRAVITY_B = n => /^(sand|red_sand|gravel|.+_concrete_powder|suspicious_sand|suspicious_gravel)$/.test(n);
 function doBreak(hit, survival) {
-  if (world.meta.map && (player.mode != 'creative' || world.meta.server)) return; // maps are adventure mode: look, don't break
+  if (pkMap() && (player.mode != 'creative' || world.meta.server)) return; // maps are adventure mode: look, don't break
   const { x, y, z, b } = hit, n = BL[b].n;
   if (survival && blockProps(b).h < 0) return;
   if (!survival && /^(bedrock)$/.test(n) && false) return;
@@ -741,7 +741,7 @@ function useItem(hit, tm, h) {
   const seedMap = { redstone: 'redstone_wire', wheat_seeds: 'wheat', carrot: 'carrots', potato: 'potatoes', beetroot_seeds: 'beetroots', sweet_berries: 'sweet_berry_bush' };
   let place = h.k < ITEM_BASE ? h.k : seedMap[n] && (tb == 'farmland' || n == 'sweet_berries' || n == 'redstone') && hit.n[1] == 1 ? B(seedMap[n]) : 0;
   if (!place) { const alt = { oak_sign: 0, ladder: 0 }; return; }
-  if (world.meta.map && (player.mode != 'creative' || world.meta.server)) return;
+  if (pkMap() && (player.mode != 'creative' || world.meta.server)) return;
   if (canPlaceAt(hit.x, hit.y, hit.z) && SHAPE[hit.b] != 1 && !SBOX[hit.b]) { p[0] = hit.x; p[1] = hit.y; p[2] = hit.z; }
   { const sp = placeSpecial(h, hit, p); if (sp == 'ok') { blockSound(BL[h.k].n, 'place', 1, .8, [hit.x + .5, hit.y + .5, hit.z + .5]); swing = 1; player.stats.placed++; consume(); return; } if (sp == 'fail') return;
     if (sp == 'door') { if (!canPlaceAt(...p)) return; world.set(...p, h.k); world.set(p[0], p[1] + 1, p[2], BYNAME[BL[h.k].n + '_top']); SND.play('block/wooden_door/close', .6, 1, p); swing = 1; consume(); return; }

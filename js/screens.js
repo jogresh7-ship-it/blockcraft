@@ -164,7 +164,7 @@ function scrCreate() {
     if (button('Difficulty: ' + (c.mode == 'hardcore' ? 'Hard' : DIFFS[c.diff]), x, y + 90, 210, 20, c.mode != 'hardcore')) c.diff = (c.diff + 1) % 4;
     if (button('Allow Commands: ' + (c.cheats || c.mode == 'creative' ? 'ON' : 'OFF'), x, y + 114, 210, 20, c.mode != 'hardcore')) c.cheats = !c.cheats;
   } else if (c.tab == 1) {
-    if (button('World Type: ' + (c.map ? 'Spiral Parkour' : c.flat ? 'Superflat' : 'Default'), x, y, 210)) { if (c.map) { c.map = null; c.flat = false; } else if (c.flat) { c.flat = false; c.map = window.MAPS && MAPS.spiral ? 'spiral' : null; } else c.flat = true; }
+    if (button('World Type: ' + (c.map == 'grecos' ? 'Grecos' : c.map ? 'Spiral Parkour' : c.flat ? 'Superflat' : 'Default'), x, y, 210)) { if (c.map == 'spiral') { c.map = 'grecos'; if (!(window.MAPS && MAPS.grecos)) { c.mapLoading = 1; loadScript('maps/grecos.js').then(() => c.mapLoading = 0, () => { c.map = null; c.mapLoading = 0; }); } } else if (c.map) { c.map = null; c.flat = false; } else if (c.flat) { c.flat = false; c.map = window.MAPS && MAPS.spiral ? 'spiral' : null; } else c.flat = true; }
     text('Seed for the World Generator', x, y + 30, '#A0A0A0'); textField('wseed', c, 'seed', x, y + 42, 210, 20, 'Leave blank for a random seed');
     if (button('Generate Structures: ON', x, y + 70, 210, 20, false)) { }
   } else {
@@ -172,7 +172,7 @@ function scrCreate() {
     if (button('Data Packs', x, y + 24, 210, 20, false)) { }
     text('Textures: Faithful 32x', x, y + 56, '#A0A0A0', false);
   }
-  if (button('Create New World', UW / 2 - 155, UH - 28, 150)) createWorld(c);
+  if (button(c.mapLoading ? 'Loading map...' : 'Create New World', UW / 2 - 155, UH - 28, 150) && !c.mapLoading) createWorld(c);
   if (button('Cancel', UW / 2 + 5, UH - 28, 150)) go('worlds');
 }
 function seedOf(s) { if (!s) return (Math.random() * 2 ** 31) | 0; if (/^-?\d+$/.test(s)) return parseInt(s) | 0; let h = 0; for (const ch of s) h = (Math.imul(31, h) + ch.charCodeAt(0)) | 0; return h; }
