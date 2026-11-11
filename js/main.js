@@ -206,6 +206,7 @@ MOBDEF.witch.parts = [{box: [8, 10, 8], uv: [0, 0], pos: [0.0, 29.0, 0.0], head:
     ['zombie_horse', 'horse', 'mob_zombie_horse', { drop: [['item:rotten_flesh', 0, 2]] }], ['zoglin', 'hoglin', 'mob_zoglin', { drop: [['item:rotten_flesh', 1, 3]] }]])
     MOBDEF[n] = Object.assign({}, MOBDEF[base], { tex }, ext);
   MOBDEF.magma_cube = Object.assign({}, MOBDEF.slime, { tex: 'magmacube', drop: [['item:magma_cream', 0, 1]], burns: 0 });
+  MOBDEF.magma_cube.parts = [...Array.from({ length: 8 }, (_, i) => ({ box: [8, 1, 8], uv: i == 2 ? [24, 10] : i == 3 ? [24, 19] : [0, i], pos: [0, 24 - (16.5 + i), 0], mlayer: i })), { box: [4, 4, 4], uv: [0, 16], pos: [0, 4, 0] }]; // Java MagmaCubeModel: 8 slices around a core
 }
 MOBDEF.player = { tex: 'steve', w: .6, h: 1.8, hp: 20, parts: [...HUM(4, false, true), { box: [8, 12, 4], uv: [16, 32], pos: [0, 18, 0], inf: .25 }] };
 // ---- vex, ravager and ender dragon (geometry from the Java models, on the real textures) ----
@@ -465,6 +466,7 @@ function mobVsMob(m, D, dt) {
   }
 }
 function hurtMob(m, dmg, kx, kz, quiet) {
+  if (performance.now() - (S.pDmgAt || 0) < 30) m.pHit = performance.now(); // remember the player hit it (for kill credit)
   if (m.hurtT > 0) return; m.hp -= dmg; m.hurtT = .5; if (!MOBDEF[m.type].hostile && !/^(iron_golem|wolf|polar_bear|snow_golem)$/.test(m.type)) m.panic = 4; m.provoked = true; m.kx = kx * 8; m.kz = kz * 8; if (!quiet) m.vy = 5.5;
   const d = MOBDEF[m.type];
   if (d.neutral) for (const o of mobs) if (o.type == m.type && Math.hypot(o.x - m.x, o.z - m.z) < 16 && !o.tamed) o.provoked = true;
@@ -472,7 +474,7 @@ function hurtMob(m, dmg, kx, kz, quiet) {
     if (m.cont) for (const st of m.cont.slots) if (st) dropItem(st.k, st.c, m.x, m.y + .5, m.z); // chest minecarts spill what they hold
     if (m.kind && MOBDEF[m.type].cart) dropItem(itemKey(m.kind == 'chest' ? 'chest' : m.kind == 'hopper' ? 'hopper' : m.kind == 'tnt' ? 'tnt' : m.kind == 'furnace' ? 'furnace' : 'command_block'), 1, m.x, m.y + .5, m.z);
     if (d.slime && m.size > 1) for (let i = 0; i < 2 + (Math.random() * 3 | 0); i++) { const s = spawnMob('slime', m.x + (Math.random() - .5), m.y + .5, m.z + (Math.random() - .5)); s.size = m.size / 2; s.r = MOBDEF.slime.w / 2 * s.size; s.h = MOBDEF.slime.h * s.size; s.hp = 4 * s.size * s.size; }
-    m.dead = true; SND.play(d.death, 1, 1, [m.x, m.y, m.z]); player.stats.kills++; player.score++; award('kill'); earn(d.hostile ? 5 : 2, d.hostile ? 'Defeated a ' + m.type.replace(/_/g, ' ') : ''); addXp(MOBDEF[m.type].hostile ? 5 : 1 + (Math.random() * 3 | 0));
+    m.dead = true; SND.play(d.death, 1, 1, [m.x, m.y, m.z]); const byP = performance.now() - (m.pHit || -1e9) < 8000; if (byP) { player.stats.kills++; player.score++; award('kill'); earn(d.hostile ? 5 : 2, d.hostile ? 'Defeated a ' + m.type.replace(/_/g, ' ') : ''); addXp(MOBDEF[m.type].hostile ? 5 : 1 + (Math.random() * 3 | 0)); }
     for (const [n, a, b, cond] of d.drop) { if (cond == 'wool' && m.sheared) continue; const c = a + Math.floor(Math.random() * (b - a + 1)); if (c > 0) dropItem(itemKey(n), c * api.settings.dropMultiplier, m.x, m.y + .5, m.z); }
     for (let i = 0; i < 12; i++) particles.push({ x: m.x + (Math.random() - .5) * m.r * 2, y: m.y + Math.random() * m.h, z: m.z + (Math.random() - .5) * m.r * 2, vx: (Math.random() - .5), vy: Math.random() + .5, vz: (Math.random() - .5), life: .6 + Math.random() * .4, tile: TEX[BYNAME.light_gray_wool * 4], g: 0, s: .08 });
   } else SND.play(d.hurt, 1, 1.2, [m.x, m.y, m.z]);
@@ -614,8 +616,10 @@ function updatePlayer(dt) {
   let tm = null, tmd = hit ? hit.t : reach;
   if (!spect) for (const m of mobs) { const t = rayBox(eye, d, [m.x - m.r, m.y, m.z - m.r], [m.x + m.r, m.y + m.h, m.z + m.r]); if (t !== null && t < tmd && t < 3.5) { tm = m; tmd = t; } }
   P.targetMob = tm;
+  let tp = null; if (!spect && typeof netAvatarsFor == 'function' && NET.role) for (const av of netAvatarsFor()) { const t = rayBox(eye, d, [av.x - .3, av.y, av.z - .3], [av.x + .3, av.y + 1.8, av.z + .3]); if (t !== null && t < tmd && t < 3.5) { tp = av; tmd = t; tm = null; } }
+  if (tp && mouse.down && attackCd <= 0 && !spect) { attackCd = .5; swing = 1; const h = held(), crit = P.vy < -1 && !P.ground; netHitPlayer(tp, (attackDamage(h && h.k) + effStrength()) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); SND.play('random/hurt', .6, 1, [tp.x, tp.y, tp.z]); }
   if (mouse.down && !spect && !(performance.now() < (S.noBreak || 0))) {
-    if (tm && attackCd <= 0) { attackCd = .5; swing = 1; const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, (attackDamage(h && h.k) + effStrength()) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 10; i++) spark('critical_hit', tm.x, tm.y + tm.h * .7, tm.z, { vy: Math.random() * 3, spread: 4, life: .5, g: .6, s: .06 }); else spark('damage', tm.x, tm.y + tm.h * .8, tm.z, { vy: 1.5, spread: .4, life: .5, s: .07 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
+    if (tm && attackCd <= 0) { attackCd = .5; swing = 1; S.pDmgAt = performance.now(); const h = held(); { const crit = P.vy < -1 && !P.ground; hurtMob(tm, (attackDamage(h && h.k) + effStrength()) * (crit ? 1.5 : 1), d[0] * (P.sprint ? 1.6 : 1), d[2] * (P.sprint ? 1.6 : 1)); if (crit) for (let i = 0; i < 10; i++) spark('critical_hit', tm.x, tm.y + tm.h * .7, tm.z, { vy: Math.random() * 3, spread: 4, life: .5, g: .6, s: .06 }); else spark('damage', tm.x, tm.y + tm.h * .8, tm.z, { vy: 1.5, spread: .4, life: .5, s: .07 }); SND.play(crit ? 'random/successful_hit' : 'damage/hit', .4, 1.2); } P.exh += .1; if (h && toolInfo(h.k)) wear(h, toolInfo(h.k).type == 'sword' ? 1 : 2); breaking = null; }
     else if (hit && !tm) {
       if (creative) { if (attackCd <= 0) { attackCd = .25; const h = held(); if (!(h && toolInfo(h.k) && toolInfo(h.k).type == 'sword')) netBegin(); doBreak(hit, false); netEnd(hit); swing = 1; } }
       else {
@@ -854,7 +858,7 @@ function shootArrow(m, t) {
 function updateArrows(dt) {
   for (const a of arrows) {
     a.life -= dt; if (a.stuck) continue;
-    if (a.reflect === undefined) for (const mm of mobs) if (a.byPlayer && !mm.dead && Math.abs(a.x - mm.x) < mm.r + .2 && a.y > mm.y && a.y < mm.y + mm.h && Math.abs(a.z - mm.z) < mm.r + .2) { a.life = 0; if (a.onHit) a.onHit(mm, a.x, a.y, a.z); else hurtMob(mm, a.dmg ?? 6, a.vx / 20, a.vz / 20); }
+    if (a.reflect === undefined) for (const mm of mobs) if (a.byPlayer && !mm.dead && Math.abs(a.x - mm.x) < mm.r + .2 && a.y > mm.y && a.y < mm.y + mm.h && Math.abs(a.z - mm.z) < mm.r + .2) { a.life = 0; S.pDmgAt = performance.now(); if (a.onHit) a.onHit(mm, a.x, a.y, a.z); else hurtMob(mm, a.dmg ?? 6, a.vx / 20, a.vz / 20); }
     if (!a.fire) a.vy -= (a.grav ?? 20) * dt; else if (Math.random() < .5) particles.push({ x: a.x, y: a.y, z: a.z, vx: 0, vy: .3, vz: 0, life: .4, tile: TEX[B('gray_wool') * 4], g: 0, s: .15 }); const nx = a.x + a.vx * dt, ny = a.y + a.vy * dt, nz = a.z + a.vz * dt;
     if (a.fire && (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] || Math.hypot(nx - player.x, ny - player.y - 1, nz - player.z) < 1.2)) { a.life = 0; explode(nx, ny, nz, 1.6, .5); continue; }
     if (a.onHit && (SOLID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] || FLUID[world.get(Math.floor(nx), Math.floor(ny), Math.floor(nz))] && a.wet)) { a.life = 0; a.onHit(null, a.x, a.y, a.z); continue; }
@@ -1143,6 +1147,8 @@ function renderEntities(sk) {
       if (p.tail && m.tamed) { ay += Math.sin(t * 12) * .5; ax = .9 - (1 - (m.hp || 8) / 20) * .5; } // happy tail
       if (p.tail && D0.horse) { ay += Math.sin(t * 1.3 + m.x) * .25; }
       let pvv = pv, off = null;
+      if (D0.anim && p.bn && D0.anim.f[p.bn]) { const F = D0.anim.f[p.bn], n = F.length, sp = D0.water && m.inW ? 1.4 : Math.min(1.2, .25 + Math.hypot(m.vx || 0, m.vz || 0)), x = ((t * sp / D0.anim.dur) % 1) * n, i = Math.floor(x) % n, k = x - Math.floor(x), j = (i + 1) % n; ax += F[i][0] + (F[j][0] - F[i][0]) * k; ay += F[i][1] + (F[j][1] - F[i][1]) * k; rzv += F[i][2] + (F[j][2] - F[i][2]) * k; pvv = p.bp; } // clip-driven mobs (axolotl swim)
+      if (p.mlayer !== undefined) off = [0, (4 - p.mlayer) * (m.sq || 0) * 1.7, 0]; // magma cube slices spread as it bounces
       if (m.type == 'player' && window.PANIM && pk.sneak < .02 && pk.swim < .02 && pk.glide < .02 && pk.sit < .02) { // idle + walking cycles from the Osk1 "Minecraft Idle and Walking animation" (CC-BY 4.0)
         const key = p.head ? 'head' : p.arm !== undefined ? (p.pos[0] > 0 ? 'rarm' : 'larm') : p.leg !== undefined ? (p.pos[0] > 0 ? 'rleg' : 'lleg') : 'body';
         const v = Math.hypot(m.vx || 0, m.vz || 0), spd = Math.min(1, v / 2.5), run = m.sprinting || v > 4.8 ? 1 : 0;

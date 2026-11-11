@@ -51,6 +51,7 @@ function netHostData(id, c, d) {
   if (d.t == 'p') { d.id = id; netAvatar(d); netBroadcast(d, id); return; }
   if (d.t == 'b') { netApplyBlocks(d); netBroadcast(d, id); return; }
   if (d.t == 'chat') { chat(d.msg); netBroadcast(d, id); return; }
+  if (d.t == 'hit') { if (d.to == NET.myId) netGotHit(d); else { const c2 = NET.conns.get(d.to); if (c2) netSend(c2, d); } return; }
 }
 // ---- joining ----
 async function netJoin(code) {
@@ -81,6 +82,7 @@ function netClientData(d) {
   if (d.t == 'p') netAvatar(d);
   else if (d.t == 'b') netApplyBlocks(d);
   else if (d.t == 'chat') chat(d.msg);
+  else if (d.t == 'hit' && d.to == NET.myId) netGotHit(d);
   else if (d.t == 'time' && world) { world.meta.time = d.v; world.meta.rain = d.rain; }
   else if (d.t == 'bye') { const a = NET.avatars.get(d.id); if (a) chat('§e' + a.name + ' left the game'); NET.avatars.delete(d.id); }
   else if (d.t == 'mobs' && world && typeof mobs != 'undefined') netMobs(d.list);
@@ -276,3 +278,9 @@ function drawBotOverlay() {
 function netAutoStart() {
   try { const q = new URLSearchParams(location.search), n = q.get('server'); if (n) setTimeout(() => netServer(n, q.get('bot') == '1'), 300); } catch (e) { }
 }
+
+// ---- PvP: hitting another player sends them the damage; the host relays it ----
+function netHitPlayer(av, dmg, kx, kz) { const msg = { t: 'hit', to: av.id, from: player.name, dmg, kx, kz };
+  if (NET.role == 'host') { const c = NET.conns.get(av.id); if (c) netSend(c, msg); } else netSend(NET.host, msg); }
+function netGotHit(d) { if (!player || player.dead || player.mode != 'survival' && player.mode != 'hardcore') return;
+  player.vx += (d.kx || 0) * 6; player.vz += (d.kz || 0) * 6; player.vy = Math.max(player.vy, 4); hurtPlayer(Math.min(40, +d.dmg || 1), 'was slain by ' + String(d.from || 'a player').slice(0, 24)); }

@@ -53,6 +53,7 @@ def convert(name, ident=None, tags=None, skip=(), crot=None, brot=None):
             R = [[m[i][j] for j in range(3)] for i in range(3)]
             if any(abs(R[i][j] - (1 if i == j else 0)) > 1e-6 for i in range(3) for j in range(3)):
                 p['rq'] = [round(R[0][0], 5), round(R[1][0], 5), round(R[2][0], 5), round(R[0][1], 5), round(R[1][1], 5), round(R[2][1], 5), round(R[0][2], 5), round(R[1][2], 5), round(R[2][2], 5)]
+            p['bn'] = b['name']; p['bp'] = [round(v, 4) for v in app(world(B[b['name']].get('parent')) if B[b['name']].get('parent') in B else I4, b.get('pivot', [0, 0, 0]))]
             if c.get('inflate'): p['inf'] = c['inflate']
             if c.get('mirror', b.get('mirror')): p['mir'] = 1
             # animation tags from the bone chain
