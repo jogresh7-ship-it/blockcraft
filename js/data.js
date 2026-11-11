@@ -12,7 +12,7 @@ function blockProps(id) {
   if (BL[id].slab && BYNAME[BL[id].slab]) return blockProps(BYNAME[BL[id].slab]);
   if (/_door|_trapdoor/.test(n)) return /iron|copper/.test(n) ? { h: 5, tool: 'pickaxe', tier: 0 } : { h: 3, tool: 'axe' };
   if (FLUID[id]) return { h: -1 };
-  if (/^(bedrock|command_block|chain_command_block|repeating_command_block|barrier|end_portal_frame|jigsaw|structure_block|reinforced_deepslate|nether_portal|light)$/.test(n) || /command_block/.test(n)) return { h: -1 };
+  if (/^(bedrock|command_block|chain_command_block|repeating_command_block|barrier|end_portal_frame|jigsaw|structure_block|reinforced_deepslate|nether_portal|end_portal|end_gateway|light)$/.test(n) || /command_block/.test(n)) return { h: -1 };
   if (SHAPE[id] == 2 || /^(tnt|fire|soul_fire|sugar_cane|kelp|kelp_plant)$/.test(n)) return { h: 0 };
   if (SHAPE[id] == 3 || SHAPE[id] == 4) return { h: -1 };
   if (/obsidian|ancient_debris|netherite_block|respawn_anchor/.test(n)) return { h: 50, tool: 'pickaxe', tier: 3 };
@@ -77,6 +77,9 @@ function drops(id, held) {
   if (n == 'carrots') return [[I('item:carrot'), 2 + Math.floor(r * 3)]];
   if (n == 'potatoes') return [[I('item:potato'), 2 + Math.floor(r * 3)]];
   if (n == 'beetroots') return [[I('item:beetroot'), 1], [I('item:beetroot_seeds'), 1 + Math.floor(r * 2)]];
+  if (n == 'cocoa') return [[I('item:cocoa_beans'), 2 + Math.floor(r * 2)]];
+  if (n == 'nether_wart') return [[id, 2 + Math.floor(r * 3)]];
+  if (n == 'torchflower_crop') return [[I('item:torchflower_seeds'), 1]];
   if (n == 'sweet_berry_bush') return [[I('item:sweet_berries'), 2 + Math.floor(r * 2)]];
   if (/^(fire|soul_fire|cobweb|dead_bush|seagrass|kelp_plant)$/.test(n)) return n == 'cobweb' && t && t.type == 'sword' ? [[I('item:string'), 1]] : n == 'kelp_plant' ? [[I('kelp') || id, 1]] : n == 'dead_bush' ? [[I('item:stick'), Math.floor(r * 3)]] : [];
   return [[id, 1]];

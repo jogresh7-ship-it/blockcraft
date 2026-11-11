@@ -333,7 +333,8 @@ function updateMobs(dt) {
     if (m.yawT !== undefined) { let d = m.yawT - m.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); m.yaw += d * Math.min(1, dt * 6); }
     const sp = m.mv * 1.1 * (m.speedMul || 1); const inW = SHAPE[world.get(Math.floor(m.x), Math.floor(m.y + .3), Math.floor(m.z))] == 3;
     m.vx = -Math.sin(m.yaw) * sp; m.vz = -Math.cos(m.yaw) * sp; m.vx += m.kx || 0; m.vz += m.kz || 0; m.kx = (m.kx || 0) * .8; m.kz = (m.kz || 0) * .8;
-    if (D.fly) { const fh = D.flyH ?? 6, gy = (world.topY(Math.floor(m.x), Math.floor(m.z)) || 30) + (D.boss ? 20 : D.flyH ? 2 : 12); m.vy = clamp((gy - m.y) * .5, -3, 3); if (m.target || m.mt) { const tg = m.target || m.mt; m.vy = clamp((tg.y + (m.dive > 0 ? .5 : fh) - m.y) * .8, -6, 6); } }
+    if (D.water && inW) { if (m.swimY == null || Math.random() < dt * .3) m.swimY = m.y + (Math.random() - .5) * 3; m.vy = clamp((m.swimY - m.y) * 1.5, -2, 2); }
+    else if (D.fly) { const fh = D.flyH ?? 6, gy = (world.topY(Math.floor(m.x), Math.floor(m.z)) || 30) + (D.boss ? 20 : D.flyH ? 2 : 12); m.vy = clamp((gy - m.y) * .5, -3, 3); if (m.target || m.mt) { const tg = m.target || m.mt; m.vy = clamp((tg.y + (m.dive > 0 ? .5 : fh) - m.y) * .8, -6, 6); } }
     else m.vy = inW ? Math.min(m.vy + 12 * dt, 1.5) : m.vy - 28 * dt;
     if (D.slime && !m.target) { m.mv = 0; if (m.ground && Math.random() < dt * .4) { m.vy = 6; m.kx = -Math.sin(m.yaw) * 1.5; m.kz = -Math.cos(m.yaw) * 1.5; m.yawT = Math.random() * 6.28; } }
     if (D.noclip) { m.x += m.vx * dt; m.y += m.vy * dt; m.z += m.vz * dt; m.ground = false; m.walk += Math.hypot(m.vx, m.vz) * dt * 3; continue; }
@@ -346,7 +347,7 @@ function updateMobs(dt) {
     if (m.mv && m.ground && D.step && (m.stepT = (m.stepT || 0) - dt) <= 0) { m.stepT = .5; SND.play(MOBDEF[m.type].step, .15, 1, [m.x, m.y, m.z]); }
     if (m.y < -10) m.dead = true;
   }
-  mobs = mobs.filter(m => !m.dead && Math.hypot(m.x - player.x, m.z - player.z) < (MOBDEF[m.type].hostile ? 100 : 160) && !(MOBDEF[m.type].hostile && world.meta.diff == 0));
+  mobs = mobs.filter(m => !m.dead && (m.persist || MOBDEF[m.type].boss || Math.hypot(m.x - player.x, m.z - player.z) < (MOBDEF[m.type].hostile ? 100 : 160)) && !(MOBDEF[m.type].hostile && world.meta.diff == 0));
   updateArrows(dt); hostileSpawn(dt);
 }
 // ---- minecarts: ride along rails, round curves and up slopes; powered rails push, unpowered ones brake ----
@@ -480,7 +481,7 @@ function naturalSpawn(c) {
   if (NET.role == 'client') return; // the host's mobs are streamed in
   if (mobs.length > 40 || world.meta.flat && Math.random() < .5) return;
   const H = world.N.hash(c.cx, 1234, c.cz); if (H > .12) return;
-  if (world.dim == 'nether') return;
+  if (world.dim != 'overworld' && world.dim) return;
   const bio = world.biome(c.cx * 16 + 8, c.cz * 16 + 8), types = /mountain|peak|slope/.test(bio) ? ['goat', 'sheep'] : /snowy|frozen/.test(bio) ? ['polar_bear', 'sheep', 'goat'] : /taiga|forest/.test(bio) ? ['pig', 'cow', 'sheep', 'wolf', 'chicken'] : /plains|savanna|meadow/.test(bio) ? ['pig', 'cow', 'sheep', 'chicken', 'horse', 'donkey'] : ['pig', 'cow', 'sheep', 'chicken'], t = types[Math.floor(world.N.hash(c.cx, 99, c.cz) * types.length)], n = t == 'wolf' || t == 'polar_bear' || t == 'horse' || t == 'donkey' ? 2 + Math.floor(H * 10) : 2 + Math.floor(H * 20);
   for (let i = 0; i < n; i++) {
     const lx = Math.floor(world.N.hash(c.cx, i, c.cz) * 16), lz = Math.floor(world.N.hash(c.cx, i + 50, c.cz) * 16), x = c.cx * 16 + lx, z = c.cz * 16 + lz;
@@ -653,13 +654,14 @@ function doBreak(hit, survival) {
     if (BL[world.get(ox, y, oz)]?.bed) { world.set(ox, y, oz, 0); delete world.state[ox + ',' + y + ',' + oz]; } }
   if (BL[b].top) { const below = world.get(x, y - 1, z); if (BYNAME[BL[below]?.n + '_top'] == b) { world.set(x, y - 1, z, 0); if (survival) for (const [k, c] of drops(below, held() && held().k)) dropItem(k, c, x + .5, y - .5, z + .5); } }
   modEmit('blockBreak', x, y, z, n);
+  const mature = typeof isMature != 'function' || isMature(b, x, y, z), age0 = typeof ageOf == 'function' ? ageOf(x, y, z) : null; if (!mature) delete world.state[x + ',' + y + ',' + z];
   world.set(x, y, z, 0); player.stats.mined++; player.exh += .005; if (survival && player.stats.mined % 10 == 0) earn(1);
   blockSound(n, 'break', 1, .8 + Math.random() * .2, [x + .5, y + .5, z + .5]);
   spawnBreakParticles(hit, 14);
   const ck = [x, y, z].join(','), cont = world.containers[ck];
   if (cont) { for (const s of cont.slots) if (s) dropItem(s.k, s.c, x + .5, y + .5, z + .5); delete world.containers[ck]; }
   if (survival) {
-    const h = held(); for (const [k, c] of drops(b, h && h.k)) if (k && c) dropItem(k, c * api.settings.dropMultiplier, x + .5, y + .3, z + .5);
+    const h = held(); for (const [k, c] of (mature ? drops(b, h && h.k) : immatureDrops(b, age0))) if (k && c) dropItem(k, c * api.settings.dropMultiplier, x + .5, y + .3, z + .5);
     if (h && toolInfo(h.k) && blockProps(b).h > 0) wear(h, 1);
     if (/_ore$/.test(n) && !/iron|gold|copper/.test(n)) addXp(n.includes('coal') ? 1 : 3 + (Math.random() * 3 | 0));
   }
@@ -722,6 +724,7 @@ function useItem(hit, tm, h) {
     if (/^(chest|barrel)$/.test(tb) || /shulker_box$|_chest$/.test(tb)) { const ck = tb == 'ender_chest' ? 'ender' : key; S.cont = world.containers[ck] || (world.containers[ck] = { type: 'chest', slots: Array(27).fill(null) }); S.contName = prettyName(hit.b); S.cpos = [hit.x, hit.y, hit.z]; if (BL[hit.b].chestlike || tb == 'barrel') lidOpen(hit.x, hit.y, hit.z, 1); SND.play(tb == 'barrel' ? 'block/barrel/open' : 'chestopen', .5); go('chest'); return; }
     if (tb == 'tnt' && /flint_and_steel|fire_charge/.test(n)) { world.set(hit.x, hit.y, hit.z, 0); tnts.push({ x: hit.x + .5, y: hit.y, z: hit.z + .5, vx: 0, vy: 3, vz: 0, r: .49, h: .98, fuse: 4 }); SND.play('fuse'); wear(h, 1); return; }
     if (tb == 'note_block') { SND.play('note/harp', 1, Math.pow(2, ((world.N.hash(hit.x, hit.y, hit.z) * 24 | 0) - 12) / 12)); return; }
+    if (typeof useCrop == 'function' && useCrop(hit.x, hit.y, hit.z)) { swing = 1; return; }
     if (tb == 'jukebox') { chat('§7Insert a music disc... (not available)'); return; }
   }
   if (!h) return;
@@ -730,6 +733,7 @@ function useItem(hit, tm, h) {
   if (/_shovel$/.test(n) && tb == 'grass_block' && hit.n[1] == 1) { world.set(hit.x, hit.y, hit.z, B('dirt_path')); SND.play('item/shovel/flatten', 1); wear(h, 1); swing = 1; return; }
   if (/_axe$/.test(n) && BYNAME['stripped_' + tb]) { world.set(hit.x, hit.y, hit.z, BYNAME['stripped_' + tb]); SND.play('item/axe/strip', 1); wear(h, 1); swing = 1; return; }
   if (n == 'bone_meal') {
+    if (typeof boneMealCrop == 'function' && boneMealCrop(hit.x, hit.y, hit.z)) { consume(); SND.play('item/bonemeal/bonemeal', 1); swing = 1; return; }
     if (/_sapling$/.test(tb)) { const bio = tb.startsWith('birch') ? 'birch' : tb.startsWith('spruce') ? 'taiga' : tb.startsWith('cherry') ? 'cherry' : tb.startsWith('jungle') ? 'jungle' : tb.startsWith('acacia') ? 'savanna' : 'plains'; world.set(hit.x, hit.y, hit.z, 0); growTree(hit.x, hit.y, hit.z, bio); consume(); SND.play('item/bonemeal/bonemeal', 1); return; }
     if (tb == 'grass_block') { for (let i = 0; i < 14; i++) { const x = hit.x + Math.round((Math.random() - .5) * 6), z = hit.z + Math.round((Math.random() - .5) * 6); if (world.get(x, hit.y, z) == B('grass_block') && !world.get(x, hit.y + 1, z)) world.set(x, hit.y + 1, z, Math.random() < .8 ? B('short_grass') : B(['poppy', 'dandelion', 'cornflower'][Math.random() * 3 | 0])); } consume(); for (let i = 0; i < 8; i++) particles.push({ x: hit.x + Math.random(), y: hit.y + 1.2, z: hit.z + Math.random(), vx: 0, vy: .5, vz: 0, life: 1, tile: TEX[B('lime_wool') * 4], g: 0, s: .05 }); return; }
   }
@@ -738,8 +742,8 @@ function useItem(hit, tm, h) {
   if (n == 'flint_and_steel' && tb == 'obsidian' && tryPortal(...p)) { wear(h, 1); return; }
   if (n == 'flint_and_steel') { if (canPlaceAt(...p) && SOLID[world.get(p[0], p[1] - 1, p[2])]) { world.set(...p, B('fire')); SND.play('fire/ignite', 1); wear(h, 1); } return; }
   // seeds
-  const seedMap = { redstone: 'redstone_wire', wheat_seeds: 'wheat', carrot: 'carrots', potato: 'potatoes', beetroot_seeds: 'beetroots', sweet_berries: 'sweet_berry_bush' };
-  let place = h.k < ITEM_BASE ? h.k : seedMap[n] && (tb == 'farmland' || n == 'sweet_berries' || n == 'redstone') && hit.n[1] == 1 ? B(seedMap[n]) : 0;
+  const seedMap = { redstone: 'redstone_wire', wheat_seeds: 'wheat', carrot: 'carrots', potato: 'potatoes', beetroot_seeds: 'beetroots', sweet_berries: 'sweet_berry_bush', torchflower_seeds: 'torchflower_crop', melon_seeds: 'melon_stem', pumpkin_seeds: 'pumpkin_stem', pitcher_pod: 'pitcher_crop', cocoa_beans: 'cocoa' };
+  let place = h.k < ITEM_BASE ? h.k : seedMap[n] && (tb == 'farmland' && hit.n[1] == 1 || n == 'sweet_berries' && hit.n[1] == 1 && /^(grass_block|dirt|coarse_dirt|podzol|farmland|moss_block)$/.test(tb) || n == 'redstone' && hit.n[1] == 1 || n == 'cocoa_beans' && /^jungle_(log|wood)$|^stripped_jungle_(log|wood)$/.test(tb) && hit.n[1] == 0) ? B(seedMap[n]) : 0;
   if (!place) { const alt = { oak_sign: 0, ladder: 0 }; return; }
   if (pkMap() && (player.mode != 'creative' || world.meta.server)) return;
   if (canPlaceAt(hit.x, hit.y, hit.z) && SHAPE[hit.b] != 1 && !SBOX[hit.b]) { p[0] = hit.x; p[1] = hit.y; p[2] = hit.z; }
@@ -750,6 +754,7 @@ function useItem(hit, tm, h) {
   let wallFacing = null;
   { const pn = BL[place].n, WALL = { torch: 'wall_torch', soul_torch: 'soul_wall_torch', redstone_torch: 'redstone_wall_torch', copper_torch: 'copper_wall_torch' };
     const wn = WALL[pn] || (/_coral_fan$/.test(pn) ? pn.replace('_coral_fan', '_coral_wall_fan') : /_hanging_sign$/.test(pn) && !/_wall_/.test(pn) ? pn.replace('_hanging_sign', '_wall_hanging_sign') : /_sign$/.test(pn) && !/hanging|_wall_/.test(pn) ? pn.replace('_sign', '_wall_sign') : /_banner$/.test(pn) && !/_wall_/.test(pn) ? pn.replace('_banner', '_wall_banner') : /(_head|_skull)$/.test(pn) && !/_wall_/.test(pn) ? pn.replace(/_(head|skull)$/, '_wall_$1') : BL[place].fyw ? pn : null);
+    if (pn == 'cocoa' && hit.n[1] == 0) wallFacing = hit.n[0] > 0 ? 'west' : hit.n[0] < 0 ? 'east' : hit.n[2] > 0 ? 'north' : 'south';
     if (wn && BYNAME[wn] && hit.n[1] == 0) { place = BYNAME[wn]; wallFacing = hit.n[0] > 0 ? 'east' : hit.n[0] < 0 ? 'west' : hit.n[2] > 0 ? 'south' : 'north'; } }
   if (!canPlaceAt(...p) || p[1] < 0 || p[1] >= WH) return;
   // only small things that sit on something need a block under them (any block, not just full cubes); everything else can go anywhere
@@ -770,7 +775,9 @@ function useItem(hit, tm, h) {
   if (BL[place].bed) { const f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north'), D = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] }[look];
     bedHead = [p[0] + D[0], p[1], p[2] + D[1], look]; if (!canPlaceAt(bedHead[0], bedHead[1], bedHead[2]) || !BYNAME[BL[place].n + '_head']) return; }
   world.set(...p, place); if (TOP) world.set(p[0], p[1] + 1, p[2], TOP); rsPlaced(...p, place); rsNotify(...p); swing = 1; player.stats.placed++;
-  if (wallFacing && BL[place].fy) world.state[p.join(',')] = { fd: wallFacing, fr: BL[place].fy[wallFacing] };
+  if (typeof golemCheck == 'function') golemCheck(p[0], p[1], p[2], place);
+  delete world.state[p.join(',')]; if (typeof STAGE_DEF != 'undefined' && STAGE_DEF[BL[place].n]) world.state[p.join(',')] = { age: 0 };
+  if (wallFacing && BL[place].fy) world.state[p.join(',')] = Object.assign(world.state[p.join(',')] || {}, { fd: wallFacing, fr: BL[place].fy[wallFacing] });
   { // upside-down stairs, buttons on walls/ceilings, hanging lanterns
     const B0 = BL[place], key0 = p.join(','), st0 = world.state[key0] || {}, f = fwd(), look = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 'east' : 'west') : (f[2] > 0 ? 'south' : 'north');
     const side = hit.n[0] > 0 ? 'east' : hit.n[0] < 0 ? 'west' : hit.n[2] > 0 ? 'south' : hit.n[2] < 0 ? 'north' : null;
@@ -872,7 +879,10 @@ function hostileSpawn(dt) {
     const c = world.chunk(x >> 4, z >> 4); if (!c.L) return; const l = c.L[lidx(x & 15, y, z & 15)]; if ((l >> 4) > 4 || (l & 15) > 0) return;
   }
   let types = ['zombie', 'zombie', 'skeleton', 'creeper', 'spider', 'enderman']; if (y < 40 && Math.random() < .25) types = ['slime'];
-  if (world.dim == 'nether') { types = Math.random() < .2 ? ['ghast'] : ['zombified_piglin']; if (types[0] == 'ghast') y = y + 8; }
+  if (world.dim != 'nether' && night && y > 50 && Math.random() < .06 && MOBDEF.phantom) { types = ['phantom']; y += 20; }
+  if (world.dim != 'nether' && night && /pale_garden/.test(world.biome(x, z)) && Math.random() < .3 && MOBDEF.creaking) types = ['creaking'];
+  if (world.dim == 'end') { types = ['enderman']; y = world.topY(x, z) + 1; if (y < 30) return; }
+  else if (world.dim == 'nether') { types = Math.random() < .2 ? ['ghast'] : ['zombified_piglin']; if (types[0] == 'ghast') y = y + 8; }
   const t = types[Math.random() * types.length | 0];
   if (world.collides(x + .5, y, z + .5, MOBDEF[t].w / 2, MOBDEF[t].h)) return;
   spawnMob(t, x + .5, y, z + .5);
@@ -895,9 +905,9 @@ function spawnEatParticles(k) {
 }
 // ---------------- world tick ----------------
 function updateWorld(dt) {
-  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); lidTick(dt); effTick(dt); cloudTick(dt); mapTriggers(dt); fishTick(dt); rocketTick(dt); if (player.fish) drawFishLine(); netTick(dt);
-  if (world.dim == 'nether') m.rain = false;
-  m.weatherT -= dt; if (m.weatherT <= 0 && world.dim != 'nether') { m.rain = !m.rain && Math.random() < .5; m.thunder = m.rain && Math.random() < .3; m.weatherT = m.rain ? 300 + Math.random() * 400 : 600 + Math.random() * 1200; SND.setRain(m.rain); }
+  const m = world.meta; m.time = (m.time + dt * 20 * api.settings.timeScale) % 24000; player.stats.time += dt; modEmit('tick', dt); lidTick(dt); effTick(dt); cloudTick(dt); mapTriggers(dt); if (typeof randomTicks == 'function') randomTicks(dt); fishTick(dt); rocketTick(dt); if (player.fish) drawFishLine(); netTick(dt);
+  if (world.dim == 'nether' || world.dim == 'end') m.rain = false;
+  m.weatherT -= dt; if (m.weatherT <= 0 && world.dim != 'nether' && world.dim != 'end') { m.rain = !m.rain && Math.random() < .5; m.thunder = m.rain && Math.random() < .3; m.weatherT = m.rain ? 300 + Math.random() * 400 : 600 + Math.random() * 1200; SND.setRain(m.rain); }
   if (m.thunder && Math.random() < dt / 20) { S.flash = .3; setTimeout(() => SND.play('thunder', .7), 600); }
   tickFurnaces(dt); rsTick(dt); fluidTick(dt); updateFalling(dt);
   // chunk loading
@@ -934,6 +944,7 @@ function cloudData() { // the cloud texture as an on/off grid (from the active r
   for (let i = 0; i < 65536; i++) a[i] = p[i * 4 + 3] > 100 ? 1 : 0; dyn.c3key = null; return cloudData.d = { w: 256, a }; }
 function dynMesh(name, arr) { dyn[name] = mkMesh(new Float32Array(arr), dyn[name]); return dyn[name]; }
 function skyState() {
+  if (world && world.dim == 'end') return { a: 0, day: .32, sky: [.05, .03, .09], fog: [.09, .06, .13], sunset: 0, nether: 1, end: 1 };
   if (world && world.dim == 'nether') return { a: 0, day: 0, sky: [.2, .03, .03], fog: [.2, .04, .03], sunset: 0, nether: 1 };
   const t = world ? world.meta.time : 6000, a = (t / 24000) * Math.PI * 2, sy = Math.sin(a);
   let day = clamp(sy * 2.5 + .5, 0, 1); if (world && world.meta.rain) day *= .7;
@@ -1120,6 +1131,8 @@ function renderEntities(sk) {
       if (p.wing) rzv += p.wing * (m.ground === false || m.vy < -1 ? .6 + Math.sin(t * 28) * .6 : 0); // chickens flap while falling
       if (p.orbit) ay += t * 1.6 * (p.orbit > 0 ? 1 : -1); // blaze rods circle the body
       if (p.vw) ay += p.vw * (.5 + Math.sin(t * 18) * .35); // vex wings flutter
+      if (p.flap) rzv += p.flap * (D0.fly ? Math.sin(t * (D0.tw <= 32 ? 30 : 22)) * .7 : Math.sin(t * 2) * .05); // wings (bees, parrots, phantoms)
+      if (p.wag) ay += Math.sin(t * (D0.water ? 9 : 4) + m.x) * (D0.water ? .35 : .15); // tails and fins
       if (p.bw) ay += p.bw * Math.cos(t * 13) * Math.PI * .25; // bat wings beat forward and back around the shoulder (Java BatModel), never past the body
       if (p.dwing) rzv += Math.sign(p.dwing) * Math.sin(t * 2.2) * .5; // dragon wing beats
       if (p.dleg !== undefined) ax -= (p.dleg ? 1.15 : .9) + Math.sin(t * 2.2 + p.dleg) * .08; // dragon legs hang back while it flies
@@ -1148,6 +1161,7 @@ function renderEntities(sk) {
       }
       let M = M4.chain(base, off ? M4.trans(off[0], off[1], off[2]) : ID, M4.trans(...pvv), M4.ry(ay), M4.rz(rzv), M4.rx(ax), M4.trans(p.pos[0] - pvv[0], p.pos[1] - pvv[1], p.pos[2] - pvv[2]));
       if (p.rot) M = M4.mul(M, M4.rx(p.rot[0]));
+      if (p.rq) { if (!p.rqM) { const q = p.rq, R = M4.ident(); R[0] = q[0]; R[1] = q[1]; R[2] = q[2]; R[4] = q[3]; R[5] = q[4]; R[6] = q[5]; R[8] = q[6]; R[9] = q[7]; R[10] = q[8]; p.rqM = R; } M = M4.mul(M, p.rqM); }
       if (m.fuse > 0) { const s = 1 + (1.5 - m.fuse) * .1; M = M4.chain(M4.trans(m.x, m.y, m.z), M4.scale(s, s, s), M4.trans(-m.x, -m.y, -m.z), M); }
       const tx = p.tex == 'ghast' && m.shootT > 0 ? 'ghast_shooting' : p.tex == 'wolf' && m.tamed ? 'wolf_tame' : p.tex == 'wolf' && m.provoked ? 'wolf_angry' : p.tex;
       const txs = m.skinTex && (p.tex || 'steve') == MOBDEF.player.tex ? m.skinTex : null;

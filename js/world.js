@@ -511,6 +511,7 @@ class World {
     const TV = (t, lx, lz) => { if (TCOR && SMK[t]) return t; const g = bgrp[lx + lz * 16]; if (!g) return t; const v = TVMAP[t]; return v ? v[g] ?? t : t; };
     for (let y = 0; y < WH; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       let b = d[lidx(x, y, z)]; if (!b) continue; let sh = SHAPE[b]; const wx = x0 + x, wz = z0 + z;
+      TREMAP = typeof STAGE_DEF != 'undefined' && STAGE_DEF[BL[b].n] ? stageRemap(b, this.state[wx + ',' + y + ',' + wz]) : null;
       if (sh == 2) { // cross
         const l = getL(x, y, z), uv = tileUV(TV(TEX[b * 4], x, z)), ll = [1, lv(l >> 4), EMIT[b] ? 1 : lv(l & 15)];
         const o = out[0], j = (this.N.hash(wx, 0, wz) - .5) * .3;
@@ -591,6 +592,7 @@ class World {
         pushQuad(out[sh == 3 ? 2 : sh == 4 ? 3 : ALPHA[b] == 2 ? 1 : 0], C, U, LL);
       }
     }
+    TREMAP = null;
     for (let i = 0; i < 2; i++) { const o = out[i]; // encode the biome tint into the shade channel: (code+1)*2 + shade; negative = sways (shader pack)
       for (let v = 0; v < o.length; v += 8) { const t = Math.floor(o[v + 3] * REG.cols) + Math.floor(o[v + 4] * REG.rows) * REG.cols, k = TCOR && SMK[t], wv = WAVE[t];
         if (wv && !k) { const top = wv == 2 || (o[v + 4] * REG.rows) % 1 < .5; if (top) o[v + 5] = -((16 * 1024 + 15 * 32 + 15 + 1) * 2 + Math.min(1.99, o[v + 5])); continue; }

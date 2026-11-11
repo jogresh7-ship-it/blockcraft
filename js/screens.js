@@ -474,9 +474,10 @@ function tickFurnaces(dt) {
 }
 // ---- creative inventory ----
 let CTABS;
+const isReal = n => !window.REAL_ITEMS || REAL_ITEMS.has(n) || /^(clock_00|compass_00|recovery_compass_00|crossbow_standby|shield)$/.test(n); // only things that exist as items in real Minecraft
 function buildCreativeTabs() {
-  const blocks = BL.slice(1).filter(b => !['water', 'lava', 'fire', 'soul_fire', 'nether_portal', 'redstone_wire'].includes(b.n) && !b.hide && !b.top);
-  const items = ITEMS.map((n, i) => ({ n, k: ITEM_BASE + i })).filter(it => !BYNAME[it.n]);
+  const blocks = BL.slice(1).filter(b => !['water', 'lava', 'fire', 'soul_fire', 'nether_portal', 'redstone_wire'].includes(b.n) && !b.hide && !b.top && isReal(b.n));
+  const items = ITEMS.map((n, i) => ({ n, k: ITEM_BASE + i })).filter(it => !BYNAME[it.n] && isReal(it.n));
   const isColored = n => /(white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_(wool|concrete|concrete_powder|terracotta|glazed_terracotta|stained_glass|shulker_box|candle)$|^terracotta$|^glass$|^tinted_glass$|^candle$|^shulker_box$/.test(n);
   const isNatural = n => /(_ore$|leaves|sapling|_log$|stem$|^dirt|grass|sand$|gravel|clay|snow|ice|flower|tulip|poppy|dandelion|allium|bluet|orchid|daisy|cornflower|lily|rose|bush|fern|mushroom|coral|kelp|seagrass|sugar_cane|cactus|pumpkin|melon|moss|mud$|podzol|mycelium|nylium|netherrack|basalt|blackstone$|end_stone$|obsidian|bedrock|amethyst|dripstone|calcite|tuff$|deepslate$|^stone$|granite$|diorite$|andesite$|fungus|roots|vines|wart|sprouts|propagule|eyeblossom|torchflower|dry_grass|shrub|wheat|carrots|potatoes|beetroots|berry|lilac|peony|sunflower|azalea|cobweb|bone_block|magma|soul_s|glowstone|crying|sculk$|ancient_debris|sponge|hay_block|bamboo_stalk|sulfur$|cinnabar$|honeycomb)/.test(n);
   const isFunc = n => /(crafting_table|furnace|smoker|chest|barrel|anvil|grindstone|stonecutter|cartography|fletching|smithing|loom|lectern|enchanting|bookshelf|composter|cauldron|beacon|lodestone|respawn|bee|torch|lantern|chain|bars|jukebox|note_block|campfire|crafter|vault|trial_spawner|spawner|end_portal_frame|dragon_egg|heavy_core|creaking_heart|candle|froglight|sea_lantern|shroomlight|jack_o|end_rod|conduit)/.test(n);
